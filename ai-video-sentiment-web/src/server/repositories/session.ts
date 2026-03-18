@@ -319,6 +319,15 @@ export async function getEmotionHeatmap(
   }));
 }
 
+export async function deleteSession(
+  sessionId: string,
+  userId: string,
+): Promise<void> {
+  await db.analysisSession.delete({
+    where: { id: sessionId, userId },
+  });
+}
+
 export async function updateSessionEmployee(
   sessionId: string,
   userId: string,
