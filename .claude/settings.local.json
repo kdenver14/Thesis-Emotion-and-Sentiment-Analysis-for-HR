@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python3 -c \":*)",
+      "Bash(python3:*)",
+      "Bash(pip3 install:*)",
+      "Bash(xargs ls:*)",
+      "Bash(ls -la /Users/denver/Desktop/thesis/ai-video-sentiment-model/*.py)",
+      "Bash(npm run:*)",
+      "Bash(npm uninstall:*)",
+      "Bash(pip3 show:*)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:8000/docs)",
+      "Bash(npm install:*)",
+      "Bash(npx prisma:*)",
+      "Bash(node:*)"
+    ]
+  }
+}

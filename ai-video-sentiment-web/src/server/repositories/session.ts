@@ -1,0 +1,376 @@
+import { db } from "~/server/db";
+import type { Score } from "~/types/analysis";
+
+export interface ParsedUtterance {
+  id: string;
+  startTime: number;
+  endTime: number;
+  text: string;
+  emotions: Score[];
+  sentiments: Score[];
+}
+
+export interface ParsedSession {
+  id: string;
+  title: string;
+  sessionType: string;
+  sessionDate: Date;
+  topEmotion: string;
+  topSentiment: string;
+  avgEmotions: Score[];
+  avgSentiments: Score[];
+  summary: string;
+  engagementScore: number;
+  durationSecs: number | null;
+  createdAt: Date;
+  employeeId: string | null;
+  employee: { id: string; name: string; department: string | null } | null;
+  utteranceCount?: number;
+}
+
+export interface ParsedSessionWithUtterances extends ParsedSession {
+  utterances: ParsedUtterance[];
+}
+
+export interface SessionStats {
+  totalSessions: number;
+  avgEngagementScore: number;
+  mostCommonEmotion: string;
+  sentimentBreakdown: { positive: number; neutral: number; negative: number };
+}
+
+export interface SessionFilters {
+  employeeId?: string;
+  sessionType?: string;
+  from?: Date;
+  to?: Date;
+}
+
+export interface TrendPoint {
+  date: string;
+  positive: number;
+  neutral: number;
+  negative: number;
+  avgEngagement: number;
+}
+
+export interface EmotionTrendRow {
+  date: string;
+  emotions: Record<string, number>;
+}
+
+function parseSession(raw: {
+  id: string;
+  title: string;
+  sessionType: string;
+  sessionDate: Date;
+  topEmotion: string;
+  topSentiment: string;
+  avgEmotions: string;
+  avgSentiments: string;
+  summary: string;
+  engagementScore: number;
+  durationSecs: number | null;
+  createdAt: Date;
+  employeeId: string | null;
+  employee: { id: string; name: string; department: string | null } | null;
+  _count?: { utterances: number };
+}): ParsedSession {
+  return {
+    id: raw.id,
+    title: raw.title,
+    sessionType: raw.sessionType,
+    sessionDate: raw.sessionDate,
+    topEmotion: raw.topEmotion,
+    topSentiment: raw.topSentiment,
+    avgEmotions: JSON.parse(raw.avgEmotions) as Score[],
+    avgSentiments: JSON.parse(raw.avgSentiments) as Score[],
+    summary: raw.summary,
+    engagementScore: raw.engagementScore,
+    durationSecs: raw.durationSecs,
+    createdAt: raw.createdAt,
+    employeeId: raw.employeeId,
+    employee: raw.employee,
+    utteranceCount: raw._count?.utterances,
+  };
+}
+
+const SESSION_SELECT = {
+  id: true,
+  title: true,
+  sessionType: true,
+  sessionDate: true,
+  topEmotion: true,
+  topSentiment: true,
+  avgEmotions: true,
+  avgSentiments: true,
+  summary: true,
+  engagementScore: true,
+  durationSecs: true,
+  createdAt: true,
+  employeeId: true,
+  employee: {
+    select: { id: true, name: true, department: true },
+  },
+  _count: { select: { utterances: true } },
+} as const;
+
+export async function getSessionsByUser(
+  userId: string,
+  filters: SessionFilters = {},
+): Promise<ParsedSession[]> {
+  const where: Record<string, unknown> = { userId };
+  if (filters.employeeId) where.employeeId = filters.employeeId;
+  if (filters.sessionType) where.sessionType = filters.sessionType;
+  if (filters.from ?? filters.to) {
+    where.sessionDate = {
+      ...(filters.from ? { gte: filters.from } : {}),
+      ...(filters.to ? { lte: filters.to } : {}),
+    };
+  }
+
+  const rows = await db.analysisSession.findMany({
+    where,
+    select: SESSION_SELECT,
+    orderBy: { sessionDate: "desc" },
+  });
+
+  return rows.map(parseSession);
+}
+
+export async function getSessionById(
+  sessionId: string,
+  userId: string,
+): Promise<ParsedSessionWithUtterances | null> {
+  const row = await db.analysisSession.findFirst({
+    where: { id: sessionId, userId },
+    select: {
+      ...SESSION_SELECT,
+      utterances: {
+        select: {
+          id: true,
+          startTime: true,
+          endTime: true,
+          text: true,
+          emotions: true,
+          sentiments: true,
+        },
+        orderBy: { startTime: "asc" },
+      },
+    },
+  });
+
+  if (!row) return null;
+
+  const base = parseSession(row);
+  const utterances: ParsedUtterance[] = row.utterances.map((u) => ({
+    id: u.id,
+    startTime: u.startTime,
+    endTime: u.endTime,
+    text: u.text,
+    emotions: JSON.parse(u.emotions) as Score[],
+    sentiments: JSON.parse(u.sentiments) as Score[],
+  }));
+
+  return { ...base, utterances };
+}
+
+export async function getSessionStats(userId: string): Promise<SessionStats> {
+  const sessions = await db.analysisSession.findMany({
+    where: { userId },
+    select: {
+      topEmotion: true,
+      topSentiment: true,
+      engagementScore: true,
+    },
+  });
+
+  const total = sessions.length;
+
+  if (total === 0) {
+    return {
+      totalSessions: 0,
+      avgEngagementScore: 0,
+      mostCommonEmotion: "neutral",
+      sentimentBreakdown: { positive: 0, neutral: 0, negative: 0 },
+    };
+  }
+
+  const emotionCounts: Record<string, number> = {};
+  const sentimentCounts = { positive: 0, neutral: 0, negative: 0 };
+  let totalEngagement = 0;
+
+  for (const s of sessions) {
+    emotionCounts[s.topEmotion] = (emotionCounts[s.topEmotion] ?? 0) + 1;
+    if (s.topSentiment in sentimentCounts) {
+      sentimentCounts[s.topSentiment as keyof typeof sentimentCounts]++;
+    }
+    totalEngagement += s.engagementScore;
+  }
+
+  const mostCommonEmotion =
+    Object.entries(emotionCounts).sort((a, b) => b[1] - a[1])[0]?.[0] ??
+    "neutral";
+
+  return {
+    totalSessions: total,
+    avgEngagementScore: Math.round(totalEngagement / total),
+    mostCommonEmotion,
+    sentimentBreakdown: {
+      positive: Math.round((sentimentCounts.positive / total) * 100),
+      neutral: Math.round((sentimentCounts.neutral / total) * 100),
+      negative: Math.round((sentimentCounts.negative / total) * 100),
+    },
+  };
+}
+
+export async function getEmotionTrendsOverTime(
+  userId: string,
+  days: number,
+): Promise<TrendPoint[]> {
+  const since = new Date();
+  since.setDate(since.getDate() - days);
+
+  const sessions = await db.analysisSession.findMany({
+    where: { userId, sessionDate: { gte: since } },
+    select: {
+      sessionDate: true,
+      avgSentiments: true,
+      engagementScore: true,
+    },
+    orderBy: { sessionDate: "asc" },
+  });
+
+  // Group by date (YYYY-MM-DD)
+  const byDate = new Map<
+    string,
+    { positive: number[]; neutral: number[]; negative: number[]; engagement: number[] }
+  >();
+
+  for (const s of sessions) {
+    const key = s.sessionDate.toISOString().slice(0, 10);
+    if (!byDate.has(key)) {
+      byDate.set(key, {
+        positive: [],
+        neutral: [],
+        negative: [],
+        engagement: [],
+      });
+    }
+    const entry = byDate.get(key)!;
+    const scores = JSON.parse(s.avgSentiments) as Score[];
+    for (const score of scores) {
+      if (score.label === "positive") entry.positive.push(score.confidence);
+      else if (score.label === "neutral") entry.neutral.push(score.confidence);
+      else if (score.label === "negative") entry.negative.push(score.confidence);
+    }
+    entry.engagement.push(s.engagementScore);
+  }
+
+  const avg = (arr: number[]) =>
+    arr.length === 0 ? 0 : arr.reduce((a, b) => a + b, 0) / arr.length;
+
+  return Array.from(byDate.entries()).map(([date, v]) => ({
+    date,
+    positive: parseFloat((avg(v.positive) * 100).toFixed(1)),
+    neutral: parseFloat((avg(v.neutral) * 100).toFixed(1)),
+    negative: parseFloat((avg(v.negative) * 100).toFixed(1)),
+    avgEngagement: Math.round(avg(v.engagement)),
+  }));
+}
+
+export async function getEmotionHeatmap(
+  userId: string,
+  days: number,
+): Promise<EmotionTrendRow[]> {
+  const since = new Date();
+  since.setDate(since.getDate() - days);
+
+  const sessions = await db.analysisSession.findMany({
+    where: { userId, sessionDate: { gte: since } },
+    select: { sessionDate: true, avgEmotions: true },
+    orderBy: { sessionDate: "asc" },
+  });
+
+  const byDate = new Map<string, Record<string, number[]>>();
+
+  for (const s of sessions) {
+    const key = s.sessionDate.toISOString().slice(0, 10);
+    if (!byDate.has(key)) byDate.set(key, {});
+    const entry = byDate.get(key)!;
+    const emotions = JSON.parse(s.avgEmotions) as Score[];
+    for (const e of emotions) {
+      if (!entry[e.label]) entry[e.label] = [];
+      entry[e.label]!.push(e.confidence);
+    }
+  }
+
+  const avg = (arr: number[]) =>
+    arr.length === 0 ? 0 : arr.reduce((a, b) => a + b, 0) / arr.length;
+
+  return Array.from(byDate.entries()).map(([date, emotionMap]) => ({
+    date,
+    emotions: Object.fromEntries(
+      Object.entries(emotionMap).map(([label, vals]) => [
+        label,
+        parseFloat((avg(vals) * 100).toFixed(1)),
+      ]),
+    ),
+  }));
+}
+
+export async function updateSessionEmployee(
+  sessionId: string,
+  userId: string,
+  employeeId: string | null,
+): Promise<void> {
+  await db.analysisSession.update({
+    where: { id: sessionId, userId },
+    data: { employeeId },
+  });
+}
+
+export async function getSessionTypeBreakdown(userId: string) {
+  const sessions = await db.analysisSession.findMany({
+    where: { userId },
+    select: { sessionType: true, avgEmotions: true, avgSentiments: true },
+  });
+
+  const byType = new Map<string, { emotions: Record<string, number[]>; sentiments: Record<string, number[]> }>();
+
+  for (const s of sessions) {
+    if (!byType.has(s.sessionType)) {
+      byType.set(s.sessionType, { emotions: {}, sentiments: {} });
+    }
+    const entry = byType.get(s.sessionType)!;
+    const emotions = JSON.parse(s.avgEmotions) as Score[];
+    const sentiments = JSON.parse(s.avgSentiments) as Score[];
+    for (const e of emotions) {
+      if (!entry.emotions[e.label]) entry.emotions[e.label] = [];
+      entry.emotions[e.label]!.push(e.confidence);
+    }
+    for (const sv of sentiments) {
+      if (!entry.sentiments[sv.label]) entry.sentiments[sv.label] = [];
+      entry.sentiments[sv.label]!.push(sv.confidence);
+    }
+  }
+
+  const avg = (arr: number[]) =>
+    arr.length === 0 ? 0 : arr.reduce((a, b) => a + b, 0) / arr.length;
+
+  return Array.from(byType.entries()).map(([sessionType, v]) => ({
+    sessionType,
+    emotions: Object.fromEntries(
+      Object.entries(v.emotions).map(([label, vals]) => [
+        label,
+        parseFloat((avg(vals) * 100).toFixed(1)),
+      ]),
+    ),
+    sentiments: Object.fromEntries(
+      Object.entries(v.sentiments).map(([label, vals]) => [
+        label,
+        parseFloat((avg(vals) * 100).toFixed(1)),
+      ]),
+    ),
+  }));
+}
