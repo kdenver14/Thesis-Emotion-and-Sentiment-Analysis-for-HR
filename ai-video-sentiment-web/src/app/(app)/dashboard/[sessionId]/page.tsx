@@ -8,6 +8,7 @@ import { SessionSummary } from "~/components/client/SessionSummary";
 import { EmotionBarChart } from "~/components/client/charts/EmotionBarChart";
 import { EmotionTimeline } from "~/components/client/charts/EmotionTimeline";
 import { ExportButtons } from "~/components/client/ExportButtons";
+import { DeleteSessionButton } from "./DeleteSessionButton";
 import { SESSION_TYPE_LABELS } from "~/types/analysis";
 
 interface PageProps {
@@ -61,7 +62,10 @@ export default async function SessionDetailPage({ params }: PageProps) {
               )}
             </div>
           </div>
-          <ExportButtons sessionId={session.id} />
+          <div className="flex items-center gap-2">
+            <ExportButtons sessionId={session.id} />
+            <DeleteSessionButton sessionId={session.id} />
+          </div>
         </div>
       </div>
 
