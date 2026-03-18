@@ -8,6 +8,7 @@ import {
   getEmotionTrendsOverTime,
   getEmotionHeatmap,
   getSessionTypeBreakdown,
+  deleteSession,
   updateSessionEmployee,
   type SessionFilters,
   type ParsedSession,
@@ -66,6 +67,12 @@ export async function getTypeBreakdown() {
   const session = await auth();
   if (!session?.user?.id) return [];
   return getSessionTypeBreakdown(session.user.id);
+}
+
+export async function removeSession(sessionId: string): Promise<void> {
+  const session = await auth();
+  if (!session?.user?.id) throw new Error("Unauthorized");
+  await deleteSession(sessionId, session.user.id);
 }
 
 export async function assignSessionEmployee(
