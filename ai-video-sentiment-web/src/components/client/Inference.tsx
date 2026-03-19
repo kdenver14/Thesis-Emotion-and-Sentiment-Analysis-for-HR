@@ -1,48 +1,75 @@
 "use client";
 
-import { useState } from "react";
-import Link from "next/link";
-import { FiExternalLink } from "react-icons/fi";
-import UploadVideo from "./UploadVideo";
+import { useState, useRef } from "react";
+import { useRouter } from "next/navigation";
+import { FiCheck, FiUpload, FiFile, FiX } from "react-icons/fi";
 import type { EmployeeRow } from "~/server/repositories/employee";
 import type { SessionType } from "~/types/analysis";
 import { SESSION_TYPES, SESSION_TYPE_LABELS } from "~/types/analysis";
 
-const EMOTION_EMOJI: Record<string, string> = {
-  anger: "😡",
-  disgust: "🤢",
-  fear: "😨",
-  joy: "😄",
-  neutral: "😐",
-  sadness: "😢",
-  surprise: "😲",
-};
+type Step = 1 | 2 | 3;
 
-const SENTIMENT_EMOJI: Record<string, string> = {
-  negative: "😡",
-  neutral: "😐",
-  positive: "😄",
-};
-
-export type Analysis = {
-  sessionId: string;
-  analysis: {
-    utterances: Array<{
-      start_time: number;
-      end_time: number;
-      text: string;
-      emotions: Array<{ label: string; confidence: number }>;
-      sentiments: Array<{ label: string; confidence: number }>;
-    }>;
-  };
-};
+const STEPS: { n: Step; label: string }[] = [
+  { n: 1, label: "Candidate Info" },
+  { n: 2, label: "Upload Video" },
+  { n: 3, label: "Review & Submit" },
+];
 
 interface InferenceProps {
   employees: EmployeeRow[];
 }
 
+function StepIndicator({ current }: { current: Step }) {
+  return (
+    <div className="flex items-center gap-0">
+      {STEPS.map(({ n, label }, i) => {
+        const done = n < current;
+        const active = n === current;
+        return (
+          <div key={n} className="flex items-center">
+            <div className="flex flex-col items-center gap-1">
+              <div
+                className={`flex h-8 w-8 items-center justify-center rounded-full border-2 text-sm font-semibold transition-colors ${
+                  done
+                    ? "border-slate-700 bg-slate-700 text-white"
+                    : active
+                      ? "border-slate-700 bg-white text-slate-700"
+                      : "border-gray-200 bg-white text-gray-400"
+                }`}
+              >
+                {done ? <FiCheck className="h-4 w-4" /> : n}
+              </div>
+              <span
+                className={`whitespace-nowrap text-xs font-medium ${
+                  active ? "text-slate-700" : done ? "text-slate-500" : "text-gray-400"
+                }`}
+              >
+                {label}
+              </span>
+            </div>
+            {i < STEPS.length - 1 && (
+              <div
+                className={`mx-3 mb-5 h-0.5 w-16 sm:w-24 ${
+                  n < current ? "bg-slate-700" : "bg-gray-200"
+                }`}
+              />
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+const inputCls =
+  "rounded-md border border-gray-200 px-3 py-2 text-sm focus:border-gray-400 focus:outline-none w-full";
+const labelCls = "text-xs font-medium text-gray-500";
+
 export function Inference({ employees }: InferenceProps) {
-  const [analysis, setAnalysis] = useState<Analysis | null>(null);
+  const router = useRouter();
+  const [step, setStep] = useState<Step>(1);
+
+  // Step 1 fields
   const [title, setTitle] = useState("");
   const [sessionType, setSessionType] = useState<SessionType>("general");
   const [employeeId, setEmployeeId] = useState("");
@@ -50,232 +77,295 @@ export function Inference({ employees }: InferenceProps) {
     new Date().toISOString().slice(0, 10),
   );
 
-  const getAverageScores = () => {
-    if (!analysis?.analysis.utterances.length) return null;
+  // Step 2 fields
+  const [file, setFile] = useState<File | null>(null);
+  const [dragOver, setDragOver] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-    const emotionScores: Record<string, number[]> = {};
-    const sentimentScores: Record<string, number[]> = {};
+  // Step 3 state
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-    analysis.analysis.utterances.forEach((utterance) => {
-      utterance.emotions.forEach((emotion) => {
-        if (!emotionScores[emotion.label]) emotionScores[emotion.label] = [];
-        emotionScores[emotion.label]!.push(emotion.confidence);
-      });
-      utterance.sentiments.forEach((sentiment) => {
-        if (!sentimentScores[sentiment.label])
-          sentimentScores[sentiment.label] = [];
-        sentimentScores[sentiment.label]!.push(sentiment.confidence);
-      });
-    });
+  const resolvedTitle = title.trim() || `Session ${new Date().toLocaleDateString("en-GB")}`;
+  const selectedEmployee = employees.find((e) => e.id === employeeId) ?? null;
 
-    const avgEmotions = Object.entries(emotionScores).map(
-      ([label, scores]) => ({
-        label,
-        confidence: scores.reduce((a, b) => a + b, 0) / scores.length,
-      }),
-    );
-
-    const avgSentiments = Object.entries(sentimentScores).map(
-      ([label, scores]) => ({
-        label,
-        confidence: scores.reduce((a, b) => a + b, 0) / scores.length,
-      }),
-    );
-
-    const topEmotion = avgEmotions.sort(
-      (a, b) => b.confidence - a.confidence,
-    )[0];
-    const topSentiment = avgSentiments.sort(
-      (a, b) => b.confidence - a.confidence,
-    )[0];
-
-    return { topEmotion, topSentiment };
+  const handleFileSelect = (f: File) => {
+    setFile(f);
   };
 
-  const averages = getAverageScores();
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragOver(false);
+    const f = e.dataTransfer.files[0];
+    if (f) handleFileSelect(f);
+  };
 
-  const metadata = {
-    title: title || `Session ${new Date().toLocaleDateString("en-GB")}`,
-    sessionType,
-    employeeId: employeeId || undefined,
-    sessionDate: sessionDate ? new Date(sessionDate).toISOString() : undefined,
+  const handleSubmit = async () => {
+    if (!file) return;
+    setSubmitting(true);
+    setError(null);
+
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("title", resolvedTitle);
+      formData.append("sessionType", sessionType);
+      if (employeeId) formData.append("employeeId", employeeId);
+      if (sessionDate)
+        formData.append("sessionDate", new Date(sessionDate).toISOString());
+
+      const res = await fetch("/api/sentiment-inference", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!res.ok) {
+        const data = (await res.json()) as { error?: string };
+        throw new Error(data.error ?? "Analysis failed");
+      }
+
+      const result = (await res.json()) as { sessionId: string };
+      router.push(`/dashboard/${result.sessionId}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Upload failed");
+      setSubmitting(false);
+    }
   };
 
   return (
-    <div className="flex h-fit w-full max-w-2xl flex-col gap-3">
-      <div className="flex flex-col gap-2 rounded-xl border border-gray-200 p-4">
-        <h3 className="text-sm font-medium text-slate-700">Session details</h3>
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-          <div className="flex flex-col gap-1">
-            <label className="text-xs text-gray-500">Title</label>
-            <input
-              type="text"
-              placeholder="Session title"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              className="rounded-md border border-gray-200 px-3 py-1.5 text-sm focus:border-gray-400 focus:outline-none"
-            />
-          </div>
-          <div className="flex flex-col gap-1">
-            <label className="text-xs text-gray-500">Type</label>
-            <select
-              value={sessionType}
-              onChange={(e) => setSessionType(e.target.value as SessionType)}
-              className="rounded-md border border-gray-200 px-3 py-1.5 text-sm focus:border-gray-400 focus:outline-none"
-            >
-              {SESSION_TYPES.map((t) => (
-                <option key={t} value={t}>
-                  {SESSION_TYPE_LABELS[t]}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="flex flex-col gap-1">
-            <label className="text-xs text-gray-500">Employee (optional)</label>
-            <select
-              value={employeeId}
-              onChange={(e) => setEmployeeId(e.target.value)}
-              className="rounded-md border border-gray-200 px-3 py-1.5 text-sm focus:border-gray-400 focus:outline-none"
-            >
-              <option value="">— none —</option>
-              {employees.map((emp) => (
-                <option key={emp.id} value={emp.id}>
-                  {emp.name}
-                  {emp.department ? ` (${emp.department})` : ""}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="flex flex-col gap-1">
-            <label className="text-xs text-gray-500">Date</label>
-            <input
-              type="date"
-              value={sessionDate}
-              onChange={(e) => setSessionDate(e.target.value)}
-              className="rounded-md border border-gray-200 px-3 py-1.5 text-sm focus:border-gray-400 focus:outline-none"
-            />
-          </div>
-        </div>
+    <div className="flex w-full max-w-xl flex-col gap-8">
+      {/* Header */}
+      <div>
+        <h1 className="text-2xl font-semibold text-gray-900">New Assessment</h1>
+        <p className="mt-1 text-sm text-gray-500">
+          Upload a session recording for AI sentiment analysis.
+        </p>
       </div>
 
-      <UploadVideo onAnalysis={setAnalysis} metadata={metadata} />
+      {/* Step indicator */}
+      <StepIndicator current={step} />
 
-      {analysis?.sessionId && (
-        <Link
-          href={`/dashboard/${analysis.sessionId}`}
-          className="flex items-center gap-1.5 self-start rounded-md bg-gray-800 px-3 py-2 text-sm text-white hover:bg-gray-700"
-        >
-          <FiExternalLink className="h-4 w-4" />
-          View in Dashboard
-        </Link>
-      )}
-
-      <h2 className="mt-2 text-sm text-slate-800">Overall analysis</h2>
-      {averages ? (
-        <div className="flex h-fit w-full flex-wrap items-center justify-center gap-4 rounded-xl border border-gray-200 p-4 sm:gap-8 sm:px-6">
-          <div className="flex flex-col items-center">
-            <span className="text-sm">Primary emotion</span>
-            <span className="text-[40px]">
-              {EMOTION_EMOJI[averages.topEmotion?.label ?? ""]}
-            </span>
-            <span className="text-sm text-gray-500">
-              {averages.topEmotion?.confidence.toFixed(3)} (
-              {((averages.topEmotion?.confidence ?? 0) * 100).toFixed(0)}%)
-            </span>
+      {/* Step 1 — Candidate Info */}
+      {step === 1 && (
+        <div className="card flex flex-col gap-5 p-6">
+          <div>
+            <h2 className="text-base font-semibold text-gray-900">Candidate Info</h2>
+            <p className="mt-0.5 text-sm text-gray-500">
+              Provide details about the assessment session.
+            </p>
           </div>
-          <div className="flex flex-col items-center">
-            <span className="text-sm">Primary Sentiment</span>
-            <span className="text-[40px]">
-              {SENTIMENT_EMOJI[averages.topSentiment?.label ?? ""]}
-            </span>
-            <span className="text-sm text-gray-500">
-              {averages.topSentiment?.confidence.toFixed(3)} (
-              {((averages.topSentiment?.confidence ?? 0) * 100).toFixed(0)}%)
-            </span>
-          </div>
-        </div>
-      ) : (
-        <div className="flex h-32 w-full items-center justify-center rounded-xl border border-dashed border-gray-200 p-4">
-          <span className="text-sm text-gray-400">
-            Upload a video to see overall analysis
-          </span>
-        </div>
-      )}
 
-      <h2 className="mt-2 text-sm text-slate-800">Analysis of utterances</h2>
-      {analysis ? (
-        <div className="flex max-h-[480px] flex-col gap-2 overflow-y-auto pr-1">
-          {analysis.analysis.utterances.map((utterance) => (
-            <div
-              key={
-                utterance.start_time.toString() + utterance.end_time.toString()
-              }
-              className="flex h-fit w-full flex-wrap justify-between gap-8 rounded-xl border border-gray-200 px-6 py-4 sm:gap-4"
-            >
-              <div className="flex w-full max-w-24 flex-col justify-center">
-                <div className="text-sm font-semibold">
-                  {Number(utterance.start_time).toFixed(1)} -{" "}
-                  {Number(utterance.end_time).toFixed(1)}
-                </div>
-                <div className="mt-1 text-xs text-gray-500">
-                  {utterance.text}
-                </div>
+          <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-1.5">
+              <label className={labelCls}>Session title</label>
+              <input
+                type="text"
+                placeholder={`Session ${new Date().toLocaleDateString("en-GB")}`}
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                className={inputCls}
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="flex flex-col gap-1.5">
+                <label className={labelCls}>Session type</label>
+                <select
+                  value={sessionType}
+                  onChange={(e) => setSessionType(e.target.value as SessionType)}
+                  className={inputCls}
+                >
+                  {SESSION_TYPES.map((t) => (
+                    <option key={t} value={t}>
+                      {SESSION_TYPE_LABELS[t]}
+                    </option>
+                  ))}
+                </select>
               </div>
 
-              <div className="flex w-full max-w-48 flex-col gap-2">
-                <span className="text-sm font-medium">Emotions</span>
-                {utterance.emotions.map((emo) => (
-                  <div key={emo.label} className="flex items-center gap-2">
-                    <span className="w-16 whitespace-nowrap text-xs text-gray-500">
-                      {EMOTION_EMOJI[emo.label]} {emo.label}
-                    </span>
-                    <div className="flex-1">
-                      <div className="h-1 w-full rounded-full bg-gray-100">
-                        <div
-                          style={{ width: `${emo.confidence * 100}%` }}
-                          className="h-1 rounded-full bg-gray-800"
-                        />
-                      </div>
-                      <span className="w-8 text-right text-xs">
-                        {(emo.confidence * 100).toFixed(0)}%
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              <div className="flex w-full max-w-48 flex-col gap-2">
-                <span className="text-sm font-medium">Sentiments</span>
-                {utterance.sentiments.map((sentiment) => (
-                  <div
-                    key={sentiment.label}
-                    className="flex items-center gap-2"
-                  >
-                    <span className="w-16 whitespace-nowrap text-xs text-gray-500">
-                      {SENTIMENT_EMOJI[sentiment.label]} {sentiment.label}
-                    </span>
-                    <div className="flex-1">
-                      <div className="h-1 w-full rounded-full bg-gray-100">
-                        <div
-                          style={{ width: `${sentiment.confidence * 100}%` }}
-                          className="h-1 rounded-full bg-gray-800"
-                        />
-                      </div>
-                      <span className="w-8 text-right text-xs">
-                        {(sentiment.confidence * 100).toFixed(0)}%
-                      </span>
-                    </div>
-                  </div>
-                ))}
+              <div className="flex flex-col gap-1.5">
+                <label className={labelCls}>Date</label>
+                <input
+                  type="date"
+                  value={sessionDate}
+                  onChange={(e) => setSessionDate(e.target.value)}
+                  className={inputCls}
+                />
               </div>
             </div>
-          ))}
+
+            <div className="flex flex-col gap-1.5">
+              <label className={labelCls}>Candidate (optional)</label>
+              <select
+                value={employeeId}
+                onChange={(e) => setEmployeeId(e.target.value)}
+                className={inputCls}
+              >
+                <option value="">— unassigned —</option>
+                {employees.map((emp) => (
+                  <option key={emp.id} value={emp.id}>
+                    {emp.name}
+                    {emp.department ? ` · ${emp.department}` : ""}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div className="flex justify-end">
+            <button onClick={() => setStep(2)} className="btn-primary">
+              Next: Upload Video →
+            </button>
+          </div>
         </div>
-      ) : (
-        <div className="flex h-32 w-full items-center justify-center rounded-xl border border-dashed border-gray-200 p-4">
-          <span className="text-sm text-gray-400">
-            Upload a video to see analysis results
-          </span>
+      )}
+
+      {/* Step 2 — Upload Video */}
+      {step === 2 && (
+        <div className="card flex flex-col gap-5 p-6">
+          <div>
+            <h2 className="text-base font-semibold text-gray-900">Upload Video</h2>
+            <p className="mt-0.5 text-sm text-gray-500">
+              Select the recording to analyse. MP4, MOV, and AVI are supported.
+            </p>
+          </div>
+
+          {file ? (
+            <div className="flex items-center gap-3 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3">
+              <FiFile className="h-5 w-5 shrink-0 text-slate-500" />
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium text-gray-800">{file.name}</p>
+                <p className="text-xs text-gray-400">
+                  {(file.size / 1024 / 1024).toFixed(1)} MB
+                </p>
+              </div>
+              <button
+                onClick={() => setFile(null)}
+                className="shrink-0 rounded p-1 text-gray-400 hover:bg-gray-200 hover:text-gray-600"
+                aria-label="Remove file"
+              >
+                <FiX className="h-4 w-4" />
+              </button>
+            </div>
+          ) : (
+            <div
+              onDragOver={(e) => {
+                e.preventDefault();
+                setDragOver(true);
+              }}
+              onDragLeave={() => setDragOver(false)}
+              onDrop={handleDrop}
+              onClick={() => fileInputRef.current?.click()}
+              className={`flex cursor-pointer flex-col items-center gap-3 rounded-xl border-2 border-dashed p-10 transition-colors ${
+                dragOver
+                  ? "border-slate-400 bg-slate-50"
+                  : "border-gray-200 hover:border-gray-300 hover:bg-gray-50"
+              }`}
+            >
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gray-100">
+                <FiUpload className="h-5 w-5 text-gray-400" />
+              </div>
+              <div className="text-center">
+                <p className="text-sm font-medium text-gray-700">
+                  Drop your video here, or{" "}
+                  <span className="text-slate-700 underline">browse</span>
+                </p>
+                <p className="mt-0.5 text-xs text-gray-400">MP4, MOV, AVI</p>
+              </div>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="video/mp4,video/mov,video/avi"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) handleFileSelect(f);
+                }}
+              />
+            </div>
+          )}
+
+          <div className="flex justify-between">
+            <button onClick={() => setStep(1)} className="btn-outline">
+              ← Back
+            </button>
+            <button
+              onClick={() => setStep(3)}
+              disabled={!file}
+              className="btn-primary disabled:opacity-40"
+            >
+              Next: Review →
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Step 3 — Review & Submit */}
+      {step === 3 && (
+        <div className="card flex flex-col gap-5 p-6">
+          <div>
+            <h2 className="text-base font-semibold text-gray-900">Review & Submit</h2>
+            <p className="mt-0.5 text-sm text-gray-500">
+              Confirm the details before starting analysis.
+            </p>
+          </div>
+
+          <dl className="flex flex-col divide-y divide-gray-100 rounded-lg border border-gray-200">
+            {[
+              { label: "Title", value: resolvedTitle },
+              { label: "Session type", value: SESSION_TYPE_LABELS[sessionType] },
+              {
+                label: "Candidate",
+                value: selectedEmployee
+                  ? `${selectedEmployee.name}${selectedEmployee.department ? ` · ${selectedEmployee.department}` : ""}`
+                  : "Unassigned",
+              },
+              {
+                label: "Date",
+                value: sessionDate
+                  ? new Date(sessionDate).toLocaleDateString("en-GB", {
+                      day: "numeric",
+                      month: "short",
+                      year: "numeric",
+                    })
+                  : "—",
+              },
+              {
+                label: "Video file",
+                value: file?.name ?? "—",
+              },
+            ].map(({ label, value }) => (
+              <div key={label} className="flex items-baseline gap-4 px-4 py-3">
+                <dt className="w-28 shrink-0 text-xs font-medium text-gray-500">
+                  {label}
+                </dt>
+                <dd className="min-w-0 truncate text-sm text-gray-800">{value}</dd>
+              </div>
+            ))}
+          </dl>
+
+          {error && (
+            <p className="rounded-lg bg-red-50 px-4 py-2 text-sm text-red-600">
+              {error}
+            </p>
+          )}
+
+          <div className="flex justify-between">
+            <button
+              onClick={() => setStep(2)}
+              disabled={submitting}
+              className="btn-outline disabled:opacity-40"
+            >
+              ← Back
+            </button>
+            <button
+              onClick={handleSubmit}
+              disabled={submitting}
+              className="btn-primary disabled:opacity-60"
+            >
+              {submitting ? "Analysing…" : "Start analysis"}
+            </button>
+          </div>
         </div>
       )}
     </div>

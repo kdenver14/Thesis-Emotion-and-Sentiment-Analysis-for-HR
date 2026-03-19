@@ -4,7 +4,11 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { addEmployee } from "~/actions/employees";
 
-export function AddEmployeeForm() {
+interface AddEmployeeFormProps {
+  onSuccess?: () => void;
+}
+
+export function AddEmployeeForm({ onSuccess }: AddEmployeeFormProps) {
   const router = useRouter();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -31,6 +35,7 @@ export function AddEmployeeForm() {
       setEmail("");
       setDepartment("");
       router.refresh();
+      onSuccess?.();
     }
     setLoading(false);
   };
@@ -72,9 +77,9 @@ export function AddEmployeeForm() {
       <button
         type="submit"
         disabled={loading || !name.trim()}
-        className="rounded-md bg-gray-800 px-3 py-2 text-sm text-white disabled:opacity-50 hover:bg-gray-700"
+        className="btn-primary w-full"
       >
-        {loading ? "Adding..." : "Add employee"}
+        {loading ? "Adding..." : "Add candidate"}
       </button>
     </form>
   );

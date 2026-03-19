@@ -2,11 +2,10 @@
 
 import { useState } from "react";
 import { FiUpload } from "react-icons/fi";
-import type { Analysis } from "./Inference";
 import type { SessionMetadataInput } from "~/types/analysis";
 
 interface UploadVideoProps {
-  onAnalysis: (analysis: Analysis) => void;
+  onAnalysis: (result: { sessionId: string }) => void;
   metadata: SessionMetadataInput;
 }
 
@@ -36,7 +35,7 @@ function UploadVideo({ onAnalysis, metadata }: UploadVideoProps) {
         throw new Error(data.error ?? "Failed to analyze video");
       }
 
-      const analysis = (await res.json()) as Analysis;
+      const analysis = (await res.json()) as { sessionId: string };
       onAnalysis(analysis);
       setStatus("idle");
     } catch (err) {

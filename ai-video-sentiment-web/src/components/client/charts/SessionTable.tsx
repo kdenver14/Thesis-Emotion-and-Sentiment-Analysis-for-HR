@@ -6,15 +6,11 @@ import { FiChevronUp, FiChevronDown } from "react-icons/fi";
 import type { ParsedSession } from "~/server/repositories/session";
 import { SESSION_TYPE_LABELS } from "~/types/analysis";
 import { assignSessionEmployee } from "~/actions/sessions";
+import { ScoreBadge } from "~/components/ui/ScoreBadge";
+import { StatusBadge } from "~/components/ui/StatusBadge";
 
 type SortKey = "sessionDate" | "title" | "topSentiment" | "engagementScore";
 type SortDir = "asc" | "desc";
-
-const SENTIMENT_BADGE: Record<string, string> = {
-  positive: "bg-green-100 text-green-700",
-  neutral: "bg-gray-100 text-gray-600",
-  negative: "bg-red-100 text-red-700",
-};
 
 const EMOTION_EMOJI: Record<string, string> = {
   anger: "😡",
@@ -183,24 +179,14 @@ export function SessionTable({ sessions, employees = [] }: SessionTableProps) {
                   </span>
                 </td>
                 <td className="px-4 py-3">
-                  <span
-                    className={`rounded-full px-2 py-0.5 text-xs font-medium capitalize ${SENTIMENT_BADGE[s.topSentiment] ?? "bg-gray-100 text-gray-600"}`}
-                  >
-                    {s.topSentiment}
-                  </span>
+                  <StatusBadge
+                    status={
+                      s.topSentiment as "positive" | "neutral" | "negative"
+                    }
+                  />
                 </td>
                 <td className="px-4 py-3">
-                  <div className="flex items-center gap-2">
-                    <div className="h-1.5 w-16 rounded-full bg-gray-100">
-                      <div
-                        className="h-1.5 rounded-full bg-gray-800"
-                        style={{ width: `${s.engagementScore}%` }}
-                      />
-                    </div>
-                    <span className="text-xs text-gray-500">
-                      {s.engagementScore}
-                    </span>
-                  </div>
+                  <ScoreBadge score={s.engagementScore} />
                 </td>
               </tr>
             ))

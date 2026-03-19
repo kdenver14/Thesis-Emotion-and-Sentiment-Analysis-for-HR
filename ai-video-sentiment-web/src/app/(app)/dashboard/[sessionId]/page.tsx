@@ -1,15 +1,8 @@
 import { notFound } from "next/navigation";
-import Link from "next/link";
-import { FiArrowLeft } from "react-icons/fi";
 import { getSession } from "~/actions/sessions";
 import { getEmployees } from "~/actions/employees";
-import { AssignEmployee } from "~/components/client/AssignEmployee";
-import { SessionSummary } from "~/components/client/SessionSummary";
-import { EmotionBarChart } from "~/components/client/charts/EmotionBarChart";
-import { EmotionTimeline } from "~/components/client/charts/EmotionTimeline";
-import { ExportButtons } from "~/components/client/ExportButtons";
-import { DeleteSessionButton } from "./DeleteSessionButton";
-import { SESSION_TYPE_LABELS } from "~/types/analysis";
+import { SessionDetailClient } from "./SessionDetailClient";
+import type { SerializedSession } from "./SessionDetailClient";
 
 interface PageProps {
   params: Promise<{ sessionId: string }>;
@@ -24,74 +17,21 @@ export default async function SessionDetailPage({ params }: PageProps) {
 
   if (!session) notFound();
 
-  const sessionTypeLabel =
-    SESSION_TYPE_LABELS[
-      session.sessionType as keyof typeof SESSION_TYPE_LABELS
-    ] ?? session.sessionType;
+  const serialized: SerializedSession = {
+    id: session.id,
+    title: session.title,
+    sessionType: session.sessionType,
+    sessionDateISO: session.sessionDate.toISOString(),
+    topEmotion: session.topEmotion,
+    topSentiment: session.topSentiment,
+    avgEmotions: session.avgEmotions,
+    summary: session.summary,
+    engagementScore: session.engagementScore,
+    durationSecs: session.durationSecs,
+    employeeId: session.employeeId,
+    employee: session.employee,
+    utterances: session.utterances,
+  };
 
-  return (
-    <div className="flex flex-col gap-6 p-4 sm:p-8">
-      {/* Header */}
-      <div className="flex flex-col gap-2">
-        <Link
-          href="/dashboard"
-          className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-800"
-        >
-          <FiArrowLeft className="h-3 w-3" /> Back to Dashboard
-        </Link>
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <h1 className="text-xl font-semibold text-gray-900">
-              {session.title}
-            </h1>
-            <div className="mt-1 flex flex-wrap items-center gap-3 text-sm text-gray-500">
-              <span>{session.sessionDate.toLocaleDateString("en-GB")}</span>
-              <span>·</span>
-              <span>{sessionTypeLabel}</span>
-              <span>·</span>
-              <AssignEmployee
-                sessionId={session.id}
-                employees={employees}
-                current={session.employee ?? null}
-              />
-              {session.durationSecs && (
-                <>
-                  <span>·</span>
-                  <span>{session.durationSecs.toFixed(0)}s</span>
-                </>
-              )}
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <ExportButtons sessionId={session.id} />
-            <DeleteSessionButton sessionId={session.id} />
-          </div>
-        </div>
-      </div>
-
-      {/* Summary */}
-      <SessionSummary
-        summary={session.summary}
-        engagementScore={session.engagementScore}
-        topEmotion={session.topEmotion}
-        topSentiment={session.topSentiment}
-      />
-
-      {/* Emotion distribution */}
-      <div className="rounded-xl border border-gray-200 p-4">
-        <h2 className="mb-4 text-sm font-medium text-gray-700">
-          Emotion distribution
-        </h2>
-        <EmotionBarChart data={session.avgEmotions} height={200} />
-      </div>
-
-      {/* Utterance timeline */}
-      <div className="rounded-xl border border-gray-200 p-4">
-        <h2 className="mb-4 text-sm font-medium text-gray-700">
-          Utterance timeline
-        </h2>
-        <EmotionTimeline utterances={session.utterances} />
-      </div>
-    </div>
-  );
+  return <SessionDetailClient session={serialized} employees={employees} />;
 }
