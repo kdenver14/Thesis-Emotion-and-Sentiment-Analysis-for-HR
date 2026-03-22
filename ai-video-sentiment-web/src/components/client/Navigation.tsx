@@ -6,7 +6,7 @@ import { FiUpload, FiGrid, FiTrendingUp, FiUsers } from "react-icons/fi";
 import { SignOutButton } from "./signout";
 
 const NAV_ITEMS = [
-  { href: "/", label: "Upload", icon: FiUpload },
+  { href: "/upload", label: "Upload", icon: FiUpload },
   { href: "/dashboard", label: "Dashboard", icon: FiGrid },
   { href: "/analytics", label: "Analytics", icon: FiTrendingUp },
   { href: "/employees", label: "Employees", icon: FiUsers },
@@ -28,10 +28,7 @@ export default function Navigation() {
         </div>
         <div className="flex items-center gap-1">
           {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
-            const isActive =
-              href === "/"
-                ? pathname === "/"
-                : pathname.startsWith(href);
+            const isActive = pathname.startsWith(href);
             return (
               <Link
                 key={href}

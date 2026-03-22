@@ -31,7 +31,7 @@ export default function LoginPage() {
       });
 
       if (!signInResult?.error) {
-        router.push("/");
+        router.push("/upload");
       } else {
         setError(
           signInResult.error === "CredentialsSignin"
