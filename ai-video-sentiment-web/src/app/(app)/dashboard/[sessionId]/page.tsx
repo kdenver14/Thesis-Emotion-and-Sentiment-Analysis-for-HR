@@ -5,9 +5,8 @@ import { getSession } from "~/actions/sessions";
 import { getEmployees } from "~/actions/employees";
 import { AssignEmployee } from "~/components/client/AssignEmployee";
 import { SessionSummary } from "~/components/client/SessionSummary";
-import { SpeakerLabel } from "~/components/client/SpeakerLabel";
 import { EmotionBarChart } from "~/components/client/charts/EmotionBarChart";
-import { EmotionTimeline } from "~/components/client/charts/EmotionTimeline";
+import { SpeakerTimeline } from "~/components/client/charts/SpeakerTimeline";
 import { ExportButtons } from "~/components/client/ExportButtons";
 import { DeleteSessionButton } from "./DeleteSessionButton";
 import { SESSION_TYPE_LABELS } from "~/types/analysis";
@@ -90,22 +89,14 @@ export default async function SessionDetailPage({ params }: PageProps) {
         <EmotionBarChart data={session.avgEmotions} height={200} />
       </div>
 
-      {/* Speaker identification */}
-      {speakers.length > 0 && (
-        <SpeakerLabel
-          sessionId={session.id}
-          speakers={speakers}
-          employeeSpeakerId={session.employeeSpeakerId}
-        />
-      )}
-
       {/* Utterance timeline */}
       <div className="rounded-xl border border-gray-200 p-4">
         <h2 className="mb-4 text-sm font-medium text-gray-700">
           Utterance timeline
         </h2>
-        <EmotionTimeline
+        <SpeakerTimeline
           utterances={session.utterances}
+          speakers={speakers}
           employeeSpeakerId={session.employeeSpeakerId}
         />
       </div>
