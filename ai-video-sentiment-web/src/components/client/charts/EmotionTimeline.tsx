@@ -14,6 +14,7 @@ const EMOTION_COLORS: Record<string, string> = {
 
 interface EmotionTimelineProps {
   utterances: ParsedUtterance[];
+  employeeSpeakerId?: string | null;
 }
 
 function topEmotion(utterance: ParsedUtterance): string {
@@ -23,7 +24,7 @@ function topEmotion(utterance: ParsedUtterance): string {
   );
 }
 
-export function EmotionTimeline({ utterances }: EmotionTimelineProps) {
+export function EmotionTimeline({ utterances, employeeSpeakerId }: EmotionTimelineProps) {
   if (utterances.length === 0) {
     return (
       <div className="flex h-16 items-center justify-center text-sm text-gray-400">
@@ -73,6 +74,7 @@ export function EmotionTimeline({ utterances }: EmotionTimelineProps) {
       <div className="flex max-h-64 flex-col gap-1 overflow-y-auto">
         {utterances.map((u) => {
           const emotion = topEmotion(u);
+          const isEmployee = u.speaker !== null && u.speaker === employeeSpeakerId;
           return (
             <div
               key={u.id}
@@ -85,6 +87,17 @@ export function EmotionTimeline({ utterances }: EmotionTimelineProps) {
               <span className="w-20 flex-shrink-0 text-xs text-gray-400">
                 {u.startTime.toFixed(1)}–{u.endTime.toFixed(1)}s
               </span>
+              {u.speaker !== null && (
+                <span
+                  className={`flex-shrink-0 rounded px-1.5 py-0.5 text-xs font-medium ${
+                    isEmployee
+                      ? "bg-blue-100 text-blue-700"
+                      : "bg-gray-100 text-gray-500"
+                  }`}
+                >
+                  {isEmployee ? "Employee" : u.speaker}
+                </span>
+              )}
               <span className="text-xs text-gray-700">{u.text}</span>
               <span className="ml-auto flex-shrink-0 text-xs capitalize text-gray-500">
                 {emotion}

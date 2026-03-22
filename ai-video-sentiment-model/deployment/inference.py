@@ -1,5 +1,6 @@
 import argparse
 import os
+from typing import Optional
 
 import cv2
 import numpy as np
@@ -137,6 +138,32 @@ class VideoUtteranceProcessor:
         return segment_path
 
 
+def _assign_speaker(segment: dict, diarization) -> Optional[str]:
+    speaker_overlap: dict[str, float] = {}
+    for turn, _, speaker in diarization.itertracks(yield_label=True):
+        overlap = max(0.0, min(segment["end"], turn.end) - max(segment["start"], turn.start))
+        if overlap > 0:
+            speaker_overlap[speaker] = speaker_overlap.get(speaker, 0.0) + overlap
+    return max(speaker_overlap, key=speaker_overlap.get) if speaker_overlap else None
+
+
+def _load_diarization_pipeline():
+    hf_token = os.environ.get("HF_TOKEN")
+    if not hf_token:
+        print("HF_TOKEN not set — speaker diarization disabled")
+        return None
+    try:
+        from pyannote.audio import Pipeline
+        pipeline = Pipeline.from_pretrained(
+            "pyannote/speaker-diarization-3.1",
+            use_auth_token=hf_token,
+        )
+        return pipeline
+    except Exception as e:
+        print(f"Speaker diarization unavailable: {e}")
+        return None
+
+
 def load_model(model_dir: str) -> dict:
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = MultimodalSentimentModel().to(device)
@@ -160,6 +187,7 @@ def load_model(model_dir: str) -> dict:
             "base",
             device="cpu" if device.type == "cpu" else device,
         ),
+        'diarization': _load_diarization_pipeline(),
         'device': device
     }
 
@@ -172,6 +200,22 @@ def predict_fn(input_data, model_dict):
 
     result = model_dict['transcriber'].transcribe(
         video_path, word_timestamps=True)
+
+    diarization_pipeline = model_dict.get('diarization')
+    diarization = None
+    diarization_audio_path = None
+    if diarization_pipeline is not None:
+        try:
+            diarization_audio_path = video_path.rsplit('.', 1)[0] + '_diarize.wav'
+            subprocess.run([
+                'ffmpeg', '-y', '-i', video_path,
+                '-vn', '-acodec', 'pcm_s16le', '-ar', '16000', '-ac', '1',
+                diarization_audio_path
+            ], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            diarization = diarization_pipeline(diarization_audio_path)
+        except Exception as e:
+            print(f"Diarization failed, continuing without speaker labels: {e}")
+            diarization = None
 
     utterance_processor = VideoUtteranceProcessor()
     predictions = []
@@ -216,6 +260,7 @@ def predict_fn(input_data, model_dict):
                 "start_time": segment["start"],
                 "end_time": segment["end"],
                 "text": segment["text"],
+                "speaker": _assign_speaker(segment, diarization) if diarization is not None else None,
                 "emotions": [
                     {"label": EMOTION_MAP[idx.item()], "confidence": conf.item()} for idx, conf in zip(emotion_indices, emotion_values)
                 ],
@@ -231,6 +276,10 @@ def predict_fn(input_data, model_dict):
             # Cleanup
             if os.path.exists(segment_path):
                 os.remove(segment_path)
+
+    if diarization_audio_path and os.path.exists(diarization_audio_path):
+        os.remove(diarization_audio_path)
+
     return {"utterances": predictions}
 
 
