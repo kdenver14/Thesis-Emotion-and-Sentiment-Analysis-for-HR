@@ -6,6 +6,7 @@ export interface ParsedUtterance {
   startTime: number;
   endTime: number;
   text: string;
+  speaker: string | null;
   emotions: Score[];
   sentiments: Score[];
 }
@@ -24,6 +25,7 @@ export interface ParsedSession {
   durationSecs: number | null;
   createdAt: Date;
   employeeId: string | null;
+  employeeSpeakerId: string | null;
   employee: { id: string; name: string; department: string | null } | null;
   utteranceCount?: number;
 }
@@ -73,6 +75,7 @@ function parseSession(raw: {
   durationSecs: number | null;
   createdAt: Date;
   employeeId: string | null;
+  employeeSpeakerId: string | null;
   employee: { id: string; name: string; department: string | null } | null;
   _count?: { utterances: number };
 }): ParsedSession {
@@ -90,6 +93,7 @@ function parseSession(raw: {
     durationSecs: raw.durationSecs,
     createdAt: raw.createdAt,
     employeeId: raw.employeeId,
+    employeeSpeakerId: raw.employeeSpeakerId,
     employee: raw.employee,
     utteranceCount: raw._count?.utterances,
   };
@@ -109,6 +113,7 @@ const SESSION_SELECT = {
   durationSecs: true,
   createdAt: true,
   employeeId: true,
+  employeeSpeakerId: true,
   employee: {
     select: { id: true, name: true, department: true },
   },
@@ -152,6 +157,7 @@ export async function getSessionById(
           startTime: true,
           endTime: true,
           text: true,
+          speaker: true,
           emotions: true,
           sentiments: true,
         },
@@ -168,6 +174,7 @@ export async function getSessionById(
     startTime: u.startTime,
     endTime: u.endTime,
     text: u.text,
+    speaker: u.speaker,
     emotions: JSON.parse(u.emotions) as Score[],
     sentiments: JSON.parse(u.sentiments) as Score[],
   }));
@@ -227,12 +234,13 @@ export async function getSessionStats(userId: string): Promise<SessionStats> {
 export async function getEmotionTrendsOverTime(
   userId: string,
   days: number,
+  employeeId?: string,
 ): Promise<TrendPoint[]> {
   const since = new Date();
   since.setDate(since.getDate() - days);
 
   const sessions = await db.analysisSession.findMany({
-    where: { userId, sessionDate: { gte: since } },
+    where: { userId, sessionDate: { gte: since }, ...(employeeId ? { employeeId } : {}) },
     select: {
       sessionDate: true,
       avgSentiments: true,
@@ -270,13 +278,27 @@ export async function getEmotionTrendsOverTime(
   const avg = (arr: number[]) =>
     arr.length === 0 ? 0 : arr.reduce((a, b) => a + b, 0) / arr.length;
 
-  return Array.from(byDate.entries()).map(([date, v]) => ({
-    date,
-    positive: parseFloat((avg(v.positive) * 100).toFixed(1)),
-    neutral: parseFloat((avg(v.neutral) * 100).toFixed(1)),
-    negative: parseFloat((avg(v.negative) * 100).toFixed(1)),
-    avgEngagement: Math.round(avg(v.engagement)),
-  }));
+  // Pad every day in the range so the chart always shows a continuous timeline
+  const result: TrendPoint[] = [];
+  const cursor = new Date(since);
+  cursor.setHours(0, 0, 0, 0);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  while (cursor <= today) {
+    const key = cursor.toISOString().slice(0, 10);
+    const v = byDate.get(key);
+    result.push({
+      date: key,
+      positive: v ? parseFloat((avg(v.positive) * 100).toFixed(1)) : 0,
+      neutral: v ? parseFloat((avg(v.neutral) * 100).toFixed(1)) : 0,
+      negative: v ? parseFloat((avg(v.negative) * 100).toFixed(1)) : 0,
+      avgEngagement: v ? Math.round(avg(v.engagement)) : 0,
+    });
+    cursor.setDate(cursor.getDate() + 1);
+  }
+
+  return result;
 }
 
 export async function getEmotionHeatmap(
@@ -308,15 +330,38 @@ export async function getEmotionHeatmap(
   const avg = (arr: number[]) =>
     arr.length === 0 ? 0 : arr.reduce((a, b) => a + b, 0) / arr.length;
 
-  return Array.from(byDate.entries()).map(([date, emotionMap]) => ({
-    date,
-    emotions: Object.fromEntries(
-      Object.entries(emotionMap).map(([label, vals]) => [
-        label,
-        parseFloat((avg(vals) * 100).toFixed(1)),
-      ]),
-    ),
-  }));
+  const EMPTY_EMOTIONS: Record<string, number> = {
+    anger: 0, disgust: 0, fear: 0, joy: 0, neutral: 0, sadness: 0, surprise: 0,
+  };
+
+  // Pad every day in the range for a continuous timeline
+  const result: EmotionTrendRow[] = [];
+  const cursor = new Date(since);
+  cursor.setHours(0, 0, 0, 0);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  while (cursor <= today) {
+    const key = cursor.toISOString().slice(0, 10);
+    const emotionMap = byDate.get(key);
+    result.push({
+      date: key,
+      emotions: emotionMap
+        ? {
+            ...EMPTY_EMOTIONS,
+            ...Object.fromEntries(
+              Object.entries(emotionMap).map(([label, vals]) => [
+                label,
+                parseFloat((avg(vals) * 100).toFixed(1)),
+              ]),
+            ),
+          }
+        : { ...EMPTY_EMOTIONS },
+    });
+    cursor.setDate(cursor.getDate() + 1);
+  }
+
+  return result;
 }
 
 export async function deleteSession(
@@ -336,6 +381,17 @@ export async function updateSessionEmployee(
   await db.analysisSession.update({
     where: { id: sessionId, userId },
     data: { employeeId },
+  });
+}
+
+export async function updateEmployeeSpeaker(
+  sessionId: string,
+  userId: string,
+  employeeSpeakerId: string | null,
+): Promise<void> {
+  await db.analysisSession.update({
+    where: { id: sessionId, userId },
+    data: { employeeSpeakerId },
   });
 }
 
