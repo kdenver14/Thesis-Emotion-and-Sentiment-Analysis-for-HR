@@ -66,13 +66,37 @@ export function generateSummary(utterances: UtteranceData[]): SummaryResult {
   const neutralRatio = neutralCount / total;
   const negativeRatio = negativeCount / total;
 
-  const hasDisengagement = neutralRatio > 0.7;
+  const uniqueEmotions = new Set(
+    utterances.map((u) => {
+      const top = [...u.emotions].sort(
+        (a, b) => b.confidence - a.confidence,
+      )[0];
+      return top?.label;
+    }),
+  );
+  const emotionVariety = Math.min(uniqueEmotions.size / 5, 1);
+
+  const hasDisengagement =
+    neutralRatio > 0.85 && emotionVariety < 0.4;
   const hasPositiveMoments = positiveCount >= 2 && positiveRatio > 0.2;
+
+  const BASELINE = 60;
+  const positiveBonus = positiveRatio * 25;
+  const varietyBonus = emotionVariety * 15;
+  const negativePenalty = negativeRatio * 40;
+  const disengagementPenalty = hasDisengagement ? 20 : 0;
 
   const engagementScore = Math.round(
     Math.max(
       0,
-      Math.min(100, positiveRatio * 80 + neutralRatio * 50 - negativeRatio * 30),
+      Math.min(
+        100,
+        BASELINE +
+          positiveBonus +
+          varietyBonus -
+          negativePenalty -
+          disengagementPenalty,
+      ),
     ),
   );
 
