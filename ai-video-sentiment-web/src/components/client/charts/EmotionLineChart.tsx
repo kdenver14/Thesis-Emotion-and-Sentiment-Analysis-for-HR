@@ -1,8 +1,8 @@
 "use client";
 
 import {
-  LineChart,
-  Line,
+  AreaChart,
+  Area,
   XAxis,
   YAxis,
   Tooltip,
@@ -44,24 +44,34 @@ export function EmotionLineChart({ data, height = 240 }: EmotionLineChartProps) 
 
   return (
     <ResponsiveContainer width="100%" height={height}>
-      <LineChart data={flat} margin={{ top: 4, right: 8, left: -16, bottom: 0 }}>
+      <AreaChart data={flat} margin={{ top: 4, right: 8, left: -16, bottom: 0 }}>
+        <defs>
+          {EMOTION_LABELS.map((emotion) => (
+            <linearGradient key={emotion} id={`gradient-${emotion}`} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor={EMOTION_COLORS[emotion]} stopOpacity={0.25} />
+              <stop offset="95%" stopColor={EMOTION_COLORS[emotion]} stopOpacity={0.02} />
+            </linearGradient>
+          ))}
+        </defs>
         <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
         <XAxis dataKey="date" tick={{ fontSize: 11 }} />
         <YAxis unit="%" tick={{ fontSize: 11 }} domain={[0, 100]} />
         <Tooltip formatter={(v) => `${String(v)}%`} />
         <Legend wrapperStyle={{ fontSize: 12 }} />
         {EMOTION_LABELS.map((emotion) => (
-          <Line
+          <Area
             key={emotion}
-            type="monotone"
+            type="natural"
             dataKey={emotion}
             stroke={EMOTION_COLORS[emotion]}
             strokeWidth={2}
+            fill={`url(#gradient-${emotion})`}
             dot={false}
+            activeDot={{ r: 4, strokeWidth: 2, fill: "#fff" }}
             name={emotion.charAt(0).toUpperCase() + emotion.slice(1)}
           />
         ))}
-      </LineChart>
+      </AreaChart>
     </ResponsiveContainer>
   );
 }

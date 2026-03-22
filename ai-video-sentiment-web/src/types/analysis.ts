@@ -41,6 +41,7 @@ export interface UtteranceData {
   start_time: number;
   end_time: number;
   text: string;
+  speaker?: string;
   emotions: Score[];
   sentiments: Score[];
 }

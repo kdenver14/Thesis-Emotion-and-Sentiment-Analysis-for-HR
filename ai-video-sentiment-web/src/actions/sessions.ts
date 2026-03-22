@@ -10,6 +10,7 @@ import {
   getSessionTypeBreakdown,
   deleteSession,
   updateSessionEmployee,
+  updateEmployeeSpeaker,
   type SessionFilters,
   type ParsedSession,
   type ParsedSessionWithUtterances,
@@ -82,4 +83,13 @@ export async function assignSessionEmployee(
   const session = await auth();
   if (!session?.user?.id) throw new Error("Unauthorized");
   await updateSessionEmployee(sessionId, session.user.id, employeeId);
+}
+
+export async function setEmployeeSpeaker(
+  sessionId: string,
+  employeeSpeakerId: string | null,
+): Promise<void> {
+  const session = await auth();
+  if (!session?.user?.id) throw new Error("Unauthorized");
+  await updateEmployeeSpeaker(sessionId, session.user.id, employeeSpeakerId);
 }

@@ -21,14 +21,12 @@ export default async function EmployeeDetailPage({ params }: PageProps) {
   const [employee, allSessions, trends] = await Promise.all([
     findEmployeeById(employeeId, userId),
     getSessionsByUser(userId, { employeeId }),
-    getEmotionTrendsOverTime(userId, 90),
+    getEmotionTrendsOverTime(userId, 90, employeeId),
   ]);
 
   if (!employee) notFound();
 
-  // Filter trends to only sessions belonging to this employee
-  // (trends are already user-scoped; for per-employee we re-use the filtered sessions)
-  const employeeTrendData = trends; // reuse 90-day user trends as baseline
+  const employeeTrendData = trends;
 
   return (
     <div className="flex flex-col gap-6 p-4 sm:p-8">
