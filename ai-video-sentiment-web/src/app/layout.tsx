@@ -4,8 +4,8 @@ import { GeistSans } from "geist/font/sans";
 import { type Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Sentiment Analysis",
-  description: "Sentiment Analysis",
+  title: "Sentr",
+  description: "AI-powered video sentiment and emotion analysis",
   icons: [{ rel: "icon", url: "/favicon.ico" }],
 };
 
