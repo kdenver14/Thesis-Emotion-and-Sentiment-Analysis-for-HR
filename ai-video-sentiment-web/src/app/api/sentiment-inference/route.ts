@@ -157,6 +157,7 @@ export async function POST(req: Request) {
             startTime: u.start_time,
             endTime: u.end_time,
             text: u.text,
+            speaker: u.speaker ?? null,
             emotions: JSON.stringify(u.emotions),
             sentiments: JSON.stringify(u.sentiments),
           })),

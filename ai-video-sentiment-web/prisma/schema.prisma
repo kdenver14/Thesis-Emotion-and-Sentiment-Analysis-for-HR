@@ -68,24 +68,25 @@ model Employee {
 }
 
 model AnalysisSession {
-    id              String      @id @default(cuid())
-    userId          String
-    user            User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-    employeeId      String?
-    employee        Employee?   @relation(fields: [employeeId], references: [id])
-    title           String
-    sessionType     String      @default("general")
-    sessionDate     DateTime    @default(now())
-    videoKey        String      @unique
-    avgEmotions     String
-    avgSentiments   String
-    topEmotion      String
-    topSentiment    String
-    summary         String
-    engagementScore Int         @default(0)
-    durationSecs    Float?
-    createdAt       DateTime    @default(now())
-    utterances      Utterance[]
+    id                String      @id @default(cuid())
+    userId            String
+    user              User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+    employeeId        String?
+    employee          Employee?   @relation(fields: [employeeId], references: [id])
+    employeeSpeakerId String?
+    title             String
+    sessionType       String      @default("general")
+    sessionDate       DateTime    @default(now())
+    videoKey          String      @unique
+    avgEmotions       String
+    avgSentiments     String
+    topEmotion        String
+    topSentiment      String
+    summary           String
+    engagementScore   Int         @default(0)
+    durationSecs      Float?
+    createdAt         DateTime    @default(now())
+    utterances        Utterance[]
 }
 
 model Utterance {
@@ -95,6 +96,7 @@ model Utterance {
     startTime  Float
     endTime    Float
     text       String
+    speaker    String?
     emotions   String
     sentiments String
 }
