@@ -50,10 +50,10 @@ export default function LoginPage() {
     <div className="min-h-screen bg-white">
       <nav className="flex h-16 items-center justify-between border-b border-gray-200 px-10">
         <div className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-md bg-gray-800 text-white">
-            SA
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gray-900 text-sm font-bold text-white">
+            S
           </div>
-          <span className="text-lg font-medium">Sentiment Analysis</span>
+          <span className="text-lg font-semibold tracking-tight">Sentr</span>
         </div>
       </nav>
 
