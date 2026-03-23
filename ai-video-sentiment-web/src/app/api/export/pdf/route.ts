@@ -21,8 +21,18 @@ type JsPDFWithAutoTable = InstanceType<typeof jsPDF> & {
   lastAutoTable: { finalY: number };
 };
 
+function speakerLabel(
+  speaker: string | null,
+  employeeSpeakerId: string | null,
+): string {
+  if (!speaker) return "—";
+  return speaker === employeeSpeakerId ? "Employee" : speaker;
+}
+
 function buildSessionPdf(doc: JsPDFWithAutoTable, data: Awaited<ReturnType<typeof getSessionById>>) {
   if (!data) return;
+
+  const hasSpeakers = data.utterances.some((u) => u.speaker !== null);
 
   doc.setFontSize(18);
   doc.text(data.title, 14, 20);
@@ -35,18 +45,32 @@ function buildSessionPdf(doc: JsPDFWithAutoTable, data: Awaited<ReturnType<typeo
     30,
   );
 
+  let infoY = 37;
   if (data.employee) {
-    doc.text(`Employee: ${data.employee.name}`, 14, 37);
+    doc.text(`Employee: ${data.employee.name}`, 14, infoY);
+    infoY += 7;
+  }
+
+  if (hasSpeakers) {
+    const speakers = [
+      ...new Set(data.utterances.map((u) => u.speaker).filter(Boolean)),
+    ] as string[];
+    const speakerLabels = speakers.map((s) =>
+      speakerLabel(s, data.employeeSpeakerId),
+    );
+    doc.text(`Speakers: ${speakerLabels.join(", ")}`, 14, infoY);
+    infoY += 7;
   }
 
   doc.setTextColor(0);
+  const summaryStartY = infoY + 6;
   doc.setFontSize(12);
-  doc.text("Summary", 14, 50);
+  doc.text("Summary", 14, summaryStartY);
   doc.setFontSize(10);
   const summaryLines = doc.splitTextToSize(data.summary, 180) as string[];
-  doc.text(summaryLines, 14, 58);
+  doc.text(summaryLines, 14, summaryStartY + 8);
 
-  const afterSummary = 58 + summaryLines.length * 5 + 10;
+  const afterSummary = summaryStartY + 8 + summaryLines.length * 5 + 10;
 
   doc.setFontSize(12);
   doc.text("Emotion & Sentiment Averages", 14, afterSummary);
@@ -87,20 +111,81 @@ function buildSessionPdf(doc: JsPDFWithAutoTable, data: Awaited<ReturnType<typeo
     doc.setFontSize(12);
     doc.text("Utterance Breakdown", 14, afterTables);
 
+    const utteranceHead = hasSpeakers
+      ? [["Time", "Speaker", "Text", "Top Emotion", "Top Sentiment"]]
+      : [["Time", "Text", "Top Emotion", "Top Sentiment"]];
+
+    const utteranceBody = data.utterances.map((u) => {
+      const topEmotion =
+        [...u.emotions].sort((a, b) => b.confidence - a.confidence)[0]?.label ?? "";
+      const topSentiment =
+        [...u.sentiments].sort((a, b) => b.confidence - a.confidence)[0]?.label ?? "";
+      const time = `${u.startTime.toFixed(1)}–${u.endTime.toFixed(1)}s`;
+      const text = u.text.slice(0, 80);
+
+      if (hasSpeakers) {
+        return [time, speakerLabel(u.speaker, data.employeeSpeakerId), text, topEmotion, topSentiment];
+      }
+      return [time, text, topEmotion, topSentiment];
+    });
+
+    const columnStyles: Record<number, Record<string, unknown>> = hasSpeakers
+      ? { 2: { cellWidth: 65 } }
+      : { 1: { cellWidth: 80 } };
+
     doc.autoTable({
       startY: afterTables + 4,
-      head: [["Time", "Text", "Top Emotion", "Top Sentiment"]],
-      body: data.utterances.map((u) => [
-        `${u.startTime.toFixed(1)}–${u.endTime.toFixed(1)}s`,
-        u.text.slice(0, 80),
-        [...u.emotions].sort((a, b) => b.confidence - a.confidence)[0]?.label ?? "",
-        [...u.sentiments].sort((a, b) => b.confidence - a.confidence)[0]?.label ?? "",
-      ]),
+      head: utteranceHead,
+      body: utteranceBody,
       theme: "striped",
       headStyles: { fillColor: [40, 40, 40] },
       styles: { fontSize: 8, cellPadding: 2 },
-      columnStyles: { 1: { cellWidth: 80 } },
+      columnStyles,
     });
+
+    // Per-speaker summary when multiple speakers exist
+    if (hasSpeakers) {
+      const perSpeaker = new Map<string, { count: number; emotions: Record<string, number[]> }>();
+      for (const u of data.utterances) {
+        if (!u.speaker) continue;
+        const label = speakerLabel(u.speaker, data.employeeSpeakerId);
+        if (!perSpeaker.has(label)) perSpeaker.set(label, { count: 0, emotions: {} });
+        const entry = perSpeaker.get(label)!;
+        entry.count++;
+        for (const e of u.emotions) {
+          if (!entry.emotions[e.label]) entry.emotions[e.label] = [];
+          entry.emotions[e.label]!.push(e.confidence);
+        }
+      }
+
+      const avg = (arr: number[]) =>
+        arr.length === 0 ? 0 : arr.reduce((a, b) => a + b, 0) / arr.length;
+
+      const speakerSummaryY = doc.lastAutoTable.finalY + 10;
+      doc.setFontSize(12);
+      doc.text("Speaker Summary", 14, speakerSummaryY);
+
+      const speakerBody = Array.from(perSpeaker.entries()).map(([label, v]) => {
+        const topEmotion = Object.entries(v.emotions)
+          .map(([l, vals]) => [l, avg(vals)] as const)
+          .sort((a, b) => b[1] - a[1])[0];
+        return [
+          label,
+          String(v.count),
+          topEmotion ? `${topEmotion[0]} (${(topEmotion[1] * 100).toFixed(0)}%)` : "—",
+        ];
+      });
+
+      doc.autoTable({
+        startY: speakerSummaryY + 4,
+        head: [["Speaker", "Utterances", "Dominant Emotion"]],
+        body: speakerBody,
+        theme: "striped",
+        headStyles: { fillColor: [40, 40, 40] },
+        styles: { fontSize: 9 },
+        tableWidth: 120,
+      });
+    }
   }
 }
 
@@ -164,7 +249,7 @@ export async function GET(req: Request) {
     filename = "sessions-report.pdf";
   }
 
-  const pdfBuffer = Buffer.from(doc.output("arraybuffer"));
+  const pdfBuffer = new Uint8Array(doc.output("arraybuffer"));
 
   return new Response(pdfBuffer, {
     headers: {

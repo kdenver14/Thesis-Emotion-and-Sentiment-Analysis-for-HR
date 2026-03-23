@@ -10,7 +10,11 @@ interface SpeakerLabelProps {
   employeeSpeakerId: string | null;
 }
 
-export function SpeakerLabel({ sessionId, speakers, employeeSpeakerId }: SpeakerLabelProps) {
+export function SpeakerLabel({
+  sessionId,
+  speakers,
+  employeeSpeakerId,
+}: SpeakerLabelProps) {
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
 
@@ -30,7 +34,8 @@ export function SpeakerLabel({ sessionId, speakers, employeeSpeakerId }: Speaker
         Speaker identification
       </h2>
       <p className="mb-3 text-xs text-gray-500">
-        Select which speaker is the employee. Their utterances will be highlighted in the timeline.
+        Select which speaker is the employee. Their utterances will be
+        highlighted in the timeline.
       </p>
       <div className="flex flex-wrap gap-2">
         {speakers.map((speaker) => {
