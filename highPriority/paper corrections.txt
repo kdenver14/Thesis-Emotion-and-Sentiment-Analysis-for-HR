@@ -1,0 +1,501 @@
+THESIS PAPER CORRECTIONS — SECTIONS TO UPDATE
+================================================
+
+Below are rewritten versions of every section that references the old
+"API service" / Express.js / PostgreSQL / SageMaker / quota system design.
+Copy-paste these into your thesis document, replacing the originals.
+
+Lines marked with [CHANGED] highlight what was modified and why.
+
+
+================================================================================
+1. TITLE PAGE
+================================================================================
+
+OLD:
+  "Video-Based Sentiment and Emotion Classification:
+   Development of an API Service for BlastAsia"
+
+NEW:
+  "Video-Based Sentiment and Emotion Classification:
+   Development of a Multimodal Analysis Dashboard for BlastAsia"
+
+[CHANGED] "API Service" → "Multimodal Analysis Dashboard" because the system
+is a full-stack web application with a dashboard, not a standalone API.
+
+NOTE: Update this title everywhere it appears — endorsement form, approval
+sheet, headers, footers, etc.
+
+
+================================================================================
+2. INTRODUCTION (Page 1-2)
+================================================================================
+
+Replace the last paragraph of the Introduction (starting "This limitation
+highlights a clear service gap...") with:
+
+---
+
+This limitation highlights a clear service gap — the absence of an accessible
+and integrated platform that combines text, audio, and video analysis for
+emotion and sentiment recognition. Current systems are often designed for
+research or domain-specific use rather than for scalable, practical deployment.
+To address this gap, this thesis proposes the development of a multimodal
+sentiment and emotion classification system with an interactive web-based
+dashboard, capable of analyzing video-based inputs alongside corresponding
+audio and textual data. The system provides BlastAsia and similar organizations
+with an efficient and adaptable tool for incorporating affective intelligence
+into human resource workflows such as interview evaluation and employee
+interaction analysis.
+
+---
+
+[CHANGED] Removed "API service" framing. Replaced with "system with an
+interactive web-based dashboard." Added HR workflow context since that's
+what the system actually does.
+
+
+================================================================================
+3. BACKGROUND OF THE PROBLEM (Page 2-3)
+================================================================================
+
+Replace the last paragraph (starting "To respond to this need...") with:
+
+---
+
+To respond to this need, this thesis proposes the development of a video-based
+multimodal sentiment and emotion classification system with an interactive
+dashboard. Unlike existing tools that rely on a single modality, the proposed
+system integrates visual, audio, and textual features to improve accuracy and
+contextual understanding. The system includes speaker diarization to identify
+individual speakers, per-utterance emotion and sentiment classification, and
+automated engagement scoring. A web-based dashboard enables end-users to upload
+video recordings, view per-speaker emotional breakdowns, track emotional
+trajectories across conversations, and export analysis reports. This addresses
+BlastAsia's need for a tool that can assess emotional states during recorded
+interactions.
+
+---
+
+[CHANGED] Removed "API" mention. Added speaker diarization, engagement scoring,
+and emotional trajectory — features that actually exist in the system.
+
+
+================================================================================
+4. OVERVIEW OF THE CURRENT STATE OF TECHNOLOGY (Page 3-4)
+================================================================================
+
+Replace the second paragraph (starting "To address these limitations...") with:
+
+---
+
+To address these limitations, recent advancements in full-stack web frameworks
+and pre-trained deep learning models have provided opportunities for
+operationalizing AI models as accessible applications. Frameworks such as
+Next.js enable the development of production-grade web applications with
+server-side rendering, while inference servers built with FastAPI allow
+efficient serving of PyTorch models. The proposed system for BlastAsia is
+built upon these technologies by offering a video-based sentiment and emotion
+classification dashboard that HR professionals can use directly through a
+web browser. This approach bridges the gap between research and practical
+implementation, enabling the real-world use of emotion recognition models
+through a secure, authenticated, and user-friendly platform.
+
+---
+
+Replace the concluding paragraph with:
+
+---
+
+To conclude, the proposed system can be utilized by HR professionals,
+managers, and organizational leaders to access emotion recognition capabilities
+through an intuitive dashboard interface. This allows them to analyze
+video-based recordings of interviews, meetings, and interactions efficiently,
+promoting data-driven insights into employee and candidate emotional states.
+The system demonstrates how modern web technologies and multimodal AI can work
+together to make affective computing both functional and accessible.
+
+---
+
+[CHANGED] Removed AWS SageMaker and "API" references. Replaced with actual
+tech stack: Next.js + FastAPI. Changed target users from "developers" to
+"HR professionals" since the dashboard is the interface, not an API.
+
+
+================================================================================
+5. OBJECTIVES OF THE STUDY (Page 4)
+================================================================================
+
+Replace the general objective:
+
+---
+
+The general objective of this study is to develop a secure and multimodal
+video-based sentiment and emotion classification system that integrates a
+trained AI model, an inference server, and a visualization dashboard. The
+system aims to analyze video, audio, and text inputs to accurately identify
+emotions and sentiments while ensuring secure data handling, authenticated
+access, and persistent analysis history.
+
+---
+
+Replace objective 2:
+
+OLD:
+  "2. To implement an API service that provides secure and efficient access
+      to the trained model for emotion and sentiment classification."
+
+NEW:
+  "2. To implement an inference server and web application that provides
+      secure and efficient access to the trained model for emotion and
+      sentiment classification, with authenticated user sessions and
+      persistent storage of analysis results."
+
+---
+
+[CHANGED] "API service" → "inference server and web application."
+Removed "cloud-based scalability" since deployment is local FastAPI.
+Added "persistent storage" and "authenticated user sessions" which
+are actual features.
+
+
+================================================================================
+6. SCOPE OF THE STUDY (Page 4-6)
+================================================================================
+
+Replace items 2, 3, and 7:
+
+OLD Item 2:
+  "API Deployment and Accessibility: Implementation of a cloud-hosted API
+   service that provides external applications with access to the emotion
+   and sentiment classification model."
+
+NEW Item 2:
+  "System Deployment and Accessibility: Implementation of a FastAPI-based
+   inference server that serves the trained multimodal model, integrated
+   with a Next.js full-stack web application. The inference server processes
+   uploaded video files and returns per-utterance emotion and sentiment
+   classifications. The web application handles user authentication, session
+   management, and data persistence using Prisma ORM with SQLite."
+
+---
+
+OLD Item 3:
+  "User Authentication and Quota Management: Design and integration of
+   secure user authentication mechanisms to prevent unauthorized access,
+   alongside a quota management feature that regulates and monitors API
+   usage among registered users."
+
+NEW Item 3:
+  "User Authentication and Session Management: Design and integration of
+   secure user authentication using NextAuth.js with credential-based login
+   (email and password with bcrypt hashing). The system enforces
+   authentication on all routes through middleware, ensuring that only
+   registered users can access the dashboard and upload videos for analysis.
+   Each user's analysis sessions and employee records are isolated by user ID."
+
+---
+
+OLD Item 7:
+  "Cloud Infrastructure and Deployment: Utilization of Amazon Web Services
+   (AWS) components such as SageMaker, EC2, and S3 for training, deploying,
+   and hosting the system, ensuring scalability, reliability, and real-time
+   performance for enterprise-grade accessibility."
+
+NEW Item 7:
+  "Infrastructure and Deployment: The model training was performed on AWS
+   SageMaker using GPU instances (ml.g4dn.xlarge). For inference, the
+   trained model is served locally via a FastAPI server using Uvicorn. The
+   web application is built with Next.js 15 and uses SQLite as the database
+   via Prisma ORM. This architecture allows the system to run entirely on a
+   single machine for development and demonstration, while remaining
+   modular enough for future cloud deployment."
+
+---
+
+OLD Item 8:
+  "Supported Video Resolution, File Size Constraints, and Maximum Upload
+   Capacity: The system uses AWS SageMaker Asynchronous Inference, supporting
+   video uploads up to 1 GB..."
+
+NEW Item 8:
+  "Supported Video Formats and Constraints: The system accepts video uploads
+   in MP4, MOV, and AVI formats. Videos are temporarily stored on the server
+   filesystem during inference processing and deleted after analysis completes.
+   The system is designed for short-form video analysis (up to 60 seconds) to
+   ensure manageable inference times and consistent performance."
+
+---
+
+ADD NEW SCOPE ITEMS (these are features that exist but weren't in the paper):
+
+  "9. Speaker Diarization: The system integrates pyannote.audio for automatic
+      speaker diarization, identifying and labeling individual speakers within
+      multi-party video recordings. Each utterance is assigned to a specific
+      speaker, enabling per-speaker emotional analysis."
+
+  "10. Engagement Scoring and Emotional Trajectory: The system computes an
+       engagement score (0-100) for each analysis session based on the ratio
+       of positive, negative, and neutral utterances, emotion variety, and
+       disengagement indicators. It also detects emotional trajectory patterns
+       (improving, declining, volatile, or stable) across the conversation."
+
+  "11. Employee Management: The system allows users to create and manage
+       employee profiles, which can be linked to analysis sessions. This
+       enables tracking emotional patterns across multiple sessions for the
+       same individual over time."
+
+---
+
+[CHANGED] Removed all API key, quota, SageMaker async inference references.
+Added actual features: FastAPI server, NextAuth, SQLite, speaker diarization,
+engagement scoring, employee management.
+
+
+================================================================================
+7. SOFTWARE TABLE (Page 26)
+================================================================================
+
+Replace the entire software table with:
+
+Area            Technology              Purpose
+-----------     --------------------    ------------------------------------------
+                Tailwind CSS            Utility-first CSS framework for styling
+                React                   Core library for creating interactive UI
+Front End       TypeScript              Type-safe frontend and backend development
+                Next.js 15              Full-stack React framework (App Router)
+                NextAuth.js v5          Authentication (credentials + OAuth)
+
+Back End        Next.js API Routes      Server-side request handling (no Express)
+                Server Actions          Server-side mutations for CRUD operations
+                FastAPI                 Python inference server for model serving
+                Uvicorn                 ASGI server for running FastAPI
+
+Machine         PyTorch                 Building and training the multimodal model
+Learning        BERT (HuggingFace)      Text encoder (frozen, pretrained)
+and AI          R3D-18                  Video encoder (3D ResNet, frozen)
+Model           Mel-Spectrogram CNN     Custom audio encoder (Conv1D layers)
+                Whisper (OpenAI)        Automatic speech recognition / transcription
+                pyannote.audio          Speaker diarization
+
+Database        SQLite                  Lightweight relational database
+                Prisma ORM              Type-safe database access and migrations
+
+Cloud           AWS SageMaker           GPU training (ml.g4dn.xlarge)
+Infrastructure
+
+Version         GitHub                  Source control and collaboration
+Control
+
+---
+
+[CHANGED] Removed Express.js, PostgreSQL, Docker, API Key Management System,
+AWS S3, SageMaker (for deployment). Added FastAPI, Uvicorn, Whisper,
+pyannote.audio, SQLite, Server Actions. Changed SageMaker to training-only.
+
+
+================================================================================
+8. CLOUD HARDWARE TABLE (Page 27)
+================================================================================
+
+Replace with:
+
+AWS Instance     Specs                              Usage
+Type
+-----------      --------------------------------   ---------------------------
+ml.g4dn.xlarge   4 vCPUs, 16 GB RAM, 1x NVIDIA     Model training on SageMaker
+                 T4 GPU (16 GB VRAM)                (24 epochs, ~2 hours)
+
+Local Machine    See Hardware Table (minimum specs)  Inference server (FastAPI)
+                                                     and web application (Next.js)
+
+---
+
+[CHANGED] Removed ml.p3.2xlarge and ml.t3.medium since only ml.g4dn.xlarge
+was used for training. Inference runs locally, not on AWS.
+
+
+================================================================================
+9. FLOWCHART DESCRIPTION (Page 20)
+================================================================================
+
+Replace the flowchart description with:
+
+---
+
+This flowchart illustrates the workflow of the multimodal sentiment and emotion
+analysis system. The process begins when an authenticated user uploads a video
+file through the web dashboard. The Next.js API route validates the file type
+(MP4, MOV, or AVI) and session metadata, then forwards the video to the FastAPI
+inference server. The inference server performs three parallel operations:
+(1) speech-to-text transcription using OpenAI Whisper, (2) speaker diarization
+using pyannote.audio to identify individual speakers, and (3) per-utterance
+multimodal feature extraction using BERT (text), R3D-18 (video), and a Conv1D
+CNN (audio mel-spectrograms). The extracted features are fused through
+concatenation and passed to dual classification heads that predict emotion
+(7 classes) and sentiment (3 classes) for each utterance. The results are
+returned to the Next.js application, which computes aggregate statistics
+(average emotions/sentiments, engagement score, emotional trajectory), persists
+the analysis session and utterances to the SQLite database via Prisma, and
+displays the results on the dashboard.
+
+---
+
+[CHANGED] Completely rewritten to match actual data flow. Removed API key
+validation, quota checks. Added Whisper, pyannote, engagement scoring,
+database persistence.
+
+
+================================================================================
+10. USE CASE TABLE (Page 21-22)
+================================================================================
+
+Replace the following fields:
+
+Scenario:
+  "HR manager or user uploads a video recording through the web dashboard
+   to analyze the sentiment and emotion of participants in the recording."
+
+Triggering event:
+  "User uploads a video file through the analysis dashboard interface."
+
+Brief descriptions:
+  "The user wants to extract the emotions and sentiments of speakers in a
+   recorded video interaction, view per-speaker breakdowns, and receive an
+   engagement score and emotional trajectory summary."
+
+Preconditions:
+  • The system (Next.js app and FastAPI server) is running and accessible.
+  • The multimodal model is loaded in the inference server.
+  • The user is authenticated via NextAuth.js.
+
+Post conditions:
+  • Analysis results (utterances, emotions, sentiments) are persisted in
+    the SQLite database.
+  • Engagement score and summary are computed and stored.
+  • Results are displayed on the dashboard for the user.
+
+Main Flow:
+  1. User logs into the dashboard with email and password.
+  2. User navigates to the analysis page and uploads a video file.
+  3. User fills in session metadata (title, type, employee, date).
+  4. The system validates the file type and metadata.
+  5. The system forwards the video to the FastAPI inference server.
+  6. The inference server transcribes speech (Whisper), identifies speakers
+     (pyannote), and extracts multimodal features per utterance.
+  7. The model predicts emotion and sentiment for each utterance.
+  8. Results are returned to Next.js, which computes averages, engagement
+     score, and emotional trajectory.
+  9. The session and utterances are saved to the database.
+  10. The dashboard displays per-utterance results, speaker breakdown,
+      aggregate emotions/sentiments, and the engagement score.
+
+Alternative Flow:
+  A1:
+  1. User uploads an unsupported file type.
+  2. System returns an error: "Unsupported file type."
+
+  A2:
+  1. The inference server is unavailable or fails.
+  2. System returns: "Inference failed" (HTTP 502).
+
+---
+
+[CHANGED] Removed API key and quota references. Added actual flow including
+Whisper, pyannote, session metadata, engagement scoring, and database
+persistence.
+
+
+================================================================================
+11. METHODOLOGY — PRODUCT BACKLOG (Page 16-17)
+================================================================================
+
+No changes needed to the MELD dataset description or model architecture
+description — those are accurate.
+
+Update the Sprint list:
+
+OLD Sprint 14: "API Endpoints Integration"
+NEW Sprint 14: "Dashboard Integration and Data Flow"
+
+---
+
+[CHANGED] Minor rename to reflect actual work done.
+
+
+================================================================================
+12. BUDGETARY ESTIMATE (Page 31)
+================================================================================
+
+Remove or update:
+  - "AWS S3 Bucket (Cloud Storage) — ₱400-900 per month"
+    → The system uses local SQLite, not S3 for persistent storage.
+    → If you used S3 during training for dataset storage, keep it but
+      clarify: "AWS S3 (training dataset storage)"
+
+---
+
+[CHANGED] S3 is not used for production storage in the final system.
+
+
+================================================================================
+13. SYNTHESIS OF REVIEWED LITERATURE (Page 14-15)
+================================================================================
+
+Replace the last paragraph (starting "They also reveal an increasing shift
+toward API-based...") with:
+
+---
+
+They also reveal an increasing shift toward accessible, web-based platforms for
+practical deployment. Thus, the reviewed literature provides a strong factual
+and conceptual basis for the research aim: to develop a multimodal system with
+an interactive dashboard capable of analyzing video, audio, and text for
+accurate sentiment and emotion classification, with added relevance for
+real-world HR applications such as interview evaluation and employee
+interaction assessment.
+
+---
+
+[CHANGED] "API-based and service-oriented architectures" → "accessible,
+web-based platforms." "API service" → "system with an interactive dashboard."
+
+
+================================================================================
+SUMMARY OF ALL CHANGES
+================================================================================
+
+WHAT WAS REMOVED:
+  - All references to "API service" / "API endpoint" as the product
+  - Express.js (never used)
+  - PostgreSQL (SQLite is used)
+  - Docker (not in the codebase)
+  - API key management / quota system (never built)
+  - SageMaker for inference/deployment (only used for training)
+  - AWS S3 for production storage
+  - "SaaS" framing
+
+WHAT WAS ADDED:
+  - FastAPI + Uvicorn inference server
+  - Next.js 15 full-stack app (App Router, Server Actions)
+  - NextAuth.js v5 with credential-based auth (bcrypt)
+  - SQLite + Prisma ORM
+  - Whisper ASR (speech-to-text)
+  - pyannote.audio (speaker diarization)
+  - Engagement scoring (0-100 heuristic)
+  - Emotional trajectory detection
+  - Employee management and session linking
+  - Per-speaker emotional breakdown
+  - CSV/PDF export
+
+WHAT STAYED THE SAME:
+  - MELD dataset (all descriptions accurate)
+  - Model architecture (BERT + R3D-18 + mel-spectrogram CNN + late fusion)
+  - 7 emotion classes, 3 sentiment classes
+  - Tailwind CSS, React, TypeScript, Next.js (frontend)
+  - PyTorch (training)
+  - Literature review (all citations valid)
+  - Agile Scrum methodology
+  - AWS SageMaker for training (ml.g4dn.xlarge)
+  - 60-second max video duration
+  - English-only language restriction

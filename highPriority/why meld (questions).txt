@@ -1,0 +1,295 @@
+MELD DATASET — THESIS DEFENSE DEEP DIVE
+=========================================
+
+
+================================================================================
+WHERE DOES MELD COME FROM?
+================================================================================
+
+MELD stands for "Multimodal EmotionLines Dataset." It has a two-step origin:
+
+STEP 1 — EmotionLines (2018)
+  Authors: Sheng-Yeh Chen, Chao-Chun Hsu, Chuan-Chun Kuo, and others
+  Published: LREC 2018
+  What it was: A TEXT-ONLY emotion dataset of multi-party conversations
+  extracted from the TV series "Friends." It contained dialogue
+  transcripts with emotion labels but NO audio or video data.
+
+STEP 2 — MELD (2019)
+  Authors: Soujanya Poria, Devamanyu Hazarika, Navonil Majumder,
+           Gautam Naik, Erik Cambria, and Rada Mihalcea
+  Published: ACL 2019 (Association for Computational Linguistics) —
+             one of the top-tier NLP conferences
+  What they did: Extended EmotionLines by adding the AUDIO and VIDEO
+  modalities. They retrieved the original Friends TV episodes,
+  aligned each utterance from EmotionLines to its corresponding
+  video clip, and extracted the audio and visual data. The same
+  dialogue instances and emotion labels were preserved, but now
+  each utterance has text + audio + video.
+
+  Paper: "MELD: A Multimodal Multi-Party Dataset for Emotion
+         Recognition in Conversations"
+  ArXiv: arxiv.org/abs/1810.02508
+  Website: affective-meld.github.io
+  Repository: github.com/declare-lab/MELD
+
+So MELD is the multimodal upgrade of EmotionLines — same conversations,
+same labels, but now with all three modalities that our system needs.
+
+
+================================================================================
+WHAT DOES MELD CONTAIN? (EXACT NUMBERS)
+================================================================================
+
+  Total dialogues:    1,433
+  Total utterances:   13,708
+  Source:             Friends TV series (seasons 1-9)
+
+  SPLIT         DIALOGUES    UTTERANCES
+  Training        1,098        9,989
+  Development       114        1,109
+  Test              280        2,610
+
+  EMOTION LABELS (7 classes):
+    Anger, Disgust, Fear, Joy, Neutral, Sadness, Surprise
+
+  SENTIMENT LABELS (3 classes):
+    Positive, Negative, Neutral
+
+
+  MODALITIES per utterance:
+    - Text:  Dialogue transcript (the spoken words)
+    - Audio: Raw audio clip from the TV episode
+    - Video: Raw video clip from the TV episode
+
+  SPEAKERS: Multi-party (2-7+ speakers per dialogue, typically the
+  6 main Friends characters plus guest actors)
+
+
+================================================================================
+WHY DID WE USE MELD? (THE CORE ARGUMENT)
+================================================================================
+
+We needed a dataset that satisfies ALL of these requirements:
+  1. Has TEXT + AUDIO + VIDEO for every utterance (multimodal)
+  2. Has per-utterance emotion labels (not just per-video)
+  3. Has multiple speakers per conversation (multi-party)
+  4. Is large enough to train a deep learning model (10,000+ samples)
+  5. Is publicly available and freely accessible
+  6. Has standardized train/dev/test splits for reproducible benchmarks
+
+Here's why MELD was the only real choice:
+
+DATASET         TEXT  AUDIO  VIDEO  MULTI-PARTY  SIZE       PUBLIC
+-----------     ----  -----  -----  -----------  --------   ------
+MELD            YES   YES    YES    YES (2-7+)   13,708     YES
+IEMOCAP         YES   YES    YES    NO (dyadic)   5,531     Restricted
+RAVDESS         NO    YES    YES    NO (single)   7,356     YES
+CMU-MOSEI       YES   YES    YES    NO (single)  23,453     YES
+EmotionLines    YES   NO     NO     YES           12,894    YES
+SEMAINE         YES   YES    YES    NO (dyadic)   ~5,000    Restricted
+
+KEY REASONS:
+
+1. ONLY LARGE-SCALE MULTIMODAL MULTI-PARTY DATASET
+   IEMOCAP and SEMAINE are dyadic (exactly 2 speakers). In real HR
+   interviews, you often have 2-3+ participants (interviewer, candidate,
+   panel members). MELD is the only large dataset with more than 2
+   speakers per dialogue, which made it uniquely suited for our
+   multi-speaker HR use case.
+
+2. ALL THREE MODALITIES
+   EmotionLines (MELD's predecessor) was text-only. RAVDESS has audio
+   and video but no text transcripts. CMU-MOSEI has all three but is
+   monologue (YouTube opinion videos), not conversational. MELD is the
+   only dataset with all three modalities IN A CONVERSATIONAL SETTING.
+
+3. DUAL ANNOTATION (EMOTION + SENTIMENT)
+   MELD provides BOTH emotion labels (7 classes) and sentiment labels
+   (3 classes) for every utterance. This is why our model has two
+   classification heads — we get both granular emotion detection AND
+   broader sentiment analysis from a single forward pass. Most other
+   datasets only have one or the other.
+
+
+4. PUBLIC AND STANDARDIZED
+   MELD is freely available with standardized splits. IEMOCAP requires
+   institutional access agreements. This matters for thesis
+   reproducibility — anyone can download MELD and replicate our results.
+
+5. ESTABLISHED BENCHMARK
+   Published at ACL 2019 (top-tier venue), MELD has become the standard
+   benchmark for multimodal emotion recognition in conversations.
+   Hundreds of papers report results on MELD, giving us baselines to
+   compare against and validating that the research community considers
+   it a reliable dataset.
+
+
+================================================================================
+WHY IS MELD RELIABLE?
+================================================================================
+
+1. PEER-REVIEWED PUBLICATION
+   MELD was published at ACL 2019, one of the most prestigious NLP
+   conferences. The paper underwent rigorous peer review. It has been
+   cited 1,400+ times as of 2026, indicating widespread adoption and
+   scrutiny by the research community.
+
+2. MULTIPLE ANNOTATOR AGREEMENT
+   The emotion labels in MELD were annotated through a structured
+   process. The original EmotionLines paper used multiple annotators
+   per utterance and measured inter-annotator agreement. Labels were
+   assigned based on majority vote, reducing individual annotator bias.
+
+3. NATURAL CONVERSATIONAL CONTEXT
+   Unlike acted datasets (RAVDESS, where actors deliberately perform
+   emotions in isolation), MELD's emotions arise in the context of
+   ongoing conversations. Even though Friends is scripted, the actors
+   deliver emotions in response to dialogue context — closer to how
+   emotions emerge in real conversations. Each utterance exists within
+   a dialogue flow, not as an isolated clip.
+
+4. MULTI-PARTY DYNAMICS
+   Real conversations involve interruptions, reactions, and emotional
+   contagion between multiple people. MELD captures this. Datasets
+   like IEMOCAP with only 2 actors in a controlled lab cannot.
+
+5. BALANCED REPRESENTATION OF EMOTIONS
+   While MELD is imbalanced (47% neutral), it contains meaningful
+   samples of ALL 7 emotion classes including rare ones like disgust
+   and fear. This is realistic — in real conversations, most utterances
+   ARE neutral. The imbalance reflects natural emotional distribution,
+   which is actually a strength for real-world application.
+
+6. BROAD EMOTIONAL RANGE
+   The Friends source material covers a wide range of emotional
+   scenarios: arguments, celebrations, breakups, job interviews,
+   awkward situations, surprises. This diversity means the model sees
+   emotions in varied conversational contexts, not just one narrow
+   domain.
+
+7. COMMUNITY VALIDATION
+   State-of-the-art models regularly benchmark on MELD. Recent results:
+   - M2FNet (CVPR 2022): transformer-based fusion, 66.7% weighted F1
+   - Various models achieve 60-67% weighted F1 on emotion classification
+   - The fact that the research community consistently uses MELD as a
+     benchmark validates its reliability and relevance
+
+8. REPRODUCIBILITY
+   Standardized train/dev/test splits mean every researcher evaluates
+   on the exact same data. Results are directly comparable across papers.
+
+
+================================================================================
+MELD LIMITATIONS (BE HONEST ABOUT THESE)
+================================================================================
+
+1. DOMAIN GAP — SCRIPTED vs. NATURAL SPEECH
+   Friends is scripted television. Actors deliver lines with dramatic
+   timing, exaggerated expressions, and studio-quality audio/video.
+   Real HR interviews have:
+   - More subdued, professional emotional expression
+   - Webcam/meeting room quality (lower resolution, worse lighting)
+   - Background noise, echo, poor microphones
+   - Longer pauses and filler words ("um," "uh")
+
+   Our mitigation: We freeze pretrained encoders (BERT, R3D-18) that
+   learned general features from massive diverse datasets, so the model
+   doesn't overfit to MELD-specific patterns.
+
+2. CULTURAL HOMOGENEITY
+   Friends features predominantly white American actors expressing
+   emotions through Western cultural norms. Emotional expression varies
+   significantly across cultures — what looks like "anger" in American
+   culture may be normal assertiveness in another.
+
+   Our mitigation: We acknowledge this as a limitation and recommend
+   fine-tuning on diverse, organization-specific data for production.
+
+3. CLASS IMBALANCE
+   47% neutral dominance can bias the model toward predicting neutral.
+
+   Our mitigation: Inverse-frequency class weighting in CrossEntropyLoss
+   (models.py:compute_class_weights) — rare classes like disgust and
+   fear get higher loss weights. We also use label smoothing (0.05) to
+   prevent overconfident predictions.
+
+4. SINGLE LANGUAGE (ENGLISH)
+   MELD only contains English dialogue. Our system cannot analyze
+   interviews conducted in other languages without model changes.
+
+   Our mitigation: For multilingual support, we would swap BERT for
+   multilingual BERT (mBERT) and use Whisper "large" which supports
+   99 languages. The audio and video encoders are language-agnostic.
+
+5. ENTERTAINMENT vs. PROFESSIONAL CONTEXT
+   Emotions in Friends are often comedic — surprise and joy are
+   frequently exaggerated for laughs. In HR contexts, emotions are
+   more nuanced and restrained.
+
+
+================================================================================
+ANTICIPATED FOLLOW-UP QUESTIONS
+================================================================================
+
+Q: "If MELD is from a TV show, how can you claim your system works for
+    real HR interviews?"
+A: We don't claim production-level accuracy on HR interviews. MELD gives
+   us a FOUNDATION — the model learns what anger sounds like, what joy
+   looks like, how positive text differs from negative text. These are
+   universal emotional signals. The pretrained encoders (BERT trained on
+   BookCorpus+Wikipedia, R3D-18 trained on Kinetics-400 real human
+   actions) provide generalization beyond MELD. For production, we would
+   fine-tune on a small labeled set of real HR interviews using transfer
+   learning — the MELD-trained model gives us a far better starting
+   point than training from scratch.
+
+Q: "Why not use CMU-MOSEI? It's bigger (23,000+ utterances)."
+A: CMU-MOSEI contains YouTube monologues — one person talking to a
+   camera. It's not conversational. Our system analyzes multi-speaker
+   interviews with turn-taking, interruptions, and speaker diarization.
+   MELD's multi-party conversational structure matches our use case.
+   Additionally, MOSEI uses a dimensional annotation scheme
+   (valence/arousal), while MELD uses categorical emotions that are
+   more interpretable for HR professionals.
+
+Q: "Why not collect your own HR interview dataset?"
+A: Three reasons:
+   1. ETHICS: Recording and labeling real HR interviews requires
+      institutional ethics board approval, informed consent from
+      employees/candidates, and organizational buy-in — a significant
+      process for a thesis timeline
+   2. SCALE: We would need thousands of labeled utterances across all
+      7 emotion classes. Real HR interviews are predominantly neutral,
+      making it very hard to collect enough anger/fear/disgust samples
+   3. ANNOTATION COST: Labeling 13,000 utterances across 3 modalities
+      requires trained annotators and significant time/budget
+   Using MELD as a starting point and fine-tuning on a smaller HR
+   dataset is the practical approach we recommend for future work.
+
+Q: "What accuracy does your model achieve on MELD?"
+A: Our training logs show final test loss of 2.64 (combined emotion +
+   sentiment cross-entropy). The model was trained for 24 epochs with
+   best model selection on validation loss. Training loss converged from
+   3.09 to 2.60. We track weighted precision and accuracy for both
+   emotion and sentiment classification via sklearn metrics.
+   [NOTE: Pull your exact accuracy/precision numbers from your
+   TensorBoard logs or SageMaker output to cite specific percentages.]
+
+Q: "How does your model compare to state-of-the-art on MELD?"
+A: State-of-the-art models on MELD achieve ~65-67% weighted F1 for
+   emotion (e.g., M2FNet at CVPR 2022). These models use more complex
+   architectures — cross-modal transformers, graph neural networks for
+   dialogue context, and larger encoders. Our model uses simpler
+   concatenation fusion with frozen pretrained encoders, making it
+   faster and more deployment-friendly. The goal was not to beat SOTA
+   on MELD but to build a practical, deployable system for HR use.
+
+Q: "47% of MELD is neutral. Doesn't your model just predict neutral?"
+A: Without mitigation, yes. That's why we compute inverse-frequency
+   class weights (models.py line 146-189) and pass them to
+   CrossEntropyLoss. Rare classes like disgust (~3%) and fear (~2%)
+   receive proportionally higher loss weights, forcing the model to
+   learn their patterns despite fewer examples. We also use label
+   smoothing (0.05) to prevent the model from being overconfident
+   on the majority class.

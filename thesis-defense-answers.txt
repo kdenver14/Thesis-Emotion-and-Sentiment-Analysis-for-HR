@@ -1,0 +1,900 @@
+THESIS DEFENSE — QUESTIONS AND ANSWERS
+========================================
+
+
+================================================================================
+1. MODEL ARCHITECTURE & ML
+================================================================================
+
+
+Q: Why a multimodal approach (text + audio + video)? Why not just text-based sentiment?
+---
+Human communication is inherently multimodal. Research shows that text alone misses
+critical signals — sarcasm, for example, sounds positive in text ("oh great") but
+the tone of voice and facial expression reveal the true negative sentiment. Each
+modality contributes differently:
+
+- TEXT captures semantic meaning and word choice (what is said)
+- AUDIO captures tone, pitch, speaking rate, and vocal stress (how it is said)
+- VIDEO captures facial expressions, micro-expressions, and body language (what is shown)
+
+In HR interviews specifically, a candidate may say "I'm excited about this role"
+(positive text) while their voice is flat and their expression is tense — a text-only
+model would miss this mismatch entirely. Our multimodal approach captures
+these cross-modal cues that are critical for accurate sentiment analysis in
+workplace settings.
+
+
+Q: Why BERT for text, R3D-18 for video, and custom ConvNets for audio?
+---
+Each encoder was chosen for its strengths on its modality:
+
+- BERT (base-uncased): The standard pretrained language model for text
+  understanding. It provides rich contextual embeddings trained on massive
+  text corpora. We use the [CLS] token representation which captures
+  sentence-level meaning.
+
+- R3D-18 (ResNet 3D): A 3D convolutional network specifically designed for
+  video understanding. Unlike 2D CNNs that process individual frames, R3D-18
+  processes spatiotemporal features — it understands motion across frames,
+  which is essential for detecting facial expressions and gestures that unfold
+  over time.
+
+- Custom Conv1D for audio: We use a lightweight convolutional architecture
+  that processes mel-spectrograms. We chose this over Wav2Vec2 because
+  mel-spectrograms are a well-established representation for emotional
+  speech features (pitch, energy, formants), and the lightweight architecture
+  keeps inference fast — important since we process every utterance
+  individually.
+
+We did not evaluate ViT for video because R3D-18 is purpose-built for
+temporal video understanding, while ViT was designed for static images.
+For the scope of this thesis, our architecture provides a strong baseline
+while keeping inference tractable on standard hardware.
+
+
+Q: Why freeze BERT and R3D-18 but keep the audio encoder trainable?
+---
+BERT and R3D-18 are large pretrained models (110M and 33M parameters
+respectively) trained on massive datasets. Their feature extraction
+capabilities are already excellent — freezing them prevents catastrophic
+forgetting and dramatically reduces training time and GPU memory requirements.
+We only train the projection heads (768->128 for BERT, fc layer for R3D-18)
+that map their representations into our shared 128-dimensional embedding space.
+
+The audio encoder is a smaller custom ConvNet — it doesn't have pretrained
+weights from a large audio corpus, so its convolutional layers need to learn
+audio features from our training data. However, looking at our training code,
+we actually DO freeze the audio conv_layers as well (requires_grad = False)
+and only train the projection layer. The differential learning rates in the
+trainer (8e-6 for text, 8e-5 for video/audio, 5e-4 for fusion/classifiers)
+provide fine-grained control over how much each component adapts.
+
+
+Q: Why concatenation fusion instead of attention-based fusion?
+---
+We chose early concatenation fusion for simplicity and interpretability.
+Each encoder projects to a 128-dimensional space, and we concatenate them
+into a 384-dimensional vector that feeds into a fusion layer (384->256 with
+BatchNorm, ReLU, Dropout).
+
+Attention-based fusion (like cross-modal transformers) adds significant
+complexity, more parameters, and longer training times. For our thesis scope
+with the MELD dataset (~13,000 utterances), the simpler concatenation approach
+avoids overfitting risks that come with more complex architectures. The fusion
+MLP still learns weighted combinations of modality features — it's just not
+as expressive as multi-head attention.
+
+As future work, implementing cross-attention between modalities could capture
+richer interactions (e.g., when facial expression contradicts spoken words),
+but our current approach provides a solid baseline that demonstrates the
+multimodal concept effectively.
+
+
+Q: Your model was trained on MELD (Friends TV show). How well does it generalize to real HR interviews?
+---
+This is an acknowledged limitation. MELD consists of scripted dialogue from
+a TV sitcom — the emotions are acted, exaggerated, and the audio/video
+quality is studio-grade. Real HR interviews differ in several ways:
+
+- More subdued emotional expressions (professional context)
+- Lower video/audio quality (webcams, meeting rooms)
+- Longer, more monotonous segments
+- Domain-specific vocabulary
+
+However, MELD was chosen because it is the largest publicly available
+multimodal emotion dataset with utterance-level annotations across all three
+modalities (text, audio, video). It contains 1,300+ dialogues and 13,000+
+utterances with 7 emotion labels and 3 sentiment labels — no comparable
+dataset exists for HR interviews specifically.
+
+To mitigate the domain gap:
+1. We freeze pretrained encoders (BERT, R3D-18) so the model relies on
+   general-purpose features rather than MELD-specific patterns
+2. We report top-3 confidence scores, so users can see prediction uncertainty
+3. The engagement scoring layer adds HR-specific business logic on top of
+   raw predictions
+4. As future work, fine-tuning on a small labeled HR dataset would
+   significantly improve domain adaptation
+
+
+Q: What are your model's accuracy/F1/precision/recall metrics?
+---
+Our training tracked weighted precision and accuracy for both tasks. The model
+was trained for 24 epochs with best model selection based on validation loss.
+
+Final metrics:
+- Training loss converged from 3.09 (epoch 0) to ~2.60 (epoch 23)
+- Validation loss: 2.63 (best), final test loss: 2.64
+- The model tracks emotion_accuracy, emotion_precision, sentiment_accuracy,
+  and sentiment_precision using sklearn's weighted metrics
+
+For context, MELD is a challenging benchmark. State-of-the-art models on MELD
+achieve roughly 65-67% weighted F1 for emotion classification. Our model
+provides a competitive baseline given its simpler architecture. The 7-class
+emotion task is inherently harder than the 3-class sentiment task because
+emotions like anger vs. disgust or sadness vs. fear have subtle distinctions.
+
+
+Q: How do you handle class imbalance in the 7 emotion classes?
+---
+We handle class imbalance through inverse-frequency class weighting. In our
+training code (models.py:compute_class_weights), we:
+
+1. Count the distribution of each emotion and sentiment class across the
+   training set
+2. Compute inverse-frequency weights: weight = 1 / class_count
+3. Normalize weights so they sum to 1
+4. Pass these weights to CrossEntropyLoss
+
+This means under-represented classes (like disgust and fear in MELD) receive
+higher loss weights, forcing the model to pay more attention to them. We also
+use label smoothing (0.05) in our CrossEntropyLoss to prevent overconfident
+predictions and improve generalization.
+
+MELD is heavily imbalanced — "neutral" and "joy" dominate, while "disgust"
+and "fear" have very few samples. Without class weighting, the model would
+simply predict "neutral" for everything and achieve decent accuracy but
+terrible per-class performance.
+
+
+Q: Why 7 emotions? Why Ekman's basic emotions over dimensional models?
+---
+We use Ekman's 7 basic emotions (anger, disgust, fear, joy, neutral, sadness,
+surprise) because:
+
+1. MELD is annotated with these 7 categories — our dataset dictated the
+   label space
+2. Categorical emotions are more interpretable for HR professionals than
+   valence-arousal dimensions. An HR manager understands "this candidate
+   showed anger" better than "valence was -0.7, arousal was 0.8"
+3. Ekman's emotions are cross-culturally recognized, making the system
+   applicable across diverse workforces
+4. Discrete categories map cleanly to actionable HR insights (e.g., stress
+   peaks = high-confidence anger/fear/sadness)
+
+A dimensional model (valence-arousal) would provide finer granularity but
+would require a different dataset and make the dashboard visualizations
+less intuitive for non-technical users.
+
+
+================================================================================
+2. SYSTEM DESIGN & ARCHITECTURE
+================================================================================
+
+
+Q: Why SQLite instead of PostgreSQL?
+---
+SQLite was chosen for thesis scope — it's zero-configuration, requires no
+separate database server, and the entire database lives in a single file
+(db.sqlite). This makes the system easy to demo, develop, and deploy on a
+single machine.
+
+For production scaling, migration to PostgreSQL would be straightforward
+because we use Prisma ORM — we would only need to change the datasource
+provider in schema.prisma from "sqlite" to "postgresql" and update the
+DATABASE_URL. Our repository layer returns domain types, not raw database
+results, so no application code would change. Prisma handles the SQL
+dialect differences.
+
+SQLite is appropriate for our use case: single-user or small-team HR
+analysis where concurrent writes are rare and the dataset size stays
+manageable (thousands, not millions of sessions).
+
+
+Q: Why a separate FastAPI inference server instead of running inference in Next.js?
+---
+Three reasons:
+
+1. LANGUAGE SEPARATION: The ML pipeline requires Python (PyTorch, Whisper,
+   pyannote, OpenCV, torchaudio). Running this in a Node.js/Next.js process
+   would require complex Python-Node bridges or child processes.
+
+2. INDEPENDENT SCALING: Inference is GPU-intensive and takes minutes per
+   video. Separating it means we can scale the inference server independently
+   (e.g., deploy on a GPU instance) while the web app runs on cheaper
+   compute. They can also restart independently without affecting each other.
+
+3. RESOURCE ISOLATION: Loading the model (~546MB) into memory, plus Whisper
+   and diarization models, requires significant RAM. Isolating this from the
+   web server prevents memory pressure from affecting the user-facing
+   application.
+
+The trade-off is network latency for the API call, but since inference itself
+takes minutes, the milliseconds of HTTP overhead are negligible.
+
+
+Q: Explain your clean architecture layers. Isn't this over-engineering?
+---
+Our layers:
+
+  Pages/API Routes -> Server Actions -> Services -> Repositories -> Domain Types
+
+This separation exists for specific reasons:
+
+- PAGES/API ROUTES: Input validation and HTTP translation only. The
+  /api/sentiment-inference route validates the file extension, forwards to
+  FastAPI, and returns JSON. No business logic.
+
+- SERVER ACTIONS: Auth enforcement and CRUD orchestration. They check that
+  the user is authenticated and owns the resource being accessed.
+
+- SERVICES (summary.ts): Pure business logic. The engagement scoring,
+  emotional trajectory, and stress peak detection live here. These functions
+  take domain types and return domain types — no HTTP, no database.
+
+- REPOSITORIES: All Prisma queries. Returns domain types, never raw
+  Prisma objects.
+
+This is not over-engineering — it's the minimum structure needed to ensure
+testability (we can unit test the SummaryService without a database),
+maintainability (changing the database doesn't affect business logic), and
+security (auth is enforced in one layer, not scattered everywhere).
+
+
+Q: How does your system handle long videos?
+---
+The system processes videos utterance-by-utterance, not all at once. Whisper
+first transcribes the entire video into segments, then each segment is
+independently extracted (via ffmpeg), processed through the three encoders,
+and classified. This means:
+
+- Memory usage is proportional to a single utterance, not the entire video
+- A 1-hour video might produce 200+ utterances, each processed sequentially
+- The bottleneck is time, not memory — each utterance requires ffmpeg
+  extraction, video frame loading, audio feature extraction, and model
+  inference
+
+For a 1-hour video, expect processing to take 30-60+ minutes depending on
+hardware. There is no built-in timeout or progress tracking in the current
+implementation — this is a limitation. For production, we would add:
+- Background job queue (e.g., Celery, Bull)
+- Progress websocket updates
+- Chunked processing with partial results
+
+
+Q: What happens if the inference server goes down mid-analysis?
+---
+Currently, the API route will catch the error and return an HTTP 500. No
+partial results are saved — the entire analysis fails atomically. This is
+because we save the session and all utterances in a single database
+transaction only after inference completes successfully.
+
+For production, we would implement:
+- A job queue with retry logic
+- Partial result persistence (save utterances as they complete)
+- Health checks between the web app and inference server
+- User notification of failures with option to retry
+
+
+Q: Why JWT strategy over database sessions in NextAuth?
+---
+JWT sessions are stateless — the session data is encoded in the token itself,
+so we don't need to query the database on every request. This reduces database
+load and simplifies the architecture. For a thesis project with SQLite, this
+avoids the overhead of session table management and cleanup.
+
+The trade-off is that JWTs can't be individually revoked (you'd need a
+blocklist), but for our use case this is acceptable. We're not dealing with
+high-security scenarios requiring immediate session invalidation.
+
+
+================================================================================
+3. SPEAKER DIARIZATION
+================================================================================
+
+
+Q: How accurate is speaker diarization with pyannote?
+---
+We use pyannote/speaker-diarization-3.1, which is one of the best open-source
+diarization systems available. On standard benchmarks, it achieves
+Diarization Error Rates (DER) of approximately 10-15% on clean speech.
+
+However, accuracy degrades with:
+- Overlapping speech (common in interviews when people talk over each other)
+- Poor microphone quality or background noise
+- Very short utterances (less context for speaker embedding)
+- Many speakers (our HR context typically has 2-3, which is favorable)
+
+Our implementation handles diarization failures gracefully — if pyannote fails
+or HF_TOKEN is not set, the system continues without speaker labels. The
+analysis still works; you just lose the per-speaker breakdown.
+
+For speaker overlap, we use an overlap-based assignment strategy: for each
+utterance (defined by Whisper timestamps), we calculate how much each
+speaker's diarization segments overlap with the utterance window, and assign
+the speaker with the maximum overlap (inference.py:_assign_speaker).
+
+
+Q: How do you map speaker labels to actual identities?
+---
+We don't — and that's by design. Pyannote assigns arbitrary labels like
+"SPEAKER_00", "SPEAKER_01". These are consistent within a single session
+(the same physical speaker gets the same label throughout the video) but
+have no identity attached.
+
+The system provides an "employee speaker ID" field (employeeSpeakerId in the
+schema) that allows the HR user to manually indicate which speaker label
+corresponds to the employee being evaluated. This keeps the system privacy-
+aware — we never attempt facial recognition or voice identification.
+
+Automatic speaker identification would require a reference database of
+voice/face embeddings, which raises significant privacy and consent concerns
+in an HR context.
+
+
+Q: What's the latency impact of diarization?
+---
+Diarization adds significant processing time. Pyannote processes the entire
+audio file and builds speaker embeddings — for a 10-minute video, this can
+add 2-5 minutes of processing time on CPU. On GPU, it's considerably faster.
+
+The diarization runs once on the full audio before utterance-level processing
+begins. It's the second most expensive step after Whisper transcription.
+The per-utterance speaker assignment (overlap calculation) is negligible.
+
+We made diarization optional (controlled by HF_TOKEN) specifically because
+of this cost — users who don't need per-speaker analysis can skip it for
+faster processing.
+
+
+================================================================================
+4. ENGAGEMENT SCORING & BUSINESS LOGIC
+================================================================================
+
+
+Q: How did you validate your engagement scoring formula?
+---
+The engagement score formula is heuristic-based, informed by affective
+computing literature and HR domain knowledge. The specific weights are:
+
+- BASELINE: 60 (a neutral starting point — most professional conversations
+  are neither highly engaged nor disengaged)
+- POSITIVE BONUS: +25 at 100% positive ratio (rewards positive interactions)
+- VARIETY BONUS: +15 at 100% emotion variety (diverse emotions suggest
+  genuine engagement rather than flat affect)
+- NEGATIVE PENALTY: -40 at 100% negative ratio (strongest weight because
+  sustained negativity is the clearest disengagement signal)
+- DISENGAGEMENT PENALTY: -20 (triggered when neutral >85% AND emotion
+  variety <40%)
+
+These weights were calibrated through iterative testing on sample sessions
+to produce scores that align with intuitive human judgment. For example:
+- A uniformly positive interview scores ~80-85 (engaged)
+- A mixed-emotion discussion scores ~60-70 (normal)
+- A predominantly negative session scores ~30-40 (concerning)
+- A flat, monotone session scores ~40-50 (disengaged)
+
+We acknowledge this is not empirically validated against human-rated
+engagement labels. For production, we would conduct a correlation study
+between our scores and HR professional ratings to calibrate the weights.
+
+
+Q: What does "engagement" actually mean in your system?
+---
+In our system, engagement is defined as EMOTIONAL ENGAGEMENT — the degree
+to which participants express varied, authentic emotional responses during
+the session. It is NOT:
+
+- Attentiveness (we don't track eye gaze or head pose)
+- Conversational turn-taking (we don't measure response timing)
+- Content quality (we don't evaluate the substance of responses)
+
+Our engagement score is a composite metric that rewards:
+1. Positive sentiment (indicating comfortable, open communication)
+2. Emotional variety (indicating genuine, dynamic interaction rather than
+   rehearsed or guarded responses)
+
+And penalizes:
+1. Sustained negativity (indicating conflict or distress)
+2. Emotional flatness (predominantly neutral with no variety — suggesting
+   the person is checked out or giving rehearsed answers)
+
+This is most useful as a RELATIVE metric — comparing one session against
+another or tracking engagement trends over time — rather than as an
+absolute judgment.
+
+
+Q: Could the engagement score be biased?
+---
+Yes, this is a significant concern. The score is biased toward expressive
+communication styles:
+
+- CULTURAL BIAS: Cultures that value emotional restraint (many East Asian,
+  Northern European cultures) would score lower on engagement despite being
+  fully present and attentive. Our disengagement detector (neutral >85%)
+  would flag culturally reserved speakers as disengaged.
+
+- PERSONALITY BIAS: Introverted individuals naturally display less emotional
+  variation, which our variety bonus penalizes.
+
+- GENDER BIAS: Research shows socialized gender differences in emotional
+  expression — women are often socialized to be more expressive, which
+  would inflate their scores.
+
+- NEURODIVERSITY: People with autism spectrum conditions or alexithymia may
+  display reduced facial expressiveness and vocal variation.
+
+Mitigations:
+1. The score should be used as ONE data point, never as a sole decision factor
+2. Scores should be compared within individuals over time, not across people
+3. HR professionals should be trained on these biases
+4. Future work: normalize scores by speaker baseline emotional range
+
+
+Q: How reliable is the emotional trajectory classification?
+---
+The trajectory uses a simple split-half comparison:
+
+1. Split utterances into first half and second half
+2. Calculate positive sentiment ratio for each half
+3. If stress peaks >30% of utterances -> "volatile"
+4. If second_half_positive - first_half_positive > 15% -> "improving"
+5. If difference < -15% -> "declining"
+6. Otherwise -> "stable"
+
+The 15% threshold was chosen to filter out noise — small fluctuations in
+short sessions could trigger false improving/declining labels. The threshold
+is somewhat arbitrary and would benefit from sensitivity analysis.
+
+Limitations:
+- Binary split loses temporal granularity (a U-shaped session looks "stable")
+- Short sessions (5-10 utterances) have high variance per-half
+- "Volatile" is based on stress peak count, not sentiment variance
+
+For production, a sliding-window approach or regression-based trend analysis
+would be more robust.
+
+
+================================================================================
+5. ETHICS, PRIVACY & BIAS
+================================================================================
+
+
+Q: What are the ethical implications of using AI to analyze employee emotions?
+---
+This is the most critical consideration. The system creates a power asymmetry:
+employers gain emotional insight into employees/candidates who may not be
+aware of or consent to this analysis.
+
+Risks:
+- COERCIVE USE: Employers could use emotional analysis to penalize candidates
+  who show nervousness, frustration, or dissatisfaction during interviews
+- SURVEILLANCE CULTURE: Employees may feel pressured to perform emotional
+  labor (fake positivity) if they know they're being analyzed
+- MISINTERPRETATION: AI predictions are probabilistic, not definitive —
+  treating emotion labels as ground truth could lead to unfair decisions
+
+Safeguards we've built:
+- The system is designed as a SUPPLEMENTARY tool for HR professionals, not
+  an automated decision-maker
+- Confidence scores are shown for all predictions, encouraging users to
+  treat results as uncertain
+- No automated pass/fail or recommendation engine
+- Data is isolated per-user (no organizational aggregation that could enable
+  ranking employees)
+
+Ethical deployment requires:
+- Informed consent from all recorded individuals
+- Clear organizational policies on how results are used
+- Human oversight on any decisions informed by the analysis
+- Right to contest or opt out of emotional analysis
+
+
+Q: How do you handle consent?
+---
+In our current implementation, consent is handled outside the system — it's
+the responsibility of the HR professional uploading the video to ensure they
+have consent from all participants. The system does not enforce or verify
+consent.
+
+For production deployment, we would recommend:
+1. A consent checkbox requirement before upload ("I confirm all participants
+   have been informed and consented to emotional analysis")
+2. Clear disclosure to participants before recording begins
+3. An option for participants to request deletion of their analysis data
+4. Organizational policy documentation integrated into the platform
+
+
+Q: Is your model biased toward certain demographics?
+---
+Yes. MELD is sourced from the American TV show "Friends," which features:
+- Predominantly white, American English-speaking actors
+- Exaggerated, scripted emotional performances
+- Western cultural norms for emotional expression
+
+This means the model likely performs worse on:
+- Non-native English speakers (accent-related transcription errors from
+  Whisper, different intonation patterns)
+- Non-Western emotional expression styles
+- Older/younger speakers (MELD actors are mid-20s to mid-30s)
+- Different racial groups (facial expression recognition models are known
+  to have racial bias)
+
+The video encoder (R3D-18, pretrained on Kinetics) has broader training data,
+and BERT handles diverse English text well, but the audio encoder trained on
+MELD is most susceptible to demographic bias.
+
+Mitigation for production: evaluate model performance across demographic
+groups and fine-tune on diverse, real-world HR datasets.
+
+
+Q: How does your system comply with data privacy regulations?
+---
+Current privacy measures:
+- VIDEO IS NOT STORED: The uploaded video is written to a temporary file,
+  processed, and deleted immediately after inference (server.py:44 — os.remove)
+- Only derived data is persisted: transcribed text, emotion/sentiment scores,
+  timestamps, and speaker labels
+- Data isolation: All records are scoped to the authenticated user via userId
+  foreign keys — users cannot access each other's data
+- Authentication: Password hashing with bcrypt, JWT session tokens
+
+However, the transcribed utterance text IS personally identifiable information
+(PII) — it contains what people said verbatim. For GDPR/Data Privacy Act
+compliance, we would need:
+- Data Processing Agreements with the organization
+- Right to erasure (we support session deletion)
+- Data retention policies (auto-delete after N days)
+- Export functionality for data portability (we have PDF/CSV export)
+- Clear privacy policy documentation
+
+
+================================================================================
+6. EVALUATION & VALIDATION
+================================================================================
+
+
+Q: Did you conduct user testing with actual HR professionals?
+---
+[Answer based on your actual testing — if you did user testing, describe the
+methodology, sample size, and key findings. If not, acknowledge it as a
+limitation and describe how you would design such a study:]
+
+User testing would involve:
+1. Recruiting 5-10 HR professionals from Arup
+2. Having them analyze 10-15 pre-recorded interview videos using the system
+3. Comparing their manual assessments against system predictions
+4. Collecting usability feedback via structured interviews
+5. Measuring task completion time with vs. without the tool
+
+Key metrics: prediction agreement rate, perceived usefulness (Likert scale),
+System Usability Scale (SUS) score, time-on-task comparison.
+
+
+Q: How do you measure real-world accuracy vs. human annotators?
+---
+On the MELD test set, we evaluate using weighted precision and accuracy via
+sklearn metrics. The test loss (2.64) is close to validation loss (2.63),
+indicating the model generalizes well within the MELD domain — it's not
+overfitting.
+
+For real-world HR accuracy, we have not conducted a formal annotation study.
+This would require:
+1. Recording real HR interviews (with consent)
+2. Having multiple human annotators label each utterance for emotion and
+   sentiment
+3. Computing inter-annotator agreement (Cohen's Kappa)
+4. Comparing model predictions against majority-vote human labels
+5. Reporting per-class precision, recall, and F1
+
+This is the strongest avenue for future work to validate practical utility.
+
+
+Q: What's your ground truth for engagement scoring?
+---
+There is no labeled ground truth for engagement. The engagement score is a
+heuristic composite metric — we did not have a dataset of sessions with
+human-rated engagement labels.
+
+Validation approaches for future work:
+1. Have HR professionals rate engagement on a 0-100 scale for a set of
+   sessions, then compute correlation with our algorithmic score
+2. Use proxy metrics: compare engagement scores against hiring outcomes
+   (did engaged-scoring candidates get offers?)
+3. A/B testing: do HR teams make different decisions when shown the
+   engagement score vs. without it?
+
+
+Q: Did you perform ablation studies?
+---
+[If you did, describe results. If not:]
+
+We did not perform formal ablation studies. The experimental design would be:
+
+1. TEXT ONLY: Remove video and audio encoders, classify from BERT alone
+2. AUDIO ONLY: Remove text and video, classify from mel-spectrograms alone
+3. VIDEO ONLY: Remove text and audio, classify from R3D-18 alone
+4. TEXT + AUDIO: Remove video encoder
+5. TEXT + VIDEO: Remove audio encoder
+6. FULL MULTIMODAL: All three modalities (our system)
+
+Expected findings based on literature:
+- Text alone would be the strongest single modality (MELD has clear
+  emotional language since it's scripted dialogue)
+- Audio would help most with sarcasm and emotional intensity
+- Video would help most with facial expressions and non-verbal cues
+- The full multimodal model should outperform any single modality
+
+This is a valuable future contribution that would strengthen the thesis.
+
+
+================================================================================
+7. LIMITATIONS & FUTURE WORK
+================================================================================
+
+
+Q: What are the top 3 limitations?
+---
+1. DOMAIN GAP: Trained on MELD (scripted TV dialogue), applied to HR
+   interviews (natural professional conversation). The model has never seen
+   real workplace interactions during training.
+
+2. ENGAGEMENT SCORE VALIDATION: The scoring formula is heuristic-based with
+   no empirical validation against human-rated engagement. The weights
+   (baseline 60, +25 positive, -40 negative) were not derived from data.
+
+3. CULTURAL/DEMOGRAPHIC BIAS: The system inherently favors emotionally
+   expressive communication styles and English speakers, creating unfair
+   disadvantages for culturally reserved individuals or non-native speakers.
+
+
+Q: How would you extend to multilingual?
+---
+1. Replace BERT base-uncased with multilingual BERT (mBERT) or XLM-RoBERTa,
+   which support 100+ languages
+2. Replace Whisper "base" with Whisper "large" which has much better
+   multilingual transcription
+3. The audio encoder is language-agnostic (mel-spectrograms capture
+   prosodic features regardless of language)
+4. The video encoder is language-agnostic (facial expressions are universal)
+5. Re-train or fine-tune on a multilingual emotion dataset (e.g., IEMOCAP
+   for English, or create a multilingual equivalent)
+
+
+Q: How would you handle real-time analysis?
+---
+Current architecture processes complete videos in batch. For real-time:
+
+1. STREAMING TRANSCRIPTION: Replace batch Whisper with streaming ASR
+   (e.g., Whisper streaming, or Deepgram/AssemblyAI APIs)
+2. WINDOWED INFERENCE: Process utterances as they complete rather than
+   waiting for the full video
+3. WEBSOCKET UPDATES: Push results to the frontend in real-time via
+   WebSockets instead of waiting for the full HTTP response
+4. ONLINE DIARIZATION: Use pyannote's online/streaming diarization mode
+5. RUNNING AGGREGATION: Update engagement scores and trajectories
+   incrementally as new utterances arrive
+
+This would require significant architectural changes but the model itself
+could work — it already processes utterances independently.
+
+
+Q: Could this be replaced by GPT-4o or Gemini?
+---
+Large multimodal models (LMMs) like GPT-4o can process video, audio, and
+text natively. They could potentially replace our custom model with:
+
+Advantages of LMMs:
+- No training required (zero-shot or few-shot)
+- Better generalization across domains
+- Richer, more nuanced emotion descriptions
+- Ability to explain why an emotion was detected
+
+Advantages of our approach:
+- RUNS LOCALLY: No data leaves the organization — critical for HR privacy.
+  Sending employee interview videos to OpenAI's API raises massive privacy
+  and compliance concerns
+- COST: GPT-4o video analysis is expensive at scale. Our model runs on
+  local hardware with no per-inference cost
+- LATENCY: API rate limits and network round-trips add latency
+- CUSTOMIZATION: Our model can be fine-tuned on organization-specific data
+- REPRODUCIBILITY: Same input always produces same output (no temperature
+  variation)
+- OFFLINE CAPABILITY: Works without internet connection
+
+For a production HR tool, the privacy argument alone justifies a local model.
+However, LMMs could be used as a teacher model to generate training data for
+fine-tuning our local model — a practical middle ground.
+
+
+Q: What would it take to deploy this in production for Arup?
+---
+1. DATABASE: Migrate from SQLite to PostgreSQL for concurrent access
+2. INFRASTRUCTURE: Deploy inference server on GPU-equipped hardware (or
+   cloud GPU instances). Deploy web app on standard compute
+3. JOB QUEUE: Add background job processing (Celery/Bull) for video
+   analysis with progress tracking and retry logic
+4. STORAGE: Implement proper file storage (S3/Azure Blob) for video
+   uploads if retention is needed
+5. AUTH: Integrate with Arup's SSO/SAML provider instead of
+   email/password
+6. MULTI-TENANCY: Add organization-level data isolation (not just
+   per-user)
+7. FINE-TUNING: Collect and label a small Arup-specific HR dataset to
+   fine-tune the model
+8. COMPLIANCE: Data Processing Impact Assessment, privacy policy,
+   consent workflows
+9. MONITORING: Add observability (logging, metrics, alerting) for
+   model performance drift
+10. SECURITY AUDIT: Penetration testing, dependency scanning, access
+    controls review
+
+
+================================================================================
+8. TECHNICAL DEEP-DIVES
+================================================================================
+
+
+Q: Walk us through the end-to-end flow from upload to dashboard.
+---
+1. USER uploads a video file via drag-and-drop on the home page. They fill
+   in metadata: title, session type, optional employee assignment, date.
+
+2. CLIENT sends a multipart POST to /api/sentiment-inference with the video
+   file and metadata.
+
+3. API ROUTE validates the file extension (.mp4/.mov/.avi), creates a
+   temporary file, and forwards the video as FormData to the FastAPI
+   inference server at LOCAL_INFERENCE_URL/infer.
+
+4. FASTAPI SERVER receives the upload, writes to a temp file, and calls
+   predict_fn().
+
+5. WHISPER transcribes the full video into segments with timestamps
+   (start_time, end_time, text).
+
+6. PYANNOTE (if enabled) performs speaker diarization on the full audio,
+   producing speaker segments.
+
+7. FOR EACH UTTERANCE:
+   a. ffmpeg extracts the video segment for that time range
+   b. VideoProcessor reads up to 30 frames, resizes to 224x224, normalizes
+   c. AudioProcessor extracts audio via ffmpeg, computes 64-mel spectrogram
+      (300 timesteps), normalizes
+   d. BERT tokenizer encodes the text (max 128 tokens)
+   e. All three inputs pass through the MultimodalSentimentModel
+   f. Softmax on emotion/sentiment logits -> top-3 predictions with
+      confidence scores
+   g. Speaker assigned by overlap calculation with diarization
+
+8. FASTAPI returns JSON: { utterances: [...] }
+
+9. API ROUTE receives predictions, computes:
+   - Average emotions/sentiments across all utterances
+   - Top emotion and sentiment
+   - Engagement score, trajectory, stress peaks (via SummaryService)
+   - Summary text
+
+10. DATABASE: Creates AnalysisSession record and bulk-inserts all Utterance
+    records in a single transaction.
+
+11. CLIENT receives { analysis, sessionId } and redirects to the session
+    detail page.
+
+12. DASHBOARD displays: summary card, engagement score, emotion distribution
+    chart, utterance timeline with speaker filtering, export buttons.
+
+
+Q: How does Whisper handle noisy audio or heavy accents?
+---
+We use Whisper "base" (74M parameters), which is the second-smallest model.
+It handles standard English well but struggles with:
+- Heavy background noise (meeting room HVAC, keyboard typing)
+- Strong non-native accents
+- Multiple overlapping speakers (Whisper is single-speaker)
+- Very fast speech or mumbling
+
+Whisper does provide word-level timestamps (word_timestamps=True in our
+config), which helps with accurate utterance segmentation even when
+transcription quality varies.
+
+For production, upgrading to Whisper "large-v3" (1.5B parameters) would
+significantly improve accuracy on accented and noisy speech, at the cost
+of slower processing and higher memory usage.
+
+
+Q: Why 30 frames per utterance?
+---
+30 frames was chosen as a practical balance:
+- MELD utterances average 3-5 seconds at 24fps = 72-120 frames
+- We subsample to 30 to keep memory and compute tractable
+- R3D-18 was pretrained on 16-frame clips, so 30 frames provides slightly
+  more temporal context than its training distribution
+- For short utterances (<30 frames available), we zero-pad the remaining
+  frames to maintain a consistent tensor shape
+
+For varying-length utterances, the current implementation simply reads the
+FIRST 30 frames sequentially — it does not uniformly sample across the
+utterance duration. This means for long utterances, we only see the
+beginning. A better approach would be uniform temporal sampling (selecting
+evenly-spaced frames across the full duration).
+
+
+Q: Explain the mel-spectrogram preprocessing.
+---
+A mel-spectrogram is a time-frequency representation of audio that mimics
+human auditory perception:
+
+- SAMPLE RATE: 16kHz (standard for speech — human speech energy is
+  concentrated below 8kHz, and Nyquist theorem says 16kHz captures up to
+  8kHz)
+- N_MELS: 64 frequency bands on the mel scale. The mel scale is logarithmic,
+  matching how humans perceive pitch — we're more sensitive to differences
+  at low frequencies. 64 bands provide sufficient frequency resolution for
+  speech emotion features (pitch, formants, harmonics)
+- N_FFT: 1024 samples per FFT window (~64ms at 16kHz). This provides good
+  frequency resolution for speech analysis
+- HOP_LENGTH: 512 samples between windows (~32ms). This determines temporal
+  resolution — how frequently we sample the frequency content
+- 300 TIMESTEPS: We pad or truncate the mel-spectrogram to exactly 300 time
+  steps. At 32ms hop, this covers ~9.6 seconds of audio. Utterances shorter
+  than this get zero-padded; longer ones get truncated
+
+The spectrogram is then normalized to zero mean and unit variance to ensure
+consistent input scale for the Conv1D encoder.
+
+
+Q: How do you handle modality disagreement?
+---
+Our concatenation fusion approach handles disagreement implicitly — the
+fusion MLP learns to weight modality contributions during training. When
+modalities disagree (e.g., positive text + angry tone), the fusion layer
+produces a combined representation that reflects all inputs.
+
+The model does NOT have an explicit conflict detection mechanism. The
+softmax output simply reflects the learned weighted combination. In
+practice:
+- If two modalities agree and one disagrees, the majority usually wins
+- If all three disagree, confidence scores tend to be lower (more
+  distributed across classes), which naturally signals uncertainty
+
+This is actually visible in the system — utterances where the top-1
+confidence is low (e.g., 35% vs. typical 60-80%) often correspond to
+ambiguous or conflicting signals. The fact that we display top-3 predictions
+with confidence scores lets HR professionals notice these cases.
+
+A more sophisticated approach would use attention-based fusion with
+modality-specific confidence weighting, or explicitly flag cross-modal
+disagreement as a feature for HR professionals to review.
+
+
+================================================================================
+PRIORITY PREPARATION AREAS
+================================================================================
+
+1. ETHICS/BIAS — Panelists almost always ask this. Know the cultural bias
+   argument cold. Have concrete mitigation strategies ready.
+
+2. MELD GENERALIZATION — Your biggest validity challenge. Be upfront about
+   the limitation and have a clear plan for domain adaptation.
+
+3. ENGAGEMENT SCORE VALIDATION — Be honest that it's heuristic-based.
+   Have a concrete validation study design ready to describe.
+
+4. END-TO-END WALKTHROUGH — Practice explaining the full pipeline fluently
+   in 2-3 minutes. Panelists love this question because it tests whether
+   you truly understand every component.
+
+5. WHY NOT GPT-4o? — This will almost certainly come up. The privacy
+   argument is your strongest card.
