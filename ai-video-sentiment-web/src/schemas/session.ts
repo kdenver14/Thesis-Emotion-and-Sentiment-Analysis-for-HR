@@ -6,6 +6,7 @@ export const sessionMetadataSchema = z.object({
   sessionType: z.enum(SESSION_TYPES),
   employeeId: z.string().optional(),
   sessionDate: z.string().optional(),
+  interviewerName: z.string().max(200).optional(),
 });
 
 export type SessionMetadataSchema = z.infer<typeof sessionMetadataSchema>;

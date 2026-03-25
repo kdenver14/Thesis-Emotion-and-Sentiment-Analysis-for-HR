@@ -11,6 +11,7 @@ import {
   deleteSession,
   updateSessionEmployee,
   updateEmployeeSpeaker,
+  renameSpeaker,
   type SessionFilters,
   type ParsedSession,
   type ParsedSessionWithUtterances,
@@ -83,6 +84,18 @@ export async function assignSessionEmployee(
   const session = await auth();
   if (!session?.user?.id) throw new Error("Unauthorized");
   await updateSessionEmployee(sessionId, session.user.id, employeeId);
+}
+
+export async function renameSessionSpeaker(
+  sessionId: string,
+  oldName: string,
+  newName: string,
+): Promise<void> {
+  const session = await auth();
+  if (!session?.user?.id) throw new Error("Unauthorized");
+  const trimmed = newName.trim();
+  if (!trimmed) throw new Error("Speaker name cannot be empty");
+  await renameSpeaker(sessionId, session.user.id, oldName, trimmed);
 }
 
 export async function setEmployeeSpeaker(
