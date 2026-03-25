@@ -25,6 +25,7 @@ function UploadVideo({ onAnalysis, metadata }: UploadVideoProps) {
       formData.append("sessionType", metadata.sessionType);
       if (metadata.employeeId) formData.append("employeeId", metadata.employeeId);
       if (metadata.sessionDate) formData.append("sessionDate", metadata.sessionDate);
+      if (metadata.interviewerName) formData.append("interviewerName", metadata.interviewerName);
 
       const res = await fetch("/api/sentiment-inference", {
         method: "POST",

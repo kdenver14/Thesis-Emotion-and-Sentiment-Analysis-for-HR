@@ -52,6 +52,12 @@ export default async function SessionDetailPage({ params }: PageProps) {
               <span>{session.sessionDate.toLocaleDateString("en-GB")}</span>
               <span>·</span>
               <span>{sessionTypeLabel}</span>
+              {session.interviewerName && (
+                <>
+                  <span>·</span>
+                  <span>Interviewer: {session.interviewerName}</span>
+                </>
+              )}
               <span>·</span>
               <AssignEmployee
                 sessionId={session.id}
@@ -95,6 +101,7 @@ export default async function SessionDetailPage({ params }: PageProps) {
           Utterance timeline
         </h2>
         <SpeakerTimeline
+          sessionId={session.id}
           utterances={session.utterances}
           speakers={speakers}
           employeeSpeakerId={session.employeeSpeakerId}

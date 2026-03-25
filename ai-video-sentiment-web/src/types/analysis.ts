@@ -55,4 +55,5 @@ export interface SessionMetadataInput {
   sessionType: SessionType;
   employeeId?: string;
   sessionDate?: string;
+  interviewerName?: string;
 }

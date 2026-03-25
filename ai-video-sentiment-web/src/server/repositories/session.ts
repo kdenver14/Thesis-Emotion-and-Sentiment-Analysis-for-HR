@@ -23,6 +23,7 @@ export interface ParsedSession {
   summary: string;
   engagementScore: number;
   durationSecs: number | null;
+  interviewerName: string | null;
   createdAt: Date;
   employeeId: string | null;
   employeeSpeakerId: string | null;
@@ -73,6 +74,7 @@ function parseSession(raw: {
   summary: string;
   engagementScore: number;
   durationSecs: number | null;
+  interviewerName: string | null;
   createdAt: Date;
   employeeId: string | null;
   employeeSpeakerId: string | null;
@@ -91,6 +93,7 @@ function parseSession(raw: {
     summary: raw.summary,
     engagementScore: raw.engagementScore,
     durationSecs: raw.durationSecs,
+    interviewerName: raw.interviewerName,
     createdAt: raw.createdAt,
     employeeId: raw.employeeId,
     employeeSpeakerId: raw.employeeSpeakerId,
@@ -111,6 +114,7 @@ const SESSION_SELECT = {
   summary: true,
   engagementScore: true,
   durationSecs: true,
+  interviewerName: true,
   createdAt: true,
   employeeId: true,
   employeeSpeakerId: true,
@@ -392,6 +396,25 @@ export async function updateEmployeeSpeaker(
   await db.analysisSession.update({
     where: { id: sessionId, userId },
     data: { employeeSpeakerId },
+  });
+}
+
+export async function renameSpeaker(
+  sessionId: string,
+  userId: string,
+  oldName: string,
+  newName: string,
+): Promise<void> {
+  // Verify ownership
+  const session = await db.analysisSession.findFirst({
+    where: { id: sessionId, userId },
+    select: { id: true },
+  });
+  if (!session) throw new Error("Session not found");
+
+  await db.utterance.updateMany({
+    where: { sessionId, speaker: oldName },
+    data: { speaker: newName },
   });
 }
 

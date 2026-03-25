@@ -86,6 +86,7 @@ export async function POST(req: Request) {
     sessionType: formData.get("sessionType") ?? "general",
     employeeId: formData.get("employeeId") ?? undefined,
     sessionDate: formData.get("sessionDate") ?? undefined,
+    interviewerName: formData.get("interviewerName") ?? undefined,
   });
 
   if (!metadataParsed.success) {
@@ -139,6 +140,7 @@ export async function POST(req: Request) {
           sessionDate: metadata.sessionDate
             ? new Date(metadata.sessionDate)
             : new Date(),
+          interviewerName: metadata.interviewerName ?? null,
           videoKey: randomUUID(),
           avgEmotions: JSON.stringify(avgEmotions),
           avgSentiments: JSON.stringify(avgSentiments),
