@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ERD — AI Video Sentiment Analysis</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: #fff;
+    padding: 30px 40px;
+  }
+  h1 {
+    text-align: center;
+    font-size: 16px;
+    color: #333;
+    margin-bottom: 24px;
+    font-weight: 600;
+  }
+  .canvas {
+    position: relative;
+    width: 1160px;
+    height: 1200px;
+    margin: 0 auto;
+  }
+  svg.lines {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    pointer-events: none;
+    z-index: 0;
+    overflow: visible;
+  }
+  .entity {
+    position: absolute;
+    background: #fff;
+    border: 1.5px solid #999;
+    border-radius: 2px;
+    box-shadow: 1px 2px 5px rgba(0,0,0,0.08);
+    z-index: 1;
+  }
+  .entity-header {
+    background: #D8856C;
+    color: #fff;
+    font-weight: 700;
+    font-size: 12.5px;
+    padding: 6px 14px;
+    text-align: center;
+    letter-spacing: 0.3px;
+    border-bottom: 1.5px solid #999;
+  }
+  .entity-body { padding: 5px 0; }
+  .attr {
+    font-size: 11.5px;
+    color: #333;
+    padding: 2px 10px;
+    white-space: nowrap;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    line-height: 1.5;
+  }
+  .attr .badge {
+    display: inline-block;
+    min-width: 18px;
+    text-align: center;
+    font-weight: 700;
+    font-size: 9px;
+    flex-shrink: 0;
+    padding: 0 2px;
+    border-radius: 2px;
+  }
+  .badge.pk { background: #C0392B; color: #fff; }
+  .badge.fk { background: #2471A3; color: #fff; }
+  .badge.empty { background: transparent; }
+  .attr-name { font-weight: 600; color: #222; }
+  .attr-type { color: #888; font-size: 11px; margin-left: 2px; }
+  .attr-note { color: #aaa; font-size: 9.5px; margin-left: 3px; font-style: italic; }
+  .separator { border-top: 1px solid #ccc; margin: 3px 0; }
+</style>
+</head>
+<body>
+
+<h1>Entity Relationship Diagram &mdash; AI Video Sentiment Analysis System</h1>
+
+<div class="canvas" id="canvas">
+  <svg class="lines" id="svg" xmlns="http://www.w3.org/2000/svg"></svg>
+
+  <!-- Row 1: Session, Account -->
+  <div class="entity" id="e-session" style="left: 40px; top: 0;">
+    <div class="entity-header">Session</div>
+    <div class="entity-body">
+      <div class="attr"><span class="badge pk">PK</span><span class="attr-name">id</span><span class="attr-type">String</span></div>
+      <div class="separator"></div>
+      <div class="attr"><span class="badge fk">FK</span><span class="attr-name">userId</span><span class="attr-type">String</span></div>
+      <div class="attr"><span class="badge empty"></span><span class="attr-name">sessionToken</span><span class="attr-type">String</span><span class="attr-note">UNIQUE</span></div>
+      <div class="attr"><span class="badge empty"></span><span class="attr-name">expires</span><span class="attr-type">DateTime</span></div>
+    </div>
+  </div>
+
+  <div class="entity" id="e-account" style="left: 680px; top: 0;">
+    <div class="entity-header">Account</div>
+    <div class="entity-body">
+      <div class="attr"><span class="badge pk">PK</span><span class="attr-name">id</span><span class="attr-type">String</span></div>
+      <div class="separator"></div>
+      <div class="attr"><span class="badge fk">FK</span><span class="attr-name">userId</span><span class="attr-type">String</span></div>
+      <div class="attr"><span class="badge empty"></span><span class="attr-name">type</span><span class="attr-type">String</span></div>
+      <div class="attr"><span class="badge empty"></span><span class="attr-name">provider</span><span class="attr-type">String</span></div>
+      <div class="attr"><span class="badge empty"></span><span class="attr-name">providerAccountId</span><span class="attr-type">String</span></div>
+      <div class="attr"><span class="badge empty"></span><span class="attr-name">refresh_token</span><span class="attr-type">String?</span></div>
+      <div class="attr"><span class="badge empty"></span><span class="attr-name">access_token</span><span class="attr-type">String?</span></div>
+      <div class="attr"><span class="badge empty"></span><span class="attr-name">expires_at</span><span class="attr-type">Int?</span></div>
+      <div class="attr"><span class="badge empty"></span><span class="attr-name">token_type</span><span class="attr-type">String?</span></div>
+      <div class="attr"><span class="badge empty"></span><span class="attr-name">scope</span><span class="attr-type">String?</span></div>
+      <div class="attr"><span class="badge empty"></span><span class="attr-name">id_token</span><span class="attr-type">String?</span></div>
+      <div class="attr"><span class="badge empty"></span><span class="attr-name">session_state</span><span class="attr-type">String?</span></div>
+      <div class="attr"><span class="badge empty"></span><span class="attr-name">refresh_token_expires_in</span><span class="attr-type">Int?</span></div>
+    </div>
+  </div>
+
+  <!-- Row 2: VerificationToken, User, Employee -->
+  <div class="entity" id="e-verification" style="left: 0; top: 360px;">
+    <div class="entity-header">VerificationToken</div>
+    <div class="entity-body">
+      <div class="attr"><span class="badge pk">PK</span><span class="attr-name">identifier</span><span class="attr-type">String</span></div>
+      <div class="attr"><span class="badge pk">UK</span><span class="attr-name">token</span><span class="attr-type">String</span></div>
+      <div class="separator"></div>
+      <div class="attr"><span class="badge empty"></span><span class="attr-name">expires</span><span class="attr-type">DateTime</span></div>
+    </div>
+  </div>
+
+  <div class="entity" id="e-user" style="left: 420px; top: 330px;">
+    <div class="entity-header">User</div>
+    <div class="entity-body">
+      <div class="attr"><span class="badge pk">PK</span><span class="attr-name">id</span><span class="attr-type">String</span></div>
+      <div class="separator"></div>
+      <div class="attr"><span class="badge empty"></span><span class="attr-name">name</span><span class="attr-type">String?</span></div>
+      <div class="attr"><span class="badge empty"></span><span class="attr-name">email</span><span class="attr-type">String?</span><span class="attr-note">UNIQUE</span></div>
+      <div class="attr"><span class="badge empty"></span><span class="attr-name">emailVerified</span><span class="attr-type">DateTime?</span></div>
+      <div class="attr"><span class="badge empty"></span><span class="attr-name">image</span><span class="attr-type">String?</span></div>
+      <div class="attr"><span class="badge empty"></span><span class="attr-name">password</span><span class="attr-type">String</span></div>
+    </div>
+  </div>
+
+  <div class="entity" id="e-employee" style="left: 880px; top: 340px;">
+    <div class="entity-header">Employee</div>
+    <div class="entity-body">
+      <div class="attr"><span class="badge pk">PK</span><span class="attr-name">id</span><span class="attr-type">String</span></div>
+      <div class="separator"></div>
+      <div class="attr"><span class="badge fk">FK</span><span class="attr-name">userId</span><span class="attr-type">String</span></div>
+      <div class="attr"><span class="badge empty"></span><span class="attr-name">name</span><span class="attr-type">String</span></div>
+      <div class="attr"><span class="badge empty"></span><span class="attr-name">email</span><span class="attr-type">String?</span></div>
+      <div class="attr"><span class="badge empty"></span><span class="attr-name">department</span><span class="attr-type">String?</span></div>
+      <div class="attr"><span class="badge empty"></span><span class="attr-name">createdAt</span><span class="attr-type">DateTime</span></div>
+      <div class="attr"><span class="badge empty"></span><span class="attr-name">updatedAt</span><span class="attr-type">DateTime</span></div>
+    </div>
+  </div>
+
+  <!-- Row 3: AnalysisSession -->
+  <div class="entity" id="e-analysis" style="left: 380px; top: 620px;">
+    <div class="entity-header">AnalysisSession</div>
+    <div class="entity-body">
+      <div class="attr"><span class="badge pk">PK</span><span class="attr-name">id</span><span class="attr-type">String</span></div>
+      <div class="separator"></div>
+      <div class="attr"><span class="badge fk">FK</span><span class="attr-name">userId</span><span class="attr-type">String</span></div>
+      <div class="attr"><span class="badge fk">FK</span><span class="attr-name">employeeId</span><span class="attr-type">String?</span></div>
+      <div class="attr"><span class="badge empty"></span><span class="attr-name">employeeSpeakerId</span><span class="attr-type">String?</span></div>
+      <div class="attr"><span class="badge empty"></span><span class="attr-name">interviewerName</span><span class="attr-type">String?</span></div>
+      <div class="attr"><span class="badge empty"></span><span class="attr-name">title</span><span class="attr-type">String</span></div>
+      <div class="attr"><span class="badge empty"></span><span class="attr-name">sessionType</span><span class="attr-type">String</span><span class="attr-note">default: "general"</span></div>
+      <div class="attr"><span class="badge empty"></span><span class="attr-name">sessionDate</span><span class="attr-type">DateTime</span></div>
+      <div class="attr"><span class="badge empty"></span><span class="attr-name">videoKey</span><span class="attr-type">String</span><span class="attr-note">UNIQUE</span></div>
+      <div class="attr"><span class="badge empty"></span><span class="attr-name">avgEmotions</span><span class="attr-type">String</span></div>
+      <div class="attr"><span class="badge empty"></span><span class="attr-name">avgSentiments</span><span class="attr-type">String</span></div>
+      <div class="attr"><span class="badge empty"></span><span class="attr-name">topEmotion</span><span class="attr-type">String</span></div>
+      <div class="attr"><span class="badge empty"></span><span class="attr-name">topSentiment</span><span class="attr-type">String</span></div>
+      <div class="attr"><span class="badge empty"></span><span class="attr-name">summary</span><span class="attr-type">String</span></div>
+      <div class="attr"><span class="badge empty"></span><span class="attr-name">engagementScore</span><span class="attr-type">Int</span><span class="attr-note">default: 0</span></div>
+      <div class="attr"><span class="badge empty"></span><span class="attr-name">durationSecs</span><span class="attr-type">Float?</span></div>
+      <div class="attr"><span class="badge empty"></span><span class="attr-name">createdAt</span><span class="attr-type">DateTime</span></div>
+    </div>
+  </div>
+
+  <!-- Row 4: Utterance -->
+  <div class="entity" id="e-utterance" style="left: 410px; top: 1020px;">
+    <div class="entity-header">Utterance</div>
+    <div class="entity-body">
+      <div class="attr"><span class="badge pk">PK</span><span class="attr-name">id</span><span class="attr-type">String</span></div>
+      <div class="separator"></div>
+      <div class="attr"><span class="badge fk">FK</span><span class="attr-name">sessionId</span><span class="attr-type">String</span></div>
+      <div class="attr"><span class="badge empty"></span><span class="attr-name">startTime</span><span class="attr-type">Float</span></div>
+      <div class="attr"><span class="badge empty"></span><span class="attr-name">endTime</span><span class="attr-type">Float</span></div>
+      <div class="attr"><span class="badge empty"></span><span class="attr-name">text</span><span class="attr-type">String</span></div>
+      <div class="attr"><span class="badge empty"></span><span class="attr-name">speaker</span><span class="attr-type">String?</span></div>
+      <div class="attr"><span class="badge empty"></span><span class="attr-name">emotions</span><span class="attr-type">String</span></div>
+      <div class="attr"><span class="badge empty"></span><span class="attr-name">sentiments</span><span class="attr-type">String</span></div>
+    </div>
+  </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  const svg = document.getElementById('svg');
+  const canvas = document.getElementById('canvas');
+  const canvasRect = canvas.getBoundingClientRect();
+
+  function getBox(id) {
+    const el = document.getElementById(id);
+    const r = el.getBoundingClientRect();
+    return {
+      left:   r.left - canvasRect.left,
+      right:  r.right - canvasRect.left,
+      top:    r.top - canvasRect.top,
+      bottom: r.bottom - canvasRect.top,
+      cx:     (r.left + r.right) / 2 - canvasRect.left,
+      cy:     (r.top + r.bottom) / 2 - canvasRect.top,
+      w:      r.width,
+      h:      r.height
+    };
+  }
+
+  // Draw a relationship line between two entities with crow's foot notation
+  // side1/side2: 'top'|'bottom'|'left'|'right' — which edge to connect from
+  // card1/card2: '1'|'N'|'0..1'|'0..N' — cardinality label at that end
+  // mandatory1/mandatory2: boolean — double line (mandatory) or line+circle (optional)
+  function drawRelationship(id1, side1, card1, id2, side2, card2, options = {}) {
+    const b1 = getBox(id1);
+    const b2 = getBox(id2);
+    const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+
+    // Get anchor point on a box edge
+    function anchor(box, side, offset = 0) {
+      switch (side) {
+        case 'top':    return { x: box.cx + offset, y: box.top };
+        case 'bottom': return { x: box.cx + offset, y: box.bottom };
+        case 'left':   return { x: box.left,  y: box.cy + offset };
+        case 'right':  return { x: box.right, y: box.cy + offset };
+      }
+    }
+
+    const p1 = anchor(b1, side1, options.offset1 || 0);
+    const p2 = anchor(b2, side2, options.offset2 || 0);
+
+    // Main line
+    const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    line.setAttribute('x1', p1.x);
+    line.setAttribute('y1', p1.y);
+    line.setAttribute('x2', p2.x);
+    line.setAttribute('y2', p2.y);
+    line.setAttribute('stroke', '#555');
+    line.setAttribute('stroke-width', '1.5');
+    g.appendChild(line);
+
+    // Draw cardinality symbols at an endpoint
+    function drawCard(px, py, side, card, isMandatory) {
+      const len = 10;  // symbol size
+      const gap = 4;   // gap from box edge
+
+      // Direction vector pointing away from the box
+      let dx = 0, dy = 0;
+      switch (side) {
+        case 'top':    dy = -1; break;
+        case 'bottom': dy = 1;  break;
+        case 'left':   dx = -1; break;
+        case 'right':  dx = 1;  break;
+      }
+
+      const baseX = px + dx * gap;
+      const baseY = py + dy * gap;
+
+      // Perpendicular
+      const perpX = -dy;
+      const perpY = dx;
+
+      if (card === '1' || card === '0..1') {
+        // Single line perpendicular to the connection line
+        const l1 = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        l1.setAttribute('x1', baseX + perpX * len);
+        l1.setAttribute('y1', baseY + perpY * len);
+        l1.setAttribute('x2', baseX - perpX * len);
+        l1.setAttribute('y2', baseY - perpY * len);
+        l1.setAttribute('stroke', '#555');
+        l1.setAttribute('stroke-width', '2');
+        g.appendChild(l1);
+
+        if (isMandatory) {
+          // Second line for mandatory
+          const off = 6;
+          const l2 = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+          l2.setAttribute('x1', baseX + dx * off + perpX * len);
+          l2.setAttribute('y1', baseY + dy * off + perpY * len);
+          l2.setAttribute('x2', baseX + dx * off - perpX * len);
+          l2.setAttribute('y2', baseY + dy * off - perpY * len);
+          l2.setAttribute('stroke', '#555');
+          l2.setAttribute('stroke-width', '2');
+          g.appendChild(l2);
+        } else {
+          // Circle for optional
+          const circleOff = 10;
+          const c = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+          c.setAttribute('cx', baseX + dx * circleOff);
+          c.setAttribute('cy', baseY + dy * circleOff);
+          c.setAttribute('r', '5');
+          c.setAttribute('fill', '#fff');
+          c.setAttribute('stroke', '#555');
+          c.setAttribute('stroke-width', '1.5');
+          g.appendChild(c);
+        }
+      }
+
+      if (card === 'N' || card === '0..N') {
+        // Crow's foot: three lines fanning out from a point
+        const tipX = baseX + dx * 14;
+        const tipY = baseY + dy * 14;
+
+        // Center prong
+        const l1 = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        l1.setAttribute('x1', baseX);
+        l1.setAttribute('y1', baseY);
+        l1.setAttribute('x2', tipX);
+        l1.setAttribute('y2', tipY);
+        l1.setAttribute('stroke', '#555');
+        l1.setAttribute('stroke-width', '1.5');
+        g.appendChild(l1);
+
+        // Left prong
+        const l2 = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        l2.setAttribute('x1', baseX + perpX * len);
+        l2.setAttribute('y1', baseY + perpY * len);
+        l2.setAttribute('x2', tipX);
+        l2.setAttribute('y2', tipY);
+        l2.setAttribute('stroke', '#555');
+        l2.setAttribute('stroke-width', '1.5');
+        g.appendChild(l2);
+
+        // Right prong
+        const l3 = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        l3.setAttribute('x1', baseX - perpX * len);
+        l3.setAttribute('y1', baseY - perpY * len);
+        l3.setAttribute('x2', tipX);
+        l3.setAttribute('y2', tipY);
+        l3.setAttribute('stroke', '#555');
+        l3.setAttribute('stroke-width', '1.5');
+        g.appendChild(l3);
+
+        if (card === '0..N') {
+          const circleOff = 20;
+          const c = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+          c.setAttribute('cx', baseX + dx * circleOff);
+          c.setAttribute('cy', baseY + dy * circleOff);
+          c.setAttribute('r', '5');
+          c.setAttribute('fill', '#fff');
+          c.setAttribute('stroke', '#555');
+          c.setAttribute('stroke-width', '1.5');
+          g.appendChild(c);
+        }
+      }
+
+      // Cardinality text label
+      const labelOff = 22;
+      const labelPerpOff = 14;
+      const txt = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      txt.setAttribute('x', baseX + dx * labelOff + perpX * labelPerpOff);
+      txt.setAttribute('y', baseY + dy * labelOff + perpY * labelPerpOff + 4);
+      txt.setAttribute('font-size', '11');
+      txt.setAttribute('fill', '#555');
+      txt.setAttribute('font-weight', '600');
+      txt.setAttribute('font-family', 'Segoe UI, sans-serif');
+      txt.textContent = card;
+      g.appendChild(txt);
+    }
+
+    drawCard(p1.x, p1.y, side1, card1, options.mandatory1 !== false);
+    drawCard(p2.x, p2.y, side2, card2, options.mandatory2 !== false);
+
+    svg.appendChild(g);
+  }
+
+  // User (bottom of Session) ← 1:N → (top of Session)
+  drawRelationship(
+    'e-user', 'top', '1',
+    'e-session', 'bottom', 'N',
+    { mandatory1: true, mandatory2: true, offset1: -40 }
+  );
+
+  // User → Account
+  drawRelationship(
+    'e-user', 'top', '1',
+    'e-account', 'bottom', 'N',
+    { mandatory1: true, mandatory2: true, offset1: 40 }
+  );
+
+  // User → Employee
+  drawRelationship(
+    'e-user', 'right', '1',
+    'e-employee', 'left', 'N',
+    { mandatory1: true, mandatory2: true }
+  );
+
+  // User → AnalysisSession
+  drawRelationship(
+    'e-user', 'bottom', '1',
+    'e-analysis', 'top', 'N',
+    { mandatory1: true, mandatory2: true }
+  );
+
+  // Employee → AnalysisSession (optional)
+  drawRelationship(
+    'e-employee', 'bottom', '0..1',
+    'e-analysis', 'right', '0..N',
+    { mandatory1: false, mandatory2: false }
+  );
+
+  // AnalysisSession → Utterance
+  drawRelationship(
+    'e-analysis', 'bottom', '1',
+    'e-utterance', 'top', 'N',
+    { mandatory1: true, mandatory2: true }
+  );
+});
+</script>
+
+</body>
+</html>
