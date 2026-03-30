@@ -158,6 +158,19 @@ def _load_diarization_pipeline():
             "pyannote/speaker-diarization-3.1",
             use_auth_token=hf_token,
         )
+        # Default clustering threshold is ~0.715 — too aggressive, merges distinct
+        # speakers into fewer clusters. Lower value = more speakers detected.
+        # min_cluster_size reduced so brief speakers aren't dropped.
+        try:
+            pipeline.instantiate({
+                "clustering": {
+                    "method": "centroid",
+                    "min_cluster_size": 12,
+                    "threshold": 0.55,
+                },
+            })
+        except Exception as e:
+            print(f"Could not tune clustering params, using defaults: {e}")
         return pipeline
     except Exception as e:
         print(f"Speaker diarization unavailable: {e}")
@@ -197,6 +210,7 @@ def predict_fn(input_data, model_dict):
     tokenizer = model_dict['tokenizer']
     device = model_dict['device']
     video_path = input_data['video_path']
+    num_speakers: Optional[int] = input_data.get('num_speakers')
 
     result = model_dict['transcriber'].transcribe(
         video_path, word_timestamps=True)
@@ -212,7 +226,14 @@ def predict_fn(input_data, model_dict):
                 '-vn', '-acodec', 'pcm_s16le', '-ar', '16000', '-ac', '1',
                 diarization_audio_path
             ], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            diarization = diarization_pipeline(diarization_audio_path)
+            diarize_kwargs: dict = {}
+            if num_speakers is not None:
+                diarize_kwargs["num_speakers"] = num_speakers
+            else:
+                diarize_kwargs["max_speakers"] = 8
+            diarization = diarization_pipeline(diarization_audio_path, **diarize_kwargs)
+            detected = {spk for _, _, spk in diarization.itertracks(yield_label=True)}
+            print(f"Diarization detected {len(detected)} speaker(s): {sorted(detected)}")
         except Exception as e:
             print(f"Diarization failed, continuing without speaker labels: {e}")
             diarization = None

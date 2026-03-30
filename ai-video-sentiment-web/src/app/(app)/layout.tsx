@@ -1,4 +1,6 @@
 import Navigation from "~/components/client/Navigation";
+import { JobStatusBar } from "~/components/client/JobStatusBar";
+import { JobsProvider } from "~/context/JobsContext";
 
 export default function AppLayout({
   children,
@@ -6,9 +8,12 @@ export default function AppLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="min-h-screen bg-white">
-      <Navigation />
-      <main>{children}</main>
-    </div>
+    <JobsProvider>
+      <div className="min-h-screen bg-white">
+        <Navigation />
+        <JobStatusBar />
+        <main>{children}</main>
+      </div>
+    </JobsProvider>
   );
 }

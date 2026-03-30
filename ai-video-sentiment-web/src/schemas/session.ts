@@ -7,6 +7,7 @@ export const sessionMetadataSchema = z.object({
   employeeId: z.string().optional(),
   sessionDate: z.string().optional(),
   interviewerName: z.string().max(200).optional(),
+  speakerCount: z.coerce.number().int().min(2).max(8).optional(),
 });
 
 export type SessionMetadataSchema = z.infer<typeof sessionMetadataSchema>;

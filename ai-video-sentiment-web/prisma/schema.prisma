@@ -79,11 +79,14 @@ model AnalysisSession {
     sessionType       String      @default("general")
     sessionDate       DateTime    @default(now())
     videoKey          String      @unique
-    avgEmotions       String
-    avgSentiments     String
-    topEmotion        String
-    topSentiment      String
-    summary           String
+    inferenceJobId    String?
+    status            String      @default("completed")
+    errorMessage      String?
+    avgEmotions       String      @default("[]")
+    avgSentiments     String      @default("[]")
+    topEmotion        String      @default("")
+    topSentiment      String      @default("")
+    summary           String      @default("")
     engagementScore   Int         @default(0)
     durationSecs      Float?
     createdAt         DateTime    @default(now())
