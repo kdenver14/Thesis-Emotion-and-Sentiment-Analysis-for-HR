@@ -1,6 +1,7 @@
 import fs from "fs/promises";
 import os from "os";
 import path from "path";
+import { Agent } from "undici";
 import { NextResponse } from "next/server";
 import { randomUUID } from "crypto";
 import { auth } from "~/server/auth";
@@ -11,6 +12,12 @@ import { generateSummary } from "~/server/services/summary";
 import type { InferenceResult, Score } from "~/types/analysis";
 
 const ALLOWED_EXTENSIONS = new Set([".mp4", ".mov", ".avi"]);
+
+// CPU inference can take several minutes — override undici's default headersTimeout
+const inferenceAgent = new Agent({
+  headersTimeout: 15 * 60 * 1000,
+  bodyTimeout: 15 * 60 * 1000,
+});
 
 function computeAverages(result: InferenceResult): {
   avgEmotions: Score[];
@@ -50,6 +57,109 @@ function computeAverages(result: InferenceResult): {
     topEmotion: avgEmotions[0]?.label ?? "neutral",
     topSentiment: avgSentiments[0]?.label ?? "neutral",
   };
+}
+
+async function processInference(
+  sessionId: string,
+  buffer: Buffer,
+  fileName: string,
+  fileType: string,
+  tmpPath: string,
+) {
+  try {
+    const inferFormData = new FormData();
+    inferFormData.append(
+      "file",
+      new Blob([new Uint8Array(buffer)], { type: fileType }),
+      fileName,
+    );
+
+    const inferRes = await fetch(`${env.LOCAL_INFERENCE_URL}/infer`, {
+      method: "POST",
+      body: inferFormData,
+      // @ts-expect-error -- undici dispatcher not in standard RequestInit types
+      dispatcher: inferenceAgent,
+    });
+
+    if (!inferRes.ok) {
+      const detail = await inferRes.text();
+      console.error("Inference server error:", detail);
+      throw new Error(`Inference server returned ${inferRes.status}: ${detail}`);
+    }
+
+    const analysis = (await inferRes.json()) as InferenceResult;
+
+    const { avgEmotions, avgSentiments, topEmotion, topSentiment } =
+      computeAverages(analysis);
+
+    const summaryResult = generateSummary(analysis.utterances);
+    const durationSecs = analysis.utterances.at(-1)?.end_time ?? null;
+
+    await db.$transaction(async (tx) => {
+      await tx.analysisSession.update({
+        where: { id: sessionId },
+        data: {
+          status: "completed",
+          avgEmotions: JSON.stringify(avgEmotions),
+          avgSentiments: JSON.stringify(avgSentiments),
+          topEmotion,
+          topSentiment,
+          summary: summaryResult.text,
+          engagementScore: summaryResult.engagementScore,
+          durationSecs,
+        },
+      });
+
+      if (analysis.utterances.length > 0) {
+        await tx.utterance.createMany({
+          data: analysis.utterances.map((u) => ({
+            sessionId,
+            startTime: u.start_time,
+            endTime: u.end_time,
+            text: u.text,
+            speaker: u.speaker ?? null,
+            emotions: JSON.stringify(u.emotions),
+            sentiments: JSON.stringify(u.sentiments),
+          })),
+        });
+      }
+    });
+
+    console.log(`Inference completed for session ${sessionId}`);
+  } catch (error) {
+    console.error("Background inference failed:", error);
+    let errorMessage = "Unknown error during inference";
+    if (error instanceof Error && error.name === "TimeoutError") {
+      errorMessage = `Inference timed out after 15 minutes. The video may be too long for CPU processing.`;
+    } else if (error instanceof Error) {
+      if (error.message === "fetch failed") {
+        const cause = (error as Error & { cause?: Error }).cause;
+        const causeCode =
+          cause instanceof Error
+            ? (cause as NodeJS.ErrnoException).code ?? cause.message
+            : "";
+        if (causeCode.includes("ECONNREFUSED")) {
+          errorMessage = `Cannot reach inference server at ${env.LOCAL_INFERENCE_URL}. Make sure it is running.`;
+        } else if (causeCode.includes("ECONNRESET")) {
+          errorMessage = `Inference server dropped the connection mid-request. It may have crashed — check the Python server terminal for errors.`;
+        } else {
+          errorMessage = `Network error contacting inference server: ${causeCode || "fetch failed"}`;
+        }
+      } else if (error.message.includes("ECONNREFUSED")) {
+        errorMessage = `Cannot reach inference server at ${env.LOCAL_INFERENCE_URL}. Make sure it is running.`;
+      } else {
+        errorMessage = error.message;
+      }
+    }
+    await db.analysisSession
+      .update({
+        where: { id: sessionId },
+        data: { status: "failed", summary: errorMessage },
+      })
+      .catch(console.error);
+  } finally {
+    await fs.unlink(tmpPath).catch(() => undefined);
+  }
 }
 
 export async function POST(req: Request) {
@@ -98,85 +208,36 @@ export async function POST(req: Request) {
   const metadata = metadataParsed.data;
 
   const tmpPath = path.join(os.tmpdir(), `${randomUUID()}${ext}`);
+  const buffer = Buffer.from(await file.arrayBuffer());
+  await fs.writeFile(tmpPath, buffer);
 
-  try {
-    const buffer = Buffer.from(await file.arrayBuffer());
-    await fs.writeFile(tmpPath, buffer);
+  const analysisSession = await db.analysisSession.create({
+    data: {
+      userId,
+      status: "processing",
+      employeeId: metadata.employeeId ?? null,
+      title: metadata.title,
+      sessionType: metadata.sessionType,
+      sessionDate: metadata.sessionDate
+        ? new Date(metadata.sessionDate)
+        : new Date(),
+      interviewerName: metadata.interviewerName ?? null,
+      videoKey: randomUUID(),
+      avgEmotions: "[]",
+      avgSentiments: "[]",
+      topEmotion: "",
+      topSentiment: "",
+      summary: "",
+    },
+  });
 
-    const inferFormData = new FormData();
-    inferFormData.append(
-      "file",
-      new Blob([buffer], { type: file.type }),
-      file.name,
-    );
+  void processInference(
+    analysisSession.id,
+    buffer,
+    file.name,
+    file.type,
+    tmpPath,
+  );
 
-    const inferRes = await fetch(`${env.LOCAL_INFERENCE_URL}/infer`, {
-      method: "POST",
-      body: inferFormData,
-    });
-
-    if (!inferRes.ok) {
-      const detail = await inferRes.text();
-      console.error("Inference server error:", detail);
-      return NextResponse.json({ error: "Inference failed" }, { status: 502 });
-    }
-
-    const analysis = (await inferRes.json()) as InferenceResult;
-
-    const { avgEmotions, avgSentiments, topEmotion, topSentiment } =
-      computeAverages(analysis);
-
-    const summaryResult = generateSummary(analysis.utterances);
-
-    const durationSecs = analysis.utterances.at(-1)?.end_time ?? null;
-
-    const analysisSession = await db.$transaction(async (tx) => {
-      const created = await tx.analysisSession.create({
-        data: {
-          userId,
-          employeeId: metadata.employeeId ?? null,
-          title: metadata.title,
-          sessionType: metadata.sessionType,
-          sessionDate: metadata.sessionDate
-            ? new Date(metadata.sessionDate)
-            : new Date(),
-          interviewerName: metadata.interviewerName ?? null,
-          videoKey: randomUUID(),
-          avgEmotions: JSON.stringify(avgEmotions),
-          avgSentiments: JSON.stringify(avgSentiments),
-          topEmotion,
-          topSentiment,
-          summary: summaryResult.text,
-          engagementScore: summaryResult.engagementScore,
-          durationSecs,
-        },
-      });
-
-      if (analysis.utterances.length > 0) {
-        await tx.utterance.createMany({
-          data: analysis.utterances.map((u) => ({
-            sessionId: created.id,
-            startTime: u.start_time,
-            endTime: u.end_time,
-            text: u.text,
-            speaker: u.speaker ?? null,
-            emotions: JSON.stringify(u.emotions),
-            sentiments: JSON.stringify(u.sentiments),
-          })),
-        });
-      }
-
-      return created;
-    });
-
-    return NextResponse.json({ analysis, sessionId: analysisSession.id });
-  } catch (error) {
-    console.error("Analysis error:", error);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 },
-    );
-  } finally {
-    await fs.unlink(tmpPath).catch(() => undefined);
-  }
+  return NextResponse.json({ sessionId: analysisSession.id });
 }

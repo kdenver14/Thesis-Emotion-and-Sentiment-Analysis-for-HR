@@ -1,16 +1,16 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { FiUpload } from "react-icons/fi";
-import type { Analysis } from "./Inference";
 import type { SessionMetadataInput } from "~/types/analysis";
 
 interface UploadVideoProps {
-  onAnalysis: (analysis: Analysis) => void;
   metadata: SessionMetadataInput;
 }
 
-function UploadVideo({ onAnalysis, metadata }: UploadVideoProps) {
+function UploadVideo({ metadata }: UploadVideoProps) {
+  const router = useRouter();
   const [status, setStatus] = useState<"idle" | "analyzing">("idle");
   const [error, setError] = useState<string | null>(null);
 
@@ -37,9 +37,8 @@ function UploadVideo({ onAnalysis, metadata }: UploadVideoProps) {
         throw new Error(data.error ?? "Failed to analyze video");
       }
 
-      const analysis = (await res.json()) as Analysis;
-      onAnalysis(analysis);
-      setStatus("idle");
+      const { sessionId } = (await res.json()) as { sessionId: string };
+      router.push(`/dashboard/${sessionId}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Upload failed");
       console.error("Upload failed", err);
@@ -67,7 +66,7 @@ function UploadVideo({ onAnalysis, metadata }: UploadVideoProps) {
         >
           <FiUpload className="min-h-8 min-w-8 text-gray-400" />
           <h3 className="text-md mt-2 from-indigo-50 text-slate-800">
-            {status === "analyzing" ? "Analysing..." : "Upload a video"}
+            {status === "analyzing" ? "Uploading..." : "Upload a video"}
           </h3>
           <p className="text-center text-xs text-gray-500">
             Get started with sentiment detection by uploading a video.

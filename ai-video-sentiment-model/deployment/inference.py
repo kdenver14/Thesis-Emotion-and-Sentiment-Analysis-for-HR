@@ -16,126 +16,105 @@ EMOTION_MAP = {0: "anger", 1: "disgust", 2: "fear",
                3: "joy", 4: "neutral", 5: "sadness", 6: "surprise"}
 SENTIMENT_MAP = {0: "negative", 1: "neutral", 2: "positive"}
 
+NUM_FRAMES = 30
+FRAME_SIZE = 224
+SAMPLE_RATE = 16000
+MEL_BINS = 64
+MEL_FFT = 1024
+MEL_HOP = 512
+MEL_MAX_LENGTH = 300
+TEXT_MAX_LENGTH = 128
+MAX_BATCH_SIZE = 16
+
 
 class VideoProcessor:
-    def process_video(self, video_path):
-        cap = cv2.VideoCapture(video_path)
+    """Opens video once and extracts frames for multiple segments by seeking."""
+
+    def __init__(self, video_path: str):
+        self.cap = cv2.VideoCapture(video_path)
+        if not self.cap.isOpened():
+            raise ValueError(f"Cannot open video: {video_path}")
+
+    def extract_segment_frames(self, start_time: float, end_time: float) -> torch.Tensor:
+        self.cap.set(cv2.CAP_PROP_POS_MSEC, start_time * 1000)
+
         frames = []
+        end_ms = end_time * 1000
 
-        try:
-            if not cap.isOpened():
-                raise ValueError(f"Video not found: {video_path}")
+        while len(frames) < NUM_FRAMES:
+            if self.cap.get(cv2.CAP_PROP_POS_MSEC) > end_ms:
+                break
+            ret, frame = self.cap.read()
+            if not ret:
+                break
+            frame = cv2.resize(frame, (FRAME_SIZE, FRAME_SIZE))
+            frame = frame / 255.0
+            frames.append(frame)
 
-            # Try and read first frame to validate video
-            ret, frame = cap.read()
-            if not ret or frame is None:
-                raise ValueError(f"Video not found: {video_path}")
+        if len(frames) == 0:
+            raise ValueError(f"No frames for segment {start_time:.2f}-{end_time:.2f}")
 
-            # Reset index to not skip first frame
-            cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
-
-            while len(frames) < 30 and cap.isOpened():
-                ret, frame = cap.read()
-                if not ret:
-                    break
-
-                frame = cv2.resize(frame, (224, 224))
-                frame = frame / 255.0
-                frames.append(frame)
-
-        except Exception as e:
-            raise ValueError(f"Video error: {str(e)}")
-        finally:
-            cap.release()
-
-        if (len(frames) == 0):
-            raise ValueError("No frames could be extracted")
-
-        # Pad or truncate frames
-        if len(frames) < 30:
-            frames += [np.zeros_like(frames[0])] * (30 - len(frames))
+        if len(frames) < NUM_FRAMES:
+            frames += [np.zeros_like(frames[0])] * (NUM_FRAMES - len(frames))
         else:
-            frames = frames[:30]
+            frames = frames[:NUM_FRAMES]
 
-        # Before permute: [frames, height, width, channels]
-        # After permute: [frames, channels, height, width]
         return torch.FloatTensor(np.array(frames)).permute(0, 3, 1, 2)
+
+    def close(self):
+        self.cap.release()
 
 
 class AudioProcessor:
-    def extract_features(self, video_path, max_length=300):
-        audio_path = video_path.replace('.mp4', '.wav')
+    """Extracts audio once from the full video and computes mel spectrograms
+    for individual segments by slicing the waveform in memory."""
 
-        try:
-            subprocess.run([
-                'ffmpeg',
-                '-i', video_path,
-                '-vn',
-                '-acodec', 'pcm_s16le',
-                '-ar', '16000',
-                '-ac', '1',
-                audio_path
-            ], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-
-            waveform, sample_rate = torchaudio.load(audio_path)
-
-            if sample_rate != 16000:
-                resampler = torchaudio.transforms.Resample(sample_rate, 16000)
-                waveform = resampler(waveform)
-
-            mel_spectrogram = torchaudio.transforms.MelSpectrogram(
-                sample_rate=16000,
-                n_mels=64,
-                n_fft=1024,
-                hop_length=512
-            )
-
-            mel_spec = mel_spectrogram(waveform)
-
-            # Normalize
-            mel_spec = (mel_spec - mel_spec.mean()) / mel_spec.std()
-
-            if mel_spec.size(2) < 300:
-                padding = 300 - mel_spec.size(2)
-                mel_spec = torch.nn.functional.pad(mel_spec, (0, padding))
-            else:
-                mel_spec = mel_spec[:, :, :300]
-
-            return mel_spec
-
-        except subprocess.CalledProcessError as e:
-            raise ValueError(f"Audio extraction error: {str(e)}")
-        except Exception as e:
-            raise ValueError(f"Audio error: {str(e)}")
-        finally:
-            if os.path.exists(audio_path):
-                os.remove(audio_path)
-
-
-class VideoUtteranceProcessor:
-    def __init__(self):
-        self.video_processor = VideoProcessor()
-        self.audio_processor = AudioProcessor()
-
-    def extract_segment(self, video_path, start_time, end_time, temp_dir="/tmp"):
-        os.makedirs(temp_dir, exist_ok=True)
-        segment_path = os.path.join(
-            temp_dir, f"segment_{start_time}_{end_time}.mp4")
-
+    def __init__(self, video_path: str):
+        self.audio_path = video_path.rsplit('.', 1)[0] + '_full_audio.wav'
         subprocess.run([
-            "ffmpeg", "-i", video_path,
-            "-ss", str(start_time),
-            "-to", str(end_time),
-            "-c:v", "libx264",
-            "-c:a", "aac",
-            "-y",
-            segment_path
+            'ffmpeg', '-y',
+            '-i', video_path,
+            '-vn', '-acodec', 'pcm_s16le',
+            '-ar', str(SAMPLE_RATE), '-ac', '1',
+            self.audio_path
         ], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
-        if not os.path.exists(segment_path) or os.path.getsize(segment_path) == 0:
-            raise ValueError("Segment extraction failed: " + segment_path)
+        self.waveform, sr = torchaudio.load(self.audio_path)
+        if sr != SAMPLE_RATE:
+            self.waveform = torchaudio.transforms.Resample(sr, SAMPLE_RATE)(self.waveform)
 
-        return segment_path
+        self.mel_transform = torchaudio.transforms.MelSpectrogram(
+            sample_rate=SAMPLE_RATE,
+            n_mels=MEL_BINS,
+            n_fft=MEL_FFT,
+            hop_length=MEL_HOP,
+        )
+
+    def extract_segment_features(self, start_time: float, end_time: float) -> torch.Tensor:
+        start_sample = max(0, int(start_time * SAMPLE_RATE))
+        end_sample = min(self.waveform.size(1), int(end_time * SAMPLE_RATE))
+
+        segment = self.waveform[:, start_sample:end_sample]
+
+        if segment.size(1) == 0:
+            return torch.zeros(1, MEL_BINS, MEL_MAX_LENGTH)
+
+        mel_spec = self.mel_transform(segment)
+
+        std = mel_spec.std()
+        if std > 0:
+            mel_spec = (mel_spec - mel_spec.mean()) / std
+
+        if mel_spec.size(2) < MEL_MAX_LENGTH:
+            mel_spec = torch.nn.functional.pad(mel_spec, (0, MEL_MAX_LENGTH - mel_spec.size(2)))
+        else:
+            mel_spec = mel_spec[:, :, :MEL_MAX_LENGTH]
+
+        return mel_spec
+
+    def cleanup(self):
+        if os.path.exists(self.audio_path):
+            os.remove(self.audio_path)
 
 
 def _assign_speaker(segment: dict, diarization) -> Optional[str]:
@@ -198,87 +177,113 @@ def predict_fn(input_data, model_dict):
     device = model_dict['device']
     video_path = input_data['video_path']
 
+    # 1. Transcribe with Whisper base (unchanged for accuracy)
     result = model_dict['transcriber'].transcribe(
         video_path, word_timestamps=True)
 
+    segments = result["segments"]
+    if not segments:
+        return {"utterances": []}
+
+    # 2. Extract audio once — reused for both features and diarization
+    audio_proc = AudioProcessor(video_path)
+    video_proc = VideoProcessor(video_path)
+
     diarization_pipeline = model_dict.get('diarization')
     diarization = None
-    diarization_audio_path = None
     if diarization_pipeline is not None:
         try:
-            diarization_audio_path = video_path.rsplit('.', 1)[0] + '_diarize.wav'
-            subprocess.run([
-                'ffmpeg', '-y', '-i', video_path,
-                '-vn', '-acodec', 'pcm_s16le', '-ar', '16000', '-ac', '1',
-                diarization_audio_path
-            ], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            diarization = diarization_pipeline(diarization_audio_path)
+            diarization = diarization_pipeline(audio_proc.audio_path)
         except Exception as e:
             print(f"Diarization failed, continuing without speaker labels: {e}")
-            diarization = None
 
-    utterance_processor = VideoUtteranceProcessor()
-    predictions = []
+    # 3. Extract features for all segments (no FFmpeg per segment)
+    valid_indices: list[int] = []
+    all_video_frames: list[torch.Tensor] = []
+    all_audio_features: list[torch.Tensor] = []
+    all_input_ids: list[torch.Tensor] = []
+    all_attention_masks: list[torch.Tensor] = []
 
-    for segment in result["segments"]:
+    for i, segment in enumerate(segments):
         try:
-            segment_path = utterance_processor.extract_segment(
-                video_path,
-                segment["start"],
-                segment["end"]
-            )
-
-            video_frames = utterance_processor.video_processor.process_video(
-                segment_path)
-            audio_features = utterance_processor.audio_processor.extract_features(
-                segment_path)
+            video_frames = video_proc.extract_segment_frames(
+                segment["start"], segment["end"])
+            audio_features = audio_proc.extract_segment_features(
+                segment["start"], segment["end"])
             text_inputs = tokenizer(
                 segment["text"],
                 padding="max_length",
                 truncation=True,
-                max_length=128,
-                return_tensors="pt"
+                max_length=TEXT_MAX_LENGTH,
+                return_tensors="pt",
             )
 
-            # Move to device
-            text_inputs = {k: v.to(device) for k, v in text_inputs.items()}
-            video_frames = video_frames.unsqueeze(0).to(device)
-            audio_features = audio_features.unsqueeze(0).to(device)
-
-            # Get predictions
-            with torch.inference_mode():
-                outputs = model(text_inputs, video_frames, audio_features)
-                emotion_probs = torch.softmax(outputs["emotions"], dim=1)[0]
-                sentiment_probs = torch.softmax(
-                    outputs["sentiments"], dim=1)[0]
-
-                emotion_values, emotion_indices = torch.topk(emotion_probs, 3)
-                sentiment_values, sentiment_indices = torch.topk(
-                    sentiment_probs, 3)
-
-            predictions.append({
-                "start_time": segment["start"],
-                "end_time": segment["end"],
-                "text": segment["text"],
-                "speaker": _assign_speaker(segment, diarization) if diarization is not None else None,
-                "emotions": [
-                    {"label": EMOTION_MAP[idx.item()], "confidence": conf.item()} for idx, conf in zip(emotion_indices, emotion_values)
-                ],
-                "sentiments": [
-                    {"label": SENTIMENT_MAP[idx.item()], "confidence": conf.item()} for idx, conf in zip(sentiment_indices, sentiment_values)
-                ]
-            })
-
+            all_video_frames.append(video_frames)
+            all_audio_features.append(audio_features)
+            all_input_ids.append(text_inputs["input_ids"])
+            all_attention_masks.append(text_inputs["attention_mask"])
+            valid_indices.append(i)
         except Exception as e:
-            print("Segment failed inference: " + str(e))
+            print(f"Segment {i} feature extraction failed: {e}")
 
-        finally:
-            # Cleanup
-            if os.path.exists(segment_path):
-                os.remove(segment_path)
+    video_proc.close()
+    audio_proc.cleanup()
 
-    if diarization_audio_path and os.path.exists(diarization_audio_path):
-        os.remove(diarization_audio_path)
+    if not valid_indices:
+        return {"utterances": []}
+
+    # 4. Batched inference — tensors stay on CPU, chunks moved to device
+    video_batch = torch.stack(all_video_frames)
+    audio_batch = torch.stack(all_audio_features)
+    input_ids_batch = torch.cat(all_input_ids)
+    attention_mask_batch = torch.cat(all_attention_masks)
+
+    all_emotion_probs: list[torch.Tensor] = []
+    all_sentiment_probs: list[torch.Tensor] = []
+    total = len(valid_indices)
+
+    with torch.inference_mode():
+        for start in range(0, total, MAX_BATCH_SIZE):
+            end = min(start + MAX_BATCH_SIZE, total)
+            text_chunk = {
+                "input_ids": input_ids_batch[start:end].to(device),
+                "attention_mask": attention_mask_batch[start:end].to(device),
+            }
+            outputs = model(
+                text_chunk,
+                video_batch[start:end].to(device),
+                audio_batch[start:end].to(device),
+            )
+            all_emotion_probs.append(
+                torch.softmax(outputs["emotions"], dim=1).cpu())
+            all_sentiment_probs.append(
+                torch.softmax(outputs["sentiments"], dim=1).cpu())
+
+    emotion_probs = torch.cat(all_emotion_probs)
+    sentiment_probs = torch.cat(all_sentiment_probs)
+
+    # 5. Assemble results
+    predictions = []
+    for batch_idx, seg_idx in enumerate(valid_indices):
+        seg = segments[seg_idx]
+        emotion_values, emotion_indices = torch.topk(emotion_probs[batch_idx], 3)
+        sentiment_values, sentiment_indices = torch.topk(
+            sentiment_probs[batch_idx], 3)
+
+        predictions.append({
+            "start_time": seg["start"],
+            "end_time": seg["end"],
+            "text": seg["text"],
+            "speaker": _assign_speaker(seg, diarization) if diarization else None,
+            "emotions": [
+                {"label": EMOTION_MAP[idx.item()], "confidence": conf.item()}
+                for idx, conf in zip(emotion_indices, emotion_values)
+            ],
+            "sentiments": [
+                {"label": SENTIMENT_MAP[idx.item()], "confidence": conf.item()}
+                for idx, conf in zip(sentiment_indices, sentiment_values)
+            ],
+        })
 
     return {"utterances": predictions}
 

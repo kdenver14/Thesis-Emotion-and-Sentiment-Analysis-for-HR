@@ -5,6 +5,7 @@ import { getEmployees } from "~/actions/employees";
 import { SessionTable } from "~/components/client/charts/SessionTable";
 import { SentimentLineChart } from "~/components/client/charts/SentimentLineChart";
 import { ExportButtons } from "~/components/client/ExportButtons";
+import { ProcessingPoller } from "~/components/client/ProcessingPoller";
 
 const EMOTION_EMOJI: Record<string, string> = {
   anger: "😡",
@@ -24,8 +25,11 @@ export default async function DashboardPage() {
     getEmployees(),
   ]);
 
+  const hasProcessing = sessions.some((s) => s.status === "processing");
+
   return (
     <div className="flex flex-col gap-6 p-4 sm:p-8">
+      {hasProcessing && <ProcessingPoller headless />}
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold text-gray-900">Dashboard</h1>
         <ExportButtons aggregateParams={{}} label="Export all" />

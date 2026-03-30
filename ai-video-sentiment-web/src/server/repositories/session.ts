@@ -16,6 +16,7 @@ export interface ParsedSession {
   title: string;
   sessionType: string;
   sessionDate: Date;
+  status: string;
   topEmotion: string;
   topSentiment: string;
   avgEmotions: Score[];
@@ -67,6 +68,7 @@ function parseSession(raw: {
   title: string;
   sessionType: string;
   sessionDate: Date;
+  status: string;
   topEmotion: string;
   topSentiment: string;
   avgEmotions: string;
@@ -86,6 +88,7 @@ function parseSession(raw: {
     title: raw.title,
     sessionType: raw.sessionType,
     sessionDate: raw.sessionDate,
+    status: raw.status,
     topEmotion: raw.topEmotion,
     topSentiment: raw.topSentiment,
     avgEmotions: JSON.parse(raw.avgEmotions) as Score[],
@@ -107,6 +110,7 @@ const SESSION_SELECT = {
   title: true,
   sessionType: true,
   sessionDate: true,
+  status: true,
   topEmotion: true,
   topSentiment: true,
   avgEmotions: true,
@@ -188,7 +192,7 @@ export async function getSessionById(
 
 export async function getSessionStats(userId: string): Promise<SessionStats> {
   const sessions = await db.analysisSession.findMany({
-    where: { userId },
+    where: { userId, status: "completed" },
     select: {
       topEmotion: true,
       topSentiment: true,
@@ -244,7 +248,7 @@ export async function getEmotionTrendsOverTime(
   since.setDate(since.getDate() - days);
 
   const sessions = await db.analysisSession.findMany({
-    where: { userId, sessionDate: { gte: since }, ...(employeeId ? { employeeId } : {}) },
+    where: { userId, status: "completed", sessionDate: { gte: since }, ...(employeeId ? { employeeId } : {}) },
     select: {
       sessionDate: true,
       avgSentiments: true,
@@ -313,7 +317,7 @@ export async function getEmotionHeatmap(
   since.setDate(since.getDate() - days);
 
   const sessions = await db.analysisSession.findMany({
-    where: { userId, sessionDate: { gte: since } },
+    where: { userId, status: "completed", sessionDate: { gte: since } },
     select: { sessionDate: true, avgEmotions: true },
     orderBy: { sessionDate: "asc" },
   });
@@ -377,6 +381,15 @@ export async function deleteSession(
   });
 }
 
+export async function deleteSessionsByIds(
+  sessionIds: string[],
+  userId: string,
+): Promise<void> {
+  await db.analysisSession.deleteMany({
+    where: { id: { in: sessionIds }, userId },
+  });
+}
+
 export async function updateSessionEmployee(
   sessionId: string,
   userId: string,
@@ -420,7 +433,7 @@ export async function renameSpeaker(
 
 export async function getSessionTypeBreakdown(userId: string) {
   const sessions = await db.analysisSession.findMany({
-    where: { userId },
+    where: { userId, status: "completed" },
     select: { sessionType: true, avgEmotions: true, avgSentiments: true },
   });
 

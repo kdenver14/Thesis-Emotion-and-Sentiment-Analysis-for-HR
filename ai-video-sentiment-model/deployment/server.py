@@ -1,3 +1,4 @@
+import asyncio
 import os
 import tempfile
 from contextlib import asynccontextmanager
@@ -36,7 +37,9 @@ async def infer(file: UploadFile = File(...)):
         tmp.write(await file.read())
 
     try:
-        result = predict_fn({"video_path": tmp_path}, model_dict)
+        result = await asyncio.to_thread(
+            predict_fn, {"video_path": tmp_path}, model_dict
+        )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
     finally:

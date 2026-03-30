@@ -8,6 +8,7 @@ import { SessionSummary } from "~/components/client/SessionSummary";
 import { EmotionBarChart } from "~/components/client/charts/EmotionBarChart";
 import { SpeakerTimeline } from "~/components/client/charts/SpeakerTimeline";
 import { ExportButtons } from "~/components/client/ExportButtons";
+import { ProcessingPoller } from "~/components/client/ProcessingPoller";
 import { DeleteSessionButton } from "./DeleteSessionButton";
 import { SESSION_TYPE_LABELS } from "~/types/analysis";
 
@@ -23,6 +24,28 @@ export default async function SessionDetailPage({ params }: PageProps) {
   ]);
 
   if (!session) notFound();
+
+  if (session.status !== "completed") {
+    return (
+      <div className="flex flex-col gap-6 p-4 sm:p-8">
+        <div className="flex flex-col gap-2">
+          <Link
+            href="/dashboard"
+            className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-800"
+          >
+            <FiArrowLeft className="h-3 w-3" /> Back to Dashboard
+          </Link>
+          <h1 className="text-xl font-semibold text-gray-900">
+            {session.title}
+          </h1>
+        </div>
+        <ProcessingPoller
+          failed={session.status === "failed"}
+          errorDetails={session.status === "failed" ? session.summary : undefined}
+        />
+      </div>
+    );
+  }
 
   const sessionTypeLabel =
     SESSION_TYPE_LABELS[

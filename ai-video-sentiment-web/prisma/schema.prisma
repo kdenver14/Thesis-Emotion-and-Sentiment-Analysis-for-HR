@@ -78,6 +78,7 @@ model AnalysisSession {
     title             String
     sessionType       String      @default("general")
     sessionDate       DateTime    @default(now())
+    status            String      @default("completed")
     videoKey          String      @unique
     avgEmotions       String
     avgSentiments     String
