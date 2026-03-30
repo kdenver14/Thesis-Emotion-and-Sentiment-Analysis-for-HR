@@ -8,6 +8,7 @@ import { env } from "~/env";
 import { db } from "~/server/db";
 import { sessionMetadataSchema } from "~/schemas/session";
 import { generateSummary } from "~/server/services/summary";
+import { updateSessionResult, updateSessionFailed } from "~/server/repositories/session";
 import type { InferenceResult, Score } from "~/types/analysis";
 
 const ALLOWED_EXTENSIONS = new Set([".mp4", ".mov", ".avi"]);
@@ -50,6 +51,67 @@ function computeAverages(result: InferenceResult): {
     topEmotion: avgEmotions[0]?.label ?? "neutral",
     topSentiment: avgSentiments[0]?.label ?? "neutral",
   };
+}
+
+async function runInferenceBackground(
+  sessionId: string,
+  buffer: Buffer,
+  fileName: string,
+  fileType: string,
+  tmpPath: string,
+): Promise<void> {
+  try {
+    const inferFormData = new FormData();
+    inferFormData.append(
+      "file",
+      new Blob([buffer], { type: fileType }),
+      fileName,
+    );
+
+    const inferRes = await fetch(`${env.LOCAL_INFERENCE_URL}/infer`, {
+      method: "POST",
+      body: inferFormData,
+    });
+
+    if (!inferRes.ok) {
+      const detail = await inferRes.text();
+      console.error("Inference server error:", detail);
+      await updateSessionFailed(sessionId, "Inference server returned an error");
+      return;
+    }
+
+    const analysis = (await inferRes.json()) as InferenceResult;
+    const { avgEmotions, avgSentiments, topEmotion, topSentiment } =
+      computeAverages(analysis);
+    const summaryResult = generateSummary(analysis.utterances);
+    const durationSecs = analysis.utterances.at(-1)?.end_time ?? null;
+
+    await updateSessionResult(sessionId, {
+      avgEmotions: JSON.stringify(avgEmotions),
+      avgSentiments: JSON.stringify(avgSentiments),
+      topEmotion,
+      topSentiment,
+      summary: summaryResult.text,
+      engagementScore: summaryResult.engagementScore,
+      durationSecs,
+      utterances: analysis.utterances.map((u) => ({
+        startTime: u.start_time,
+        endTime: u.end_time,
+        text: u.text,
+        speaker: u.speaker ?? null,
+        emotions: JSON.stringify(u.emotions),
+        sentiments: JSON.stringify(u.sentiments),
+      })),
+    });
+  } catch (error) {
+    console.error("Background inference error:", error);
+    await updateSessionFailed(
+      sessionId,
+      error instanceof Error ? error.message : "Unknown error",
+    ).catch((e: unknown) => console.error("Failed to mark session failed:", e));
+  } finally {
+    await fs.unlink(tmpPath).catch(() => undefined);
+  }
 }
 
 export async function POST(req: Request) {
@@ -97,86 +159,47 @@ export async function POST(req: Request) {
   }
   const metadata = metadataParsed.data;
 
+  let buffer: Buffer;
+  try {
+    buffer = Buffer.from(await file.arrayBuffer());
+  } catch {
+    return NextResponse.json({ error: "Failed to read file" }, { status: 400 });
+  }
+
   const tmpPath = path.join(os.tmpdir(), `${randomUUID()}${ext}`);
 
   try {
-    const buffer = Buffer.from(await file.arrayBuffer());
     await fs.writeFile(tmpPath, buffer);
-
-    const inferFormData = new FormData();
-    inferFormData.append(
-      "file",
-      new Blob([buffer], { type: file.type }),
-      file.name,
-    );
-
-    const inferRes = await fetch(`${env.LOCAL_INFERENCE_URL}/infer`, {
-      method: "POST",
-      body: inferFormData,
-    });
-
-    if (!inferRes.ok) {
-      const detail = await inferRes.text();
-      console.error("Inference server error:", detail);
-      return NextResponse.json({ error: "Inference failed" }, { status: 502 });
-    }
-
-    const analysis = (await inferRes.json()) as InferenceResult;
-
-    const { avgEmotions, avgSentiments, topEmotion, topSentiment } =
-      computeAverages(analysis);
-
-    const summaryResult = generateSummary(analysis.utterances);
-
-    const durationSecs = analysis.utterances.at(-1)?.end_time ?? null;
-
-    const analysisSession = await db.$transaction(async (tx) => {
-      const created = await tx.analysisSession.create({
-        data: {
-          userId,
-          employeeId: metadata.employeeId ?? null,
-          title: metadata.title,
-          sessionType: metadata.sessionType,
-          sessionDate: metadata.sessionDate
-            ? new Date(metadata.sessionDate)
-            : new Date(),
-          interviewerName: metadata.interviewerName ?? null,
-          videoKey: randomUUID(),
-          avgEmotions: JSON.stringify(avgEmotions),
-          avgSentiments: JSON.stringify(avgSentiments),
-          topEmotion,
-          topSentiment,
-          summary: summaryResult.text,
-          engagementScore: summaryResult.engagementScore,
-          durationSecs,
-        },
-      });
-
-      if (analysis.utterances.length > 0) {
-        await tx.utterance.createMany({
-          data: analysis.utterances.map((u) => ({
-            sessionId: created.id,
-            startTime: u.start_time,
-            endTime: u.end_time,
-            text: u.text,
-            speaker: u.speaker ?? null,
-            emotions: JSON.stringify(u.emotions),
-            sentiments: JSON.stringify(u.sentiments),
-          })),
-        });
-      }
-
-      return created;
-    });
-
-    return NextResponse.json({ analysis, sessionId: analysisSession.id });
-  } catch (error) {
-    console.error("Analysis error:", error);
+  } catch {
     return NextResponse.json(
-      { error: "Internal server error" },
+      { error: "Failed to write temp file" },
       { status: 500 },
     );
-  } finally {
-    await fs.unlink(tmpPath).catch(() => undefined);
   }
+
+  const analysisSession = await db.analysisSession.create({
+    data: {
+      userId,
+      employeeId: metadata.employeeId ?? null,
+      title: metadata.title,
+      sessionType: metadata.sessionType,
+      sessionDate: metadata.sessionDate
+        ? new Date(metadata.sessionDate)
+        : new Date(),
+      interviewerName: metadata.interviewerName ?? null,
+      videoKey: randomUUID(),
+      status: "PROCESSING",
+    },
+  });
+
+  // Fire-and-forget: Node.js event loop keeps this alive until the Promise settles
+  void runInferenceBackground(
+    analysisSession.id,
+    buffer,
+    file.name,
+    file.type,
+    tmpPath,
+  );
+
+  return NextResponse.json({ sessionId: analysisSession.id });
 }

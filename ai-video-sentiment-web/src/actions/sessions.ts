@@ -12,6 +12,7 @@ import {
   updateSessionEmployee,
   updateEmployeeSpeaker,
   renameSpeaker,
+  getSessionStatus as getSessionStatusFromRepo,
   type SessionFilters,
   type ParsedSession,
   type ParsedSessionWithUtterances,
@@ -69,6 +70,14 @@ export async function getTypeBreakdown() {
   const session = await auth();
   if (!session?.user?.id) return [];
   return getSessionTypeBreakdown(session.user.id);
+}
+
+export async function fetchSessionStatus(
+  sessionId: string,
+): Promise<{ status: string; errorMessage: string | null } | null> {
+  const session = await auth();
+  if (!session?.user?.id) return null;
+  return getSessionStatusFromRepo(sessionId, session.user.id);
 }
 
 export async function removeSession(sessionId: string): Promise<void> {

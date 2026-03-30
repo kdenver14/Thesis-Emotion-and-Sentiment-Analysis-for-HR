@@ -1,22 +1,22 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { FiUpload } from "react-icons/fi";
-import type { Analysis } from "./Inference";
 import type { SessionMetadataInput } from "~/types/analysis";
 
 interface UploadVideoProps {
-  onAnalysis: (analysis: Analysis) => void;
   metadata: SessionMetadataInput;
 }
 
-function UploadVideo({ onAnalysis, metadata }: UploadVideoProps) {
-  const [status, setStatus] = useState<"idle" | "analyzing">("idle");
+function UploadVideo({ metadata }: UploadVideoProps) {
+  const router = useRouter();
+  const [status, setStatus] = useState<"idle" | "uploading">("idle");
   const [error, setError] = useState<string | null>(null);
 
   const handleUpload = async (file: File) => {
     try {
-      setStatus("analyzing");
+      setStatus("uploading");
       setError(null);
 
       const formData = new FormData();
@@ -34,15 +34,13 @@ function UploadVideo({ onAnalysis, metadata }: UploadVideoProps) {
 
       if (!res.ok) {
         const data = (await res.json()) as { error?: string };
-        throw new Error(data.error ?? "Failed to analyze video");
+        throw new Error(data.error ?? "Failed to start analysis");
       }
 
-      const analysis = (await res.json()) as Analysis;
-      onAnalysis(analysis);
-      setStatus("idle");
+      const { sessionId } = (await res.json()) as { sessionId: string };
+      router.push(`/dashboard/${sessionId}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Upload failed");
-      console.error("Upload failed", err);
       setStatus("idle");
     }
   };
@@ -54,7 +52,7 @@ function UploadVideo({ onAnalysis, metadata }: UploadVideoProps) {
           type="file"
           accept="video/mp4,video/mov,video/avi"
           className="hidden"
-          disabled={status === "analyzing"}
+          disabled={status === "uploading"}
           onChange={(e) => {
             const file = e.target.files?.[0];
             if (file) void handleUpload(file);
@@ -63,11 +61,11 @@ function UploadVideo({ onAnalysis, metadata }: UploadVideoProps) {
         />
         <label
           htmlFor="video-upload"
-          className={`flex cursor-pointer flex-col items-center ${status === "analyzing" ? "opacity-60" : ""}`}
+          className={`flex cursor-pointer flex-col items-center ${status === "uploading" ? "opacity-60" : ""}`}
         >
           <FiUpload className="min-h-8 min-w-8 text-gray-400" />
           <h3 className="text-md mt-2 from-indigo-50 text-slate-800">
-            {status === "analyzing" ? "Analysing..." : "Upload a video"}
+            {status === "uploading" ? "Uploading..." : "Upload a video"}
           </h3>
           <p className="text-center text-xs text-gray-500">
             Get started with sentiment detection by uploading a video.

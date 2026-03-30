@@ -178,29 +178,47 @@ export function SessionTable({ sessions, employees = [] }: SessionTableProps) {
                   )}
                 </td>
                 <td className="px-4 py-3">
-                  <span className="capitalize">
-                    {EMOTION_EMOJI[s.topEmotion] ?? ""} {s.topEmotion}
-                  </span>
-                </td>
-                <td className="px-4 py-3">
-                  <span
-                    className={`rounded-full px-2 py-0.5 text-xs font-medium capitalize ${SENTIMENT_BADGE[s.topSentiment] ?? "bg-gray-100 text-gray-600"}`}
-                  >
-                    {s.topSentiment}
-                  </span>
-                </td>
-                <td className="px-4 py-3">
-                  <div className="flex items-center gap-2">
-                    <div className="h-1.5 w-16 rounded-full bg-gray-100">
-                      <div
-                        className="h-1.5 rounded-full bg-gray-800"
-                        style={{ width: `${s.engagementScore}%` }}
-                      />
-                    </div>
-                    <span className="text-xs text-gray-500">
-                      {s.engagementScore}
+                  {s.status === "PROCESSING" ? (
+                    <span className="text-xs text-gray-400">—</span>
+                  ) : (
+                    <span className="capitalize">
+                      {EMOTION_EMOJI[s.topEmotion] ?? ""} {s.topEmotion}
                     </span>
-                  </div>
+                  )}
+                </td>
+                <td className="px-4 py-3">
+                  {s.status === "PROCESSING" ? (
+                    <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-500">
+                      Processing
+                    </span>
+                  ) : s.status === "FAILED" ? (
+                    <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-600">
+                      Failed
+                    </span>
+                  ) : (
+                    <span
+                      className={`rounded-full px-2 py-0.5 text-xs font-medium capitalize ${SENTIMENT_BADGE[s.topSentiment] ?? "bg-gray-100 text-gray-600"}`}
+                    >
+                      {s.topSentiment}
+                    </span>
+                  )}
+                </td>
+                <td className="px-4 py-3">
+                  {s.status === "PROCESSING" || s.status === "FAILED" ? (
+                    <span className="text-xs text-gray-400">—</span>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <div className="h-1.5 w-16 rounded-full bg-gray-100">
+                        <div
+                          className="h-1.5 rounded-full bg-gray-800"
+                          style={{ width: `${s.engagementScore}%` }}
+                        />
+                      </div>
+                      <span className="text-xs text-gray-500">
+                        {s.engagementScore}
+                      </span>
+                    </div>
+                  )}
                 </td>
               </tr>
             ))

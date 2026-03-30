@@ -28,6 +28,8 @@ export interface ParsedSession {
   employeeId: string | null;
   employeeSpeakerId: string | null;
   employee: { id: string; name: string; department: string | null } | null;
+  status: string;
+  errorMessage: string | null;
   utteranceCount?: number;
 }
 
@@ -79,6 +81,8 @@ function parseSession(raw: {
   employeeId: string | null;
   employeeSpeakerId: string | null;
   employee: { id: string; name: string; department: string | null } | null;
+  status: string;
+  errorMessage: string | null;
   _count?: { utterances: number };
 }): ParsedSession {
   return {
@@ -98,6 +102,8 @@ function parseSession(raw: {
     employeeId: raw.employeeId,
     employeeSpeakerId: raw.employeeSpeakerId,
     employee: raw.employee,
+    status: raw.status,
+    errorMessage: raw.errorMessage,
     utteranceCount: raw._count?.utterances,
   };
 }
@@ -118,6 +124,8 @@ const SESSION_SELECT = {
   createdAt: true,
   employeeId: true,
   employeeSpeakerId: true,
+  status: true,
+  errorMessage: true,
   employee: {
     select: { id: true, name: true, department: true },
   },
@@ -188,7 +196,7 @@ export async function getSessionById(
 
 export async function getSessionStats(userId: string): Promise<SessionStats> {
   const sessions = await db.analysisSession.findMany({
-    where: { userId },
+    where: { userId, status: "COMPLETED" },
     select: {
       topEmotion: true,
       topSentiment: true,
@@ -244,7 +252,7 @@ export async function getEmotionTrendsOverTime(
   since.setDate(since.getDate() - days);
 
   const sessions = await db.analysisSession.findMany({
-    where: { userId, sessionDate: { gte: since }, ...(employeeId ? { employeeId } : {}) },
+    where: { userId, status: "COMPLETED", sessionDate: { gte: since }, ...(employeeId ? { employeeId } : {}) },
     select: {
       sessionDate: true,
       avgSentiments: true,
@@ -313,7 +321,7 @@ export async function getEmotionHeatmap(
   since.setDate(since.getDate() - days);
 
   const sessions = await db.analysisSession.findMany({
-    where: { userId, sessionDate: { gte: since } },
+    where: { userId, status: "COMPLETED", sessionDate: { gte: since } },
     select: { sessionDate: true, avgEmotions: true },
     orderBy: { sessionDate: "asc" },
   });
@@ -368,6 +376,71 @@ export async function getEmotionHeatmap(
   return result;
 }
 
+export async function updateSessionResult(
+  sessionId: string,
+  data: {
+    avgEmotions: string;
+    avgSentiments: string;
+    topEmotion: string;
+    topSentiment: string;
+    summary: string;
+    engagementScore: number;
+    durationSecs: number | null;
+    utterances: Array<{
+      startTime: number;
+      endTime: number;
+      text: string;
+      speaker: string | null;
+      emotions: string;
+      sentiments: string;
+    }>;
+  },
+): Promise<void> {
+  await db.$transaction(async (tx) => {
+    await tx.analysisSession.update({
+      where: { id: sessionId },
+      data: {
+        avgEmotions: data.avgEmotions,
+        avgSentiments: data.avgSentiments,
+        topEmotion: data.topEmotion,
+        topSentiment: data.topSentiment,
+        summary: data.summary,
+        engagementScore: data.engagementScore,
+        durationSecs: data.durationSecs,
+        status: "COMPLETED",
+        errorMessage: null,
+      },
+    });
+
+    if (data.utterances.length > 0) {
+      await tx.utterance.createMany({
+        data: data.utterances.map((u) => ({ sessionId, ...u })),
+      });
+    }
+  });
+}
+
+export async function updateSessionFailed(
+  sessionId: string,
+  errorMessage: string,
+): Promise<void> {
+  await db.analysisSession.update({
+    where: { id: sessionId },
+    data: { status: "FAILED", errorMessage },
+  });
+}
+
+export async function getSessionStatus(
+  sessionId: string,
+  userId: string,
+): Promise<{ status: string; errorMessage: string | null } | null> {
+  const row = await db.analysisSession.findFirst({
+    where: { id: sessionId, userId },
+    select: { status: true, errorMessage: true },
+  });
+  return row;
+}
+
 export async function deleteSession(
   sessionId: string,
   userId: string,
@@ -420,7 +493,7 @@ export async function renameSpeaker(
 
 export async function getSessionTypeBreakdown(userId: string) {
   const sessions = await db.analysisSession.findMany({
-    where: { userId },
+    where: { userId, status: "COMPLETED" },
     select: { sessionType: true, avgEmotions: true, avgSentiments: true },
   });
 
