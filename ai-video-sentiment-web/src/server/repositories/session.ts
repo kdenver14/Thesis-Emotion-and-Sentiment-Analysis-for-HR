@@ -472,6 +472,17 @@ export async function updateEmployeeSpeaker(
   });
 }
 
+export async function updateSessionTitle(
+  sessionId: string,
+  userId: string,
+  title: string,
+): Promise<void> {
+  await db.analysisSession.update({
+    where: { id: sessionId, userId },
+    data: { title },
+  });
+}
+
 export async function renameSpeaker(
   sessionId: string,
   userId: string,
