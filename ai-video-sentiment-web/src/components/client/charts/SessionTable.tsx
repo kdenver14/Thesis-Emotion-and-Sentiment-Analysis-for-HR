@@ -1,13 +1,14 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useRef } from "react";
 import Link from "next/link";
-import { FiChevronUp, FiChevronDown } from "react-icons/fi";
+import { useRouter } from "next/navigation";
+import { FiChevronUp, FiChevronDown, FiEdit2, FiTrash2, FiSearch, FiX } from "react-icons/fi";
 import type { ParsedSession } from "~/server/repositories/session";
 import { SESSION_TYPE_LABELS } from "~/types/analysis";
-import { assignSessionEmployee } from "~/actions/sessions";
+import { assignSessionEmployee, renameSession, removeSession } from "~/actions/sessions";
 
-type SortKey = "sessionDate" | "title" | "topSentiment" | "engagementScore";
+type SortKey = "sessionDate" | "title" | "topSentiment" | "engagementScore" | "employee";
 type SortDir = "asc" | "desc";
 
 const SENTIMENT_BADGE: Record<string, string> = {
@@ -75,9 +76,97 @@ function EmployeeCell({
   );
 }
 
+function TitleCell({ session }: { session: ParsedSession }) {
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState(session.title);
+  const [isPending, startTransition] = useTransition();
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const startEdit = () => {
+    setEditing(true);
+    setTimeout(() => inputRef.current?.select(), 0);
+  };
+
+  const commit = () => {
+    const trimmed = value.trim();
+    if (!trimmed || trimmed === session.title) {
+      setValue(session.title);
+      setEditing(false);
+      return;
+    }
+    startTransition(async () => {
+      await renameSession(session.id, trimmed);
+      setEditing(false);
+    });
+  };
+
+  if (editing) {
+    return (
+      <input
+        ref={inputRef}
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") commit();
+          if (e.key === "Escape") {
+            setValue(session.title);
+            setEditing(false);
+          }
+        }}
+        disabled={isPending}
+        className="w-full rounded border border-gray-300 px-1.5 py-0.5 text-sm font-medium focus:border-gray-500 focus:outline-none disabled:opacity-50"
+      />
+    );
+  }
+
+  return (
+    <div className="group flex items-center gap-1.5">
+      <Link
+        href={`/dashboard/${session.id}`}
+        className="hover:text-gray-600 hover:underline"
+      >
+        {value}
+      </Link>
+      <button
+        onClick={startEdit}
+        className="invisible text-gray-400 hover:text-gray-700 group-hover:visible"
+        aria-label="Rename session"
+      >
+        <FiEdit2 className="h-3 w-3" />
+      </button>
+    </div>
+  );
+}
+
+function DeleteCell({ sessionId }: { sessionId: string }) {
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
+
+  const handleDelete = () => {
+    if (!confirm("Delete this session? This cannot be undone.")) return;
+    startTransition(async () => {
+      await removeSession(sessionId);
+      router.refresh();
+    });
+  };
+
+  return (
+    <button
+      onClick={handleDelete}
+      disabled={isPending}
+      className="text-gray-300 hover:text-red-500 disabled:opacity-50"
+      aria-label="Delete session"
+    >
+      <FiTrash2 className="h-3.5 w-3.5" />
+    </button>
+  );
+}
+
 export function SessionTable({ sessions, employees = [] }: SessionTableProps) {
   const [sortKey, setSortKey] = useState<SortKey>("sessionDate");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
+  const [search, setSearch] = useState("");
 
   const handleSort = (key: SortKey) => {
     if (key === sortKey) {
@@ -88,7 +177,16 @@ export function SessionTable({ sessions, employees = [] }: SessionTableProps) {
     }
   };
 
-  const sorted = [...sessions].sort((a, b) => {
+  const query = search.toLowerCase();
+  const filtered = query
+    ? sessions.filter(
+        (s) =>
+          s.title.toLowerCase().includes(query) ||
+          (s.employee?.name ?? "").toLowerCase().includes(query),
+      )
+    : sessions;
+
+  const sorted = [...filtered].sort((a, b) => {
     let cmp = 0;
     if (sortKey === "sessionDate") {
       cmp = a.sessionDate.getTime() - b.sessionDate.getTime();
@@ -98,6 +196,8 @@ export function SessionTable({ sessions, employees = [] }: SessionTableProps) {
       cmp = a.topSentiment.localeCompare(b.topSentiment);
     } else if (sortKey === "engagementScore") {
       cmp = a.engagementScore - b.engagementScore;
+    } else if (sortKey === "employee") {
+      cmp = (a.employee?.name ?? "").localeCompare(b.employee?.name ?? "");
     }
     return sortDir === "asc" ? cmp : -cmp;
   });
@@ -115,116 +215,137 @@ export function SessionTable({ sessions, employees = [] }: SessionTableProps) {
     "px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide cursor-pointer select-none hover:text-gray-800";
 
   return (
-    <div className="overflow-x-auto rounded-xl border border-gray-200">
-      <table className="w-full text-sm">
-        <thead className="border-b border-gray-200 bg-gray-50">
-          <tr>
-            <th className={th} onClick={() => handleSort("sessionDate")}>
-              Date <SortIcon col="sessionDate" />
-            </th>
-            <th className={th} onClick={() => handleSort("title")}>
-              Title <SortIcon col="title" />
-            </th>
-            <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">
-              Type
-            </th>
-            <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">
-              Employee
-            </th>
-            <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">
-              Emotion
-            </th>
-            <th className={th} onClick={() => handleSort("topSentiment")}>
-              Sentiment <SortIcon col="topSentiment" />
-            </th>
-            <th className={th} onClick={() => handleSort("engagementScore")}>
-              Engagement <SortIcon col="engagementScore" />
-            </th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-gray-100">
-          {sorted.length === 0 ? (
+    <div className="flex flex-col gap-3">
+      {/* Search */}
+      <div className="relative">
+        <FiSearch className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-400" />
+        <input
+          type="text"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search by session name or employee…"
+          className="w-full rounded-lg border border-gray-200 py-2 pl-9 pr-8 text-sm text-gray-700 placeholder-gray-400 focus:border-gray-400 focus:outline-none"
+        />
+        {search && (
+          <button
+            onClick={() => setSearch("")}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+          >
+            <FiX className="h-3.5 w-3.5" />
+          </button>
+        )}
+      </div>
+
+      <div className="overflow-x-auto rounded-xl border border-gray-200">
+        <table className="w-full text-sm">
+          <thead className="border-b border-gray-200 bg-gray-50">
             <tr>
-              <td colSpan={7} className="px-4 py-8 text-center text-gray-400">
-                No sessions yet
-              </td>
+              <th className={th} onClick={() => handleSort("sessionDate")}>
+                Date <SortIcon col="sessionDate" />
+              </th>
+              <th className={th} onClick={() => handleSort("title")}>
+                Title <SortIcon col="title" />
+              </th>
+              <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">
+                Type
+              </th>
+              <th className={th} onClick={() => handleSort("employee")}>
+                Employee <SortIcon col="employee" />
+              </th>
+              <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">
+                Emotion
+              </th>
+              <th className={th} onClick={() => handleSort("topSentiment")}>
+                Sentiment <SortIcon col="topSentiment" />
+              </th>
+              <th className={th} onClick={() => handleSort("engagementScore")}>
+                Engagement <SortIcon col="engagementScore" />
+              </th>
+              <th className="px-4 py-3" />
             </tr>
-          ) : (
-            sorted.map((s) => (
-              <tr key={s.id} className="hover:bg-gray-50">
-                <td className="px-4 py-3 text-gray-600">
-                  {s.sessionDate.toLocaleDateString("en-GB")}
-                </td>
-                <td className="px-4 py-3 font-medium">
-                  <Link
-                    href={`/dashboard/${s.id}`}
-                    className="hover:text-gray-600 hover:underline"
-                  >
-                    {s.title}
-                  </Link>
-                </td>
-                <td className="px-4 py-3 text-gray-500">
-                  {SESSION_TYPE_LABELS[
-                    s.sessionType as keyof typeof SESSION_TYPE_LABELS
-                  ] ?? s.sessionType}
-                </td>
-                <td className="px-4 py-3">
-                  {employees.length > 0 ? (
-                    <EmployeeCell session={s} employees={employees} />
-                  ) : (
-                    <span className="text-gray-500">
-                      {s.employee?.name ?? "—"}
-                    </span>
-                  )}
-                </td>
-                <td className="px-4 py-3">
-                  {s.status === "PROCESSING" ? (
-                    <span className="text-xs text-gray-400">—</span>
-                  ) : (
-                    <span className="capitalize">
-                      {EMOTION_EMOJI[s.topEmotion] ?? ""} {s.topEmotion}
-                    </span>
-                  )}
-                </td>
-                <td className="px-4 py-3">
-                  {s.status === "PROCESSING" ? (
-                    <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-500">
-                      Processing
-                    </span>
-                  ) : s.status === "FAILED" ? (
-                    <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-600">
-                      Failed
-                    </span>
-                  ) : (
-                    <span
-                      className={`rounded-full px-2 py-0.5 text-xs font-medium capitalize ${SENTIMENT_BADGE[s.topSentiment] ?? "bg-gray-100 text-gray-600"}`}
-                    >
-                      {s.topSentiment}
-                    </span>
-                  )}
-                </td>
-                <td className="px-4 py-3">
-                  {s.status === "PROCESSING" || s.status === "FAILED" ? (
-                    <span className="text-xs text-gray-400">—</span>
-                  ) : (
-                    <div className="flex items-center gap-2">
-                      <div className="h-1.5 w-16 rounded-full bg-gray-100">
-                        <div
-                          className="h-1.5 rounded-full bg-gray-800"
-                          style={{ width: `${s.engagementScore}%` }}
-                        />
-                      </div>
-                      <span className="text-xs text-gray-500">
-                        {s.engagementScore}
-                      </span>
-                    </div>
-                  )}
+          </thead>
+          <tbody className="divide-y divide-gray-100">
+            {sorted.length === 0 ? (
+              <tr>
+                <td colSpan={8} className="px-4 py-8 text-center text-gray-400">
+                  {search ? "No sessions match your search" : "No sessions yet"}
                 </td>
               </tr>
-            ))
-          )}
-        </tbody>
-      </table>
+            ) : (
+              sorted.map((s) => (
+                <tr key={s.id} className="hover:bg-gray-50">
+                  <td className="px-4 py-3 text-gray-600">
+                    {s.sessionDate.toLocaleDateString("en-GB")}
+                  </td>
+                  <td className="px-4 py-3 font-medium">
+                    <TitleCell session={s} />
+                  </td>
+                  <td className="px-4 py-3 text-gray-500">
+                    {SESSION_TYPE_LABELS[
+                      s.sessionType as keyof typeof SESSION_TYPE_LABELS
+                    ] ?? s.sessionType}
+                  </td>
+                  <td className="px-4 py-3">
+                    {employees.length > 0 ? (
+                      <EmployeeCell session={s} employees={employees} />
+                    ) : (
+                      <span className="text-gray-500">
+                        {s.employee?.name ?? "—"}
+                      </span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3">
+                    {s.status === "PROCESSING" ? (
+                      <span className="text-xs text-gray-400">—</span>
+                    ) : (
+                      <span className="capitalize">
+                        {EMOTION_EMOJI[s.topEmotion] ?? ""} {s.topEmotion}
+                      </span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3">
+                    {s.status === "PROCESSING" ? (
+                      <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-500">
+                        Processing
+                      </span>
+                    ) : s.status === "FAILED" ? (
+                      <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-600">
+                        Failed
+                      </span>
+                    ) : (
+                      <span
+                        className={`rounded-full px-2 py-0.5 text-xs font-medium capitalize ${SENTIMENT_BADGE[s.topSentiment] ?? "bg-gray-100 text-gray-600"}`}
+                      >
+                        {s.topSentiment}
+                      </span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3">
+                    {s.status === "PROCESSING" || s.status === "FAILED" ? (
+                      <span className="text-xs text-gray-400">—</span>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <div className="h-1.5 w-16 rounded-full bg-gray-100">
+                          <div
+                            className="h-1.5 rounded-full bg-gray-800"
+                            style={{ width: `${s.engagementScore}%` }}
+                          />
+                        </div>
+                        <span className="text-xs text-gray-500">
+                          {s.engagementScore}
+                        </span>
+                      </div>
+                    )}
+                  </td>
+                  <td className="px-4 py-3">
+                    <DeleteCell sessionId={s.id} />
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
