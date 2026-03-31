@@ -10,6 +10,7 @@ import {
   getSessionTypeBreakdown,
   deleteSession,
   updateSessionEmployee,
+  updateSessionTitle,
   updateEmployeeSpeaker,
   renameSpeaker,
   getSessionStatus as getSessionStatusFromRepo,
@@ -78,6 +79,17 @@ export async function fetchSessionStatus(
   const session = await auth();
   if (!session?.user?.id) return null;
   return getSessionStatusFromRepo(sessionId, session.user.id);
+}
+
+export async function renameSession(
+  sessionId: string,
+  title: string,
+): Promise<void> {
+  const session = await auth();
+  if (!session?.user?.id) throw new Error("Unauthorized");
+  const trimmed = title.trim();
+  if (!trimmed) throw new Error("Session title cannot be empty");
+  await updateSessionTitle(sessionId, session.user.id, trimmed);
 }
 
 export async function removeSession(sessionId: string): Promise<void> {
