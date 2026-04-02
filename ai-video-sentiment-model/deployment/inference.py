@@ -212,7 +212,10 @@ def predict_fn(input_data, model_dict):
                 '-vn', '-acodec', 'pcm_s16le', '-ar', '16000', '-ac', '1',
                 diarization_audio_path
             ], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            diarization = diarization_pipeline(diarization_audio_path)
+            diarization = diarization_pipeline(diarization_audio_path, min_speakers=2, max_speakers=8)
+            if diarization is not None:
+                detected = set(speaker for _, _, speaker in diarization.itertracks(yield_label=True))
+                print(f"[diarization] detected {len(detected)} speakers: {detected}")
         except Exception as e:
             print(f"Diarization failed, continuing without speaker labels: {e}")
             diarization = None
