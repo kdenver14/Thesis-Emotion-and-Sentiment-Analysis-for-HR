@@ -33,8 +33,17 @@ export interface ParsedSession {
   utteranceCount?: number;
 }
 
+export interface OnboardingCandidateRow {
+  id: string;
+  name: string;
+  position: string | null;
+  email: string | null;
+  phone: string | null;
+}
+
 export interface ParsedSessionWithUtterances extends ParsedSession {
   utterances: ParsedUtterance[];
+  onboardingCandidate: OnboardingCandidateRow | null;
 }
 
 export interface SessionStats {
@@ -175,6 +184,9 @@ export async function getSessionById(
         },
         orderBy: { startTime: "asc" },
       },
+      onboardingCandidate: {
+        select: { id: true, name: true, position: true, email: true, phone: true },
+      },
     },
   });
 
@@ -191,7 +203,7 @@ export async function getSessionById(
     sentiments: JSON.parse(u.sentiments) as Score[],
   }));
 
-  return { ...base, utterances };
+  return { ...base, utterances, onboardingCandidate: row.onboardingCandidate ?? null };
 }
 
 export async function getSessionStats(userId: string): Promise<SessionStats> {

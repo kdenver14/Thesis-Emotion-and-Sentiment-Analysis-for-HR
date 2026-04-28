@@ -26,6 +26,11 @@ function UploadVideo({ metadata }: UploadVideoProps) {
       if (metadata.employeeId) formData.append("employeeId", metadata.employeeId);
       if (metadata.sessionDate) formData.append("sessionDate", metadata.sessionDate);
       if (metadata.interviewerName) formData.append("interviewerName", metadata.interviewerName);
+      if (metadata.onboardingCandidate)
+        formData.append(
+          "onboardingCandidate",
+          JSON.stringify(metadata.onboardingCandidate),
+        );
 
       const res = await fetch("/api/sentiment-inference", {
         method: "POST",

@@ -50,10 +50,18 @@ export interface InferenceResult {
   utterances: UtteranceData[];
 }
 
+export interface OnboardingCandidateInput {
+  name: string;
+  position?: string;
+  email?: string;
+  phone?: string;
+}
+
 export interface SessionMetadataInput {
   title: string;
   sessionType: SessionType;
   employeeId?: string;
   sessionDate?: string;
   interviewerName?: string;
+  onboardingCandidate?: OnboardingCandidateInput;
 }

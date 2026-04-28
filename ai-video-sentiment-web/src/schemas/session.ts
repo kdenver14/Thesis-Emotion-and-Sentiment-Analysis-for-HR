@@ -9,4 +9,12 @@ export const sessionMetadataSchema = z.object({
   interviewerName: z.string().max(200).optional(),
 });
 
+export const onboardingCandidateSchema = z.object({
+  name: z.string().min(1, "Candidate name is required").max(200),
+  position: z.string().max(200).optional(),
+  email: z.string().email().optional().or(z.literal("")),
+  phone: z.string().max(50).optional(),
+});
+
 export type SessionMetadataSchema = z.infer<typeof sessionMetadataSchema>;
+export type OnboardingCandidateSchema = z.infer<typeof onboardingCandidateSchema>;
