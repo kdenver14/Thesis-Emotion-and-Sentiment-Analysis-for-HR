@@ -130,6 +130,47 @@ export default async function SessionDetailPage({ params }: PageProps) {
         </div>
       </div>
 
+      {/* Onboarding candidate */}
+      {session.onboardingCandidate && (
+        <div className="rounded-xl border border-gray-200 p-4">
+          <h2 className="mb-3 text-sm font-medium text-gray-700">
+            Candidate details
+          </h2>
+          <dl className="grid grid-cols-1 gap-2 text-sm sm:grid-cols-2">
+            <div>
+              <dt className="text-xs text-gray-500">Name</dt>
+              <dd className="font-medium text-gray-900">
+                {session.onboardingCandidate.name}
+              </dd>
+            </div>
+            {session.onboardingCandidate.position && (
+              <div>
+                <dt className="text-xs text-gray-500">Position applied for</dt>
+                <dd className="font-medium text-gray-900">
+                  {session.onboardingCandidate.position}
+                </dd>
+              </div>
+            )}
+            {session.onboardingCandidate.email && (
+              <div>
+                <dt className="text-xs text-gray-500">Email</dt>
+                <dd className="font-medium text-gray-900">
+                  {session.onboardingCandidate.email}
+                </dd>
+              </div>
+            )}
+            {session.onboardingCandidate.phone && (
+              <div>
+                <dt className="text-xs text-gray-500">Phone</dt>
+                <dd className="font-medium text-gray-900">
+                  {session.onboardingCandidate.phone}
+                </dd>
+              </div>
+            )}
+          </dl>
+        </div>
+      )}
+
       {/* Summary */}
       <SessionSummary
         summary={session.summary}

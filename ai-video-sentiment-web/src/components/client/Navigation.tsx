@@ -12,20 +12,12 @@ const NAV_ITEMS = [
   { href: "/employees", label: "Employees", icon: FiUsers },
 ] as const;
 
-export default function Navigation() {
+export default function Navigation({ userName }: { userName?: string }) {
   const pathname = usePathname();
 
   return (
     <nav className="flex h-16 items-center justify-between border-b border-gray-200 px-6 sm:px-10">
       <div className="flex items-center gap-6">
-        <div className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gray-900 text-sm font-bold text-white">
-            S
-          </div>
-          <span className="hidden text-lg font-semibold tracking-tight sm:block">
-            Sentr
-          </span>
-        </div>
         <div className="flex items-center gap-1">
           {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
             const isActive =
@@ -49,7 +41,14 @@ export default function Navigation() {
           })}
         </div>
       </div>
-      <SignOutButton />
+      <div className="flex items-center gap-3">
+        {userName && (
+          <span className="hidden text-sm text-gray-500 sm:block">
+            {userName}
+          </span>
+        )}
+        <SignOutButton />
+      </div>
     </nav>
   );
 }

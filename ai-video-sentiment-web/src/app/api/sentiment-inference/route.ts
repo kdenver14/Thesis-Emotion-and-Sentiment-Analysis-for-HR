@@ -6,7 +6,7 @@ import { randomUUID } from "crypto";
 import { auth } from "~/server/auth";
 import { env } from "~/env";
 import { db } from "~/server/db";
-import { sessionMetadataSchema } from "~/schemas/session";
+import { sessionMetadataSchema, onboardingCandidateSchema } from "~/schemas/session";
 import { generateSummary } from "~/server/services/summary";
 import { updateSessionResult, updateSessionFailed } from "~/server/repositories/session";
 import type { InferenceResult, Score } from "~/types/analysis";
@@ -177,6 +177,29 @@ export async function POST(req: Request) {
     );
   }
 
+  let candidateData: { name: string; position?: string; email?: string; phone?: string } | null = null;
+  if (metadata.sessionType === "onboarding") {
+    const raw = formData.get("onboardingCandidate");
+    if (raw && typeof raw === "string") {
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(raw);
+      } catch {
+        return NextResponse.json({ error: "Invalid candidate data" }, { status: 400 });
+      }
+      const candidateParsed = onboardingCandidateSchema.safeParse(parsed);
+      if (!candidateParsed.success) {
+        return NextResponse.json({ error: "Candidate name is required for onboarding sessions" }, { status: 400 });
+      }
+      candidateData = {
+        name: candidateParsed.data.name,
+        position: candidateParsed.data.position,
+        email: candidateParsed.data.email || undefined,
+        phone: candidateParsed.data.phone,
+      };
+    }
+  }
+
   const analysisSession = await db.analysisSession.create({
     data: {
       userId,
@@ -191,6 +214,12 @@ export async function POST(req: Request) {
       status: "PROCESSING",
     },
   });
+
+  if (candidateData) {
+    await db.onboardingCandidate.create({
+      data: { sessionId: analysisSession.id, ...candidateData },
+    });
+  }
 
   // Fire-and-forget: Node.js event loop keeps this alive until the Promise settles
   void runInferenceBackground(
