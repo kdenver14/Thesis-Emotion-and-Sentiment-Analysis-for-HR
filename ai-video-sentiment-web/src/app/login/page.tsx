@@ -2,7 +2,6 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { signIn } from "next-auth/react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
@@ -48,16 +47,7 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen bg-white">
-      <nav className="flex h-16 items-center justify-between border-b border-gray-200 px-10">
-        <div className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gray-900 text-sm font-bold text-white">
-            S
-          </div>
-          <span className="text-lg font-semibold tracking-tight">Sentr</span>
-        </div>
-      </nav>
-
-      <main className="flex h-[calc(100vh-4rem)] items-center justify-center">
+      <main className="flex h-screen items-center justify-center">
         <div className="w-full max-w-md space-y-8 px-4">
           <div className="text-center">
             <h2 className="text-2xl font-bold">Welcome back</h2>
@@ -120,15 +110,6 @@ export default function LoginPage() {
               {loading ? "Logging in..." : "Log in"}
             </button>
 
-            <p className="text-center text-sm text-gray-600">
-              Don&apos;t have an account?{" "}
-              <Link
-                className="font-medium text-gray-800 hover:text-gray-700"
-                href="/signup"
-              >
-                Sign up
-              </Link>
-            </p>
           </form>
         </div>
       </main>

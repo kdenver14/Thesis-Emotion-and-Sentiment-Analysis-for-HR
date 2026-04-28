@@ -68,28 +68,40 @@ model Employee {
 }
 
 model AnalysisSession {
-    id                String      @id @default(cuid())
-    userId            String
-    user              User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-    employeeId        String?
-    employee          Employee?   @relation(fields: [employeeId], references: [id])
-    employeeSpeakerId String?
-    interviewerName   String?
-    title             String
-    sessionType       String      @default("general")
-    sessionDate       DateTime    @default(now())
-    videoKey          String      @unique
-    avgEmotions       String      @default("[]")
-    avgSentiments     String      @default("[]")
-    topEmotion        String      @default("")
-    topSentiment      String      @default("")
-    summary           String      @default("")
-    engagementScore   Int         @default(0)
-    durationSecs      Float?
-    status            String      @default("PROCESSING")
-    errorMessage      String?
-    createdAt         DateTime    @default(now())
-    utterances        Utterance[]
+    id                   String                @id @default(cuid())
+    userId               String
+    user                 User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+    employeeId           String?
+    employee             Employee?             @relation(fields: [employeeId], references: [id])
+    employeeSpeakerId    String?
+    interviewerName      String?
+    title                String
+    sessionType          String                @default("general")
+    sessionDate          DateTime              @default(now())
+    videoKey             String                @unique
+    avgEmotions          String                @default("[]")
+    avgSentiments        String                @default("[]")
+    topEmotion           String                @default("")
+    topSentiment         String                @default("")
+    summary              String                @default("")
+    engagementScore      Int                   @default(0)
+    durationSecs         Float?
+    status               String                @default("PROCESSING")
+    errorMessage         String?
+    createdAt            DateTime              @default(now())
+    utterances           Utterance[]
+    onboardingCandidate  OnboardingCandidate?
+}
+
+model OnboardingCandidate {
+    id        String          @id @default(cuid())
+    sessionId String          @unique
+    session   AnalysisSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+    name      String
+    position  String?
+    email     String?
+    phone     String?
+    createdAt DateTime        @default(now())
 }
 
 model Utterance {
