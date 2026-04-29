@@ -9,6 +9,7 @@ import {
   getEmotionHeatmap,
   getSessionTypeBreakdown,
   deleteSession,
+  deleteSessionsBulk,
   updateSessionEmployee,
   updateSessionTitle,
   updateEmployeeSpeaker,
@@ -96,6 +97,13 @@ export async function removeSession(sessionId: string): Promise<void> {
   const session = await auth();
   if (!session?.user?.id) throw new Error("Unauthorized");
   await deleteSession(sessionId, session.user.id);
+}
+
+export async function removeSessionsBulk(sessionIds: string[]): Promise<void> {
+  if (sessionIds.length === 0) return;
+  const session = await auth();
+  if (!session?.user?.id) throw new Error("Unauthorized");
+  await deleteSessionsBulk(sessionIds, session.user.id);
 }
 
 export async function assignSessionEmployee(

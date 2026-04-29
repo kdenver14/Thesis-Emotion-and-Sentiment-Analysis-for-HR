@@ -1,12 +1,12 @@
 "use client";
 
-import { useState, useTransition, useRef } from "react";
+import { useState, useTransition, useRef, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FiChevronUp, FiChevronDown, FiEdit2, FiTrash2, FiSearch, FiX } from "react-icons/fi";
 import type { ParsedSession } from "~/server/repositories/session";
 import { SESSION_TYPE_LABELS } from "~/types/analysis";
-import { assignSessionEmployee, renameSession, removeSession } from "~/actions/sessions";
+import { assignSessionEmployee, renameSession, removeSessionsBulk } from "~/actions/sessions";
 
 type SortKey = "sessionDate" | "title" | "topSentiment" | "engagementScore" | "employee";
 type SortDir = "asc" | "desc";
@@ -139,34 +139,41 @@ function TitleCell({ session }: { session: ParsedSession }) {
   );
 }
 
-function DeleteCell({ sessionId }: { sessionId: string }) {
-  const router = useRouter();
-  const [isPending, startTransition] = useTransition();
 
-  const handleDelete = () => {
-    if (!confirm("Delete this session? This cannot be undone.")) return;
-    startTransition(async () => {
-      await removeSession(sessionId);
-      router.refresh();
-    });
-  };
+function IndeterminateCheckbox({
+  checked,
+  indeterminate,
+  onChange,
+  className,
+}: {
+  checked: boolean;
+  indeterminate: boolean;
+  onChange: (v: boolean) => void;
+  className?: string;
+}) {
+  const ref = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (ref.current) ref.current.indeterminate = indeterminate;
+  }, [indeterminate]);
 
   return (
-    <button
-      onClick={handleDelete}
-      disabled={isPending}
-      className="text-gray-300 hover:text-red-500 disabled:opacity-50"
-      aria-label="Delete session"
-    >
-      <FiTrash2 className="h-3.5 w-3.5" />
-    </button>
+    <input
+      ref={ref}
+      type="checkbox"
+      checked={checked}
+      onChange={(e) => onChange(e.target.checked)}
+      className={className}
+    />
   );
 }
 
 export function SessionTable({ sessions, employees = [] }: SessionTableProps) {
+  const router = useRouter();
   const [sortKey, setSortKey] = useState<SortKey>("sessionDate");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [search, setSearch] = useState("");
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [isBulkDeleting, startBulkTransition] = useTransition();
 
   const handleSort = (key: SortKey) => {
     if (key === sortKey) {
@@ -202,6 +209,42 @@ export function SessionTable({ sessions, employees = [] }: SessionTableProps) {
     return sortDir === "asc" ? cmp : -cmp;
   });
 
+  const sortedIds = sorted.map((s) => s.id);
+  const selectedInView = sortedIds.filter((id) => selected.has(id));
+  const allChecked = sortedIds.length > 0 && selectedInView.length === sortedIds.length;
+  const someChecked = selectedInView.length > 0 && !allChecked;
+
+  const toggleAll = (checked: boolean) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (checked) {
+        sortedIds.forEach((id) => next.add(id));
+      } else {
+        sortedIds.forEach((id) => next.delete(id));
+      }
+      return next;
+    });
+  };
+
+  const toggleOne = (id: string, checked: boolean) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (checked) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  };
+
+  const handleBulkDelete = () => {
+    const ids = [...selected];
+    if (!confirm(`Delete ${ids.length} session${ids.length > 1 ? "s" : ""}? This cannot be undone.`)) return;
+    startBulkTransition(async () => {
+      await removeSessionsBulk(ids);
+      setSelected(new Set());
+      router.refresh();
+    });
+  };
+
   const SortIcon = ({ col }: { col: SortKey }) => {
     if (col !== sortKey) return null;
     return sortDir === "asc" ? (
@@ -236,10 +279,35 @@ export function SessionTable({ sessions, employees = [] }: SessionTableProps) {
         )}
       </div>
 
+      {/* Bulk action bar */}
+      {selected.size > 0 && (
+        <div className="flex items-center justify-between rounded-lg border border-gray-200 bg-gray-50 px-4 py-2">
+          <span className="text-sm text-gray-600">
+            {selected.size} selected
+          </span>
+          <button
+            onClick={handleBulkDelete}
+            disabled={isBulkDeleting}
+            className="flex items-center gap-1.5 rounded-md border border-red-200 px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 disabled:opacity-50"
+          >
+            <FiTrash2 className="h-3.5 w-3.5" />
+            {isBulkDeleting ? "Deleting…" : `Delete ${selected.size}`}
+          </button>
+        </div>
+      )}
+
       <div className="overflow-x-auto rounded-xl border border-gray-200">
         <table className="w-full text-sm">
           <thead className="border-b border-gray-200 bg-gray-50">
             <tr>
+              <th className="w-10 px-4 py-3">
+                <IndeterminateCheckbox
+                  checked={allChecked}
+                  indeterminate={someChecked}
+                  onChange={toggleAll}
+                  className="h-3.5 w-3.5 cursor-pointer rounded border-gray-300"
+                />
+              </th>
               <th className={th} onClick={() => handleSort("sessionDate")}>
                 Date <SortIcon col="sessionDate" />
               </th>
@@ -261,7 +329,6 @@ export function SessionTable({ sessions, employees = [] }: SessionTableProps) {
               <th className={th} onClick={() => handleSort("engagementScore")}>
                 Engagement <SortIcon col="engagementScore" />
               </th>
-              <th className="px-4 py-3" />
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
@@ -273,7 +340,18 @@ export function SessionTable({ sessions, employees = [] }: SessionTableProps) {
               </tr>
             ) : (
               sorted.map((s) => (
-                <tr key={s.id} className="hover:bg-gray-50">
+                <tr
+                  key={s.id}
+                  className={`hover:bg-gray-50 ${selected.has(s.id) ? "bg-gray-50" : ""}`}
+                >
+                  <td className="px-4 py-3">
+                    <input
+                      type="checkbox"
+                      checked={selected.has(s.id)}
+                      onChange={(e) => toggleOne(s.id, e.target.checked)}
+                      className="h-3.5 w-3.5 cursor-pointer rounded border-gray-300"
+                    />
+                  </td>
                   <td className="px-4 py-3 text-gray-600">
                     {s.sessionDate.toLocaleDateString("en-GB")}
                   </td>
@@ -336,9 +414,6 @@ export function SessionTable({ sessions, employees = [] }: SessionTableProps) {
                         </span>
                       </div>
                     )}
-                  </td>
-                  <td className="px-4 py-3">
-                    <DeleteCell sessionId={s.id} />
                   </td>
                 </tr>
               ))
