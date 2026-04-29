@@ -462,6 +462,15 @@ export async function deleteSession(
   });
 }
 
+export async function deleteSessionsBulk(
+  sessionIds: string[],
+  userId: string,
+): Promise<void> {
+  await db.analysisSession.deleteMany({
+    where: { id: { in: sessionIds }, userId },
+  });
+}
+
 export async function updateSessionEmployee(
   sessionId: string,
   userId: string,
