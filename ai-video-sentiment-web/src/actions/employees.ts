@@ -18,6 +18,9 @@ export async function addEmployee(data: {
   name: string;
   email?: string;
   department?: string;
+  role?: string;
+  phone?: string;
+  status?: string;
 }): Promise<{ employee?: EmployeeRow; error?: string }> {
   const session = await auth();
   if (!session?.user?.id) return { error: "Unauthorized" };
@@ -28,6 +31,9 @@ export async function addEmployee(data: {
     name: data.name.trim(),
     email: data.email?.trim() ?? undefined,
     department: data.department?.trim() ?? undefined,
+    role: data.role?.trim() ?? undefined,
+    phone: data.phone?.trim() ?? undefined,
+    status: data.status ?? "Active",
   });
 
   return { employee };

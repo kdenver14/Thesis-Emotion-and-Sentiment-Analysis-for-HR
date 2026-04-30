@@ -5,6 +5,7 @@ import { getEmployees } from "~/actions/employees";
 import { SessionTable } from "~/components/client/charts/SessionTable";
 import { SentimentLineChart } from "~/components/client/charts/SentimentLineChart";
 import { ExportButtons } from "~/components/client/ExportButtons";
+import { auth } from "~/server/auth";
 
 const EMOTION_EMOJI: Record<string, string> = {
   anger: "😡",
@@ -17,6 +18,9 @@ const EMOTION_EMOJI: Record<string, string> = {
 };
 
 export default async function DashboardPage() {
+  const session = await auth();
+  const isAdmin = session?.user?.isAdmin ?? false;
+
   const [stats, sessions, trends, employees] = await Promise.all([
     getDashboardStats(),
     getSessions(),
@@ -100,7 +104,7 @@ export default async function DashboardPage() {
             View analytics →
           </Link>
         </div>
-        <SessionTable sessions={sessions} employees={employees} />
+        <SessionTable sessions={sessions} employees={employees} isAdmin={isAdmin} />
       </div>
     </div>
   );
