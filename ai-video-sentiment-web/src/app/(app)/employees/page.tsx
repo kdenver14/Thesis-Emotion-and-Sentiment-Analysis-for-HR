@@ -31,10 +31,24 @@ export default async function EmployeesPage() {
                     <FiUser className="h-4 w-4 text-gray-500" />
                   </div>
                   <div className="flex-1">
-                    <div className="font-medium text-gray-900">{emp.name}</div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-gray-900">{emp.name}</span>
+                      <span
+                        className={`rounded-full px-2 py-0.5 text-xs ${
+                          emp.status === "Active"
+                            ? "bg-gray-100 text-gray-600"
+                            : emp.status === "On Leave"
+                              ? "bg-gray-200 text-gray-500"
+                              : "bg-gray-100 text-gray-400"
+                        }`}
+                      >
+                        {emp.status}
+                      </span>
+                    </div>
                     <div className="text-xs text-gray-500">
-                      {[emp.department, emp.email].filter(Boolean).join(" · ") ||
-                        "No details"}
+                      {[emp.role, emp.department, emp.email]
+                        .filter(Boolean)
+                        .join(" · ") || "No details"}
                     </div>
                   </div>
                   <span className="text-xs text-gray-400">View →</span>

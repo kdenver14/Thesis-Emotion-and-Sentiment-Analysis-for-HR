@@ -36,6 +36,7 @@ interface Employee {
 interface SessionTableProps {
   sessions: ParsedSession[];
   employees?: Employee[];
+  isAdmin?: boolean;
 }
 
 function EmployeeCell({
@@ -167,10 +168,12 @@ function IndeterminateCheckbox({
   );
 }
 
-export function SessionTable({ sessions, employees = [] }: SessionTableProps) {
+export function SessionTable({ sessions, employees = [], isAdmin = false }: SessionTableProps) {
   const router = useRouter();
   const [sortKey, setSortKey] = useState<SortKey>("sessionDate");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
+  const showHandledBy =
+    isAdmin || new Set(sessions.map((s) => s.handledBy.id)).size > 1;
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [isBulkDeleting, startBulkTransition] = useTransition();
@@ -311,6 +314,11 @@ export function SessionTable({ sessions, employees = [] }: SessionTableProps) {
               <th className={th} onClick={() => handleSort("sessionDate")}>
                 Date <SortIcon col="sessionDate" />
               </th>
+              {showHandledBy && (
+                <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">
+                  Handled by
+                </th>
+              )}
               <th className={th} onClick={() => handleSort("title")}>
                 Title <SortIcon col="title" />
               </th>
@@ -334,7 +342,7 @@ export function SessionTable({ sessions, employees = [] }: SessionTableProps) {
           <tbody className="divide-y divide-gray-100">
             {sorted.length === 0 ? (
               <tr>
-                <td colSpan={8} className="px-4 py-8 text-center text-gray-400">
+                <td colSpan={showHandledBy ? 9 : 8} className="px-4 py-8 text-center text-gray-400">
                   {search ? "No sessions match your search" : "No sessions yet"}
                 </td>
               </tr>
@@ -355,6 +363,13 @@ export function SessionTable({ sessions, employees = [] }: SessionTableProps) {
                   <td className="px-4 py-3 text-gray-600">
                     {s.sessionDate.toLocaleDateString("en-GB")}
                   </td>
+                  {showHandledBy && (
+                    <td className="px-4 py-3">
+                      <span className="rounded-full border border-gray-200 px-2 py-0.5 text-xs text-gray-500">
+                        {s.handledBy.name ?? "—"}
+                      </span>
+                    </td>
+                  )}
                   <td className="px-4 py-3 font-medium">
                     <TitleCell session={s} />
                   </td>
