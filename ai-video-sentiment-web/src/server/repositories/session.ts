@@ -28,6 +28,7 @@ export interface ParsedSession {
   employeeId: string | null;
   employeeSpeakerId: string | null;
   employee: { id: string; name: string; department: string | null } | null;
+  handledBy: { id: string; name: string | null };
   status: string;
   errorMessage: string | null;
   utteranceCount?: number;
@@ -90,6 +91,7 @@ function parseSession(raw: {
   employeeId: string | null;
   employeeSpeakerId: string | null;
   employee: { id: string; name: string; department: string | null } | null;
+  user: { id: string; name: string | null };
   status: string;
   errorMessage: string | null;
   _count?: { utterances: number };
@@ -111,6 +113,7 @@ function parseSession(raw: {
     employeeId: raw.employeeId,
     employeeSpeakerId: raw.employeeSpeakerId,
     employee: raw.employee,
+    handledBy: raw.user,
     status: raw.status,
     errorMessage: raw.errorMessage,
     utteranceCount: raw._count?.utterances,
@@ -138,14 +141,18 @@ const SESSION_SELECT = {
   employee: {
     select: { id: true, name: true, department: true },
   },
+  user: {
+    select: { id: true, name: true },
+  },
   _count: { select: { utterances: true } },
 } as const;
 
 export async function getSessionsByUser(
-  userId: string,
+  userId: string | null,
   filters: SessionFilters = {},
 ): Promise<ParsedSession[]> {
-  const where: Record<string, unknown> = { userId };
+  const where: Record<string, unknown> = {};
+  if (userId) where.userId = userId;
   if (filters.employeeId) where.employeeId = filters.employeeId;
   if (filters.sessionType) where.sessionType = filters.sessionType;
   if (filters.from ?? filters.to) {
@@ -166,10 +173,10 @@ export async function getSessionsByUser(
 
 export async function getSessionById(
   sessionId: string,
-  userId: string,
+  userId: string | null,
 ): Promise<ParsedSessionWithUtterances | null> {
   const row = await db.analysisSession.findFirst({
-    where: { id: sessionId, userId },
+    where: userId ? { id: sessionId, userId } : { id: sessionId },
     select: {
       ...SESSION_SELECT,
       utterances: {
@@ -206,9 +213,12 @@ export async function getSessionById(
   return { ...base, utterances, onboardingCandidate: row.onboardingCandidate ?? null };
 }
 
-export async function getSessionStats(userId: string): Promise<SessionStats> {
+export async function getSessionStats(userId: string | null): Promise<SessionStats> {
+  const where: Record<string, unknown> = { status: "COMPLETED" };
+  if (userId) where.userId = userId;
+
   const sessions = await db.analysisSession.findMany({
-    where: { userId, status: "COMPLETED" },
+    where,
     select: {
       topEmotion: true,
       topSentiment: true,
@@ -256,15 +266,22 @@ export async function getSessionStats(userId: string): Promise<SessionStats> {
 }
 
 export async function getEmotionTrendsOverTime(
-  userId: string,
+  userId: string | null,
   days: number,
   employeeId?: string,
 ): Promise<TrendPoint[]> {
   const since = new Date();
   since.setDate(since.getDate() - days);
 
+  const where: Record<string, unknown> = {
+    status: "COMPLETED",
+    sessionDate: { gte: since },
+    ...(employeeId ? { employeeId } : {}),
+  };
+  if (userId) where.userId = userId;
+
   const sessions = await db.analysisSession.findMany({
-    where: { userId, status: "COMPLETED", sessionDate: { gte: since }, ...(employeeId ? { employeeId } : {}) },
+    where,
     select: {
       sessionDate: true,
       avgSentiments: true,
@@ -273,7 +290,6 @@ export async function getEmotionTrendsOverTime(
     orderBy: { sessionDate: "asc" },
   });
 
-  // Group by date (YYYY-MM-DD)
   const byDate = new Map<
     string,
     { positive: number[]; neutral: number[]; negative: number[]; engagement: number[] }
@@ -302,7 +318,6 @@ export async function getEmotionTrendsOverTime(
   const avg = (arr: number[]) =>
     arr.length === 0 ? 0 : arr.reduce((a, b) => a + b, 0) / arr.length;
 
-  // Pad every day in the range so the chart always shows a continuous timeline
   const result: TrendPoint[] = [];
   const cursor = new Date(since);
   cursor.setHours(0, 0, 0, 0);
@@ -326,14 +341,20 @@ export async function getEmotionTrendsOverTime(
 }
 
 export async function getEmotionHeatmap(
-  userId: string,
+  userId: string | null,
   days: number,
 ): Promise<EmotionTrendRow[]> {
   const since = new Date();
   since.setDate(since.getDate() - days);
 
+  const where: Record<string, unknown> = {
+    status: "COMPLETED",
+    sessionDate: { gte: since },
+  };
+  if (userId) where.userId = userId;
+
   const sessions = await db.analysisSession.findMany({
-    where: { userId, status: "COMPLETED", sessionDate: { gte: since } },
+    where,
     select: { sessionDate: true, avgEmotions: true },
     orderBy: { sessionDate: "asc" },
   });
@@ -358,7 +379,6 @@ export async function getEmotionHeatmap(
     anger: 0, disgust: 0, fear: 0, joy: 0, neutral: 0, sadness: 0, surprise: 0,
   };
 
-  // Pad every day in the range for a continuous timeline
   const result: EmotionTrendRow[] = [];
   const cursor = new Date(since);
   cursor.setHours(0, 0, 0, 0);
@@ -444,10 +464,10 @@ export async function updateSessionFailed(
 
 export async function getSessionStatus(
   sessionId: string,
-  userId: string,
+  userId: string | null,
 ): Promise<{ status: string; errorMessage: string | null } | null> {
   const row = await db.analysisSession.findFirst({
-    where: { id: sessionId, userId },
+    where: userId ? { id: sessionId, userId } : { id: sessionId },
     select: { status: true, errorMessage: true },
   });
   return row;
@@ -455,64 +475,65 @@ export async function getSessionStatus(
 
 export async function deleteSession(
   sessionId: string,
-  userId: string,
+  userId: string | null,
 ): Promise<void> {
   await db.analysisSession.delete({
-    where: { id: sessionId, userId },
+    where: userId ? { id: sessionId, userId } : { id: sessionId },
   });
 }
 
 export async function deleteSessionsBulk(
   sessionIds: string[],
-  userId: string,
+  userId: string | null,
 ): Promise<void> {
   await db.analysisSession.deleteMany({
-    where: { id: { in: sessionIds }, userId },
+    where: userId
+      ? { id: { in: sessionIds }, userId }
+      : { id: { in: sessionIds } },
   });
 }
 
 export async function updateSessionEmployee(
   sessionId: string,
-  userId: string,
+  userId: string | null,
   employeeId: string | null,
 ): Promise<void> {
   await db.analysisSession.update({
-    where: { id: sessionId, userId },
+    where: userId ? { id: sessionId, userId } : { id: sessionId },
     data: { employeeId },
   });
 }
 
 export async function updateEmployeeSpeaker(
   sessionId: string,
-  userId: string,
+  userId: string | null,
   employeeSpeakerId: string | null,
 ): Promise<void> {
   await db.analysisSession.update({
-    where: { id: sessionId, userId },
+    where: userId ? { id: sessionId, userId } : { id: sessionId },
     data: { employeeSpeakerId },
   });
 }
 
 export async function updateSessionTitle(
   sessionId: string,
-  userId: string,
+  userId: string | null,
   title: string,
 ): Promise<void> {
   await db.analysisSession.update({
-    where: { id: sessionId, userId },
+    where: userId ? { id: sessionId, userId } : { id: sessionId },
     data: { title },
   });
 }
 
 export async function renameSpeaker(
   sessionId: string,
-  userId: string,
+  userId: string | null,
   oldName: string,
   newName: string,
 ): Promise<void> {
-  // Verify ownership
   const session = await db.analysisSession.findFirst({
-    where: { id: sessionId, userId },
+    where: userId ? { id: sessionId, userId } : { id: sessionId },
     select: { id: true },
   });
   if (!session) throw new Error("Session not found");
@@ -523,9 +544,12 @@ export async function renameSpeaker(
   });
 }
 
-export async function getSessionTypeBreakdown(userId: string) {
+export async function getSessionTypeBreakdown(userId: string | null) {
+  const where: Record<string, unknown> = { status: "COMPLETED" };
+  if (userId) where.userId = userId;
+
   const sessions = await db.analysisSession.findMany({
-    where: { userId, status: "COMPLETED" },
+    where,
     select: { sessionType: true, avgEmotions: true, avgSentiments: true },
   });
 

@@ -5,36 +5,50 @@ export interface EmployeeRow {
   name: string;
   email: string | null;
   department: string | null;
+  role: string | null;
+  phone: string | null;
+  status: string;
   createdAt: Date;
 }
+
+const EMPLOYEE_SELECT = {
+  id: true,
+  name: true,
+  email: true,
+  department: true,
+  role: true,
+  phone: true,
+  status: true,
+  createdAt: true,
+} as const;
 
 export async function findEmployeesByUser(
   userId: string,
 ): Promise<EmployeeRow[]> {
   return db.employee.findMany({
     where: { userId },
-    select: { id: true, name: true, email: true, department: true, createdAt: true },
+    select: EMPLOYEE_SELECT,
     orderBy: { name: "asc" },
   });
 }
 
 export async function findEmployeeById(
   employeeId: string,
-  userId: string,
+  userId: string | null,
 ): Promise<EmployeeRow | null> {
   return db.employee.findFirst({
-    where: { id: employeeId, userId },
-    select: { id: true, name: true, email: true, department: true, createdAt: true },
+    where: userId ? { id: employeeId, userId } : { id: employeeId },
+    select: EMPLOYEE_SELECT,
   });
 }
 
 export async function createEmployee(
   userId: string,
-  data: { name: string; email?: string; department?: string },
+  data: { name: string; email?: string; department?: string; role?: string; phone?: string; status?: string },
 ): Promise<EmployeeRow> {
   return db.employee.create({
     data: { userId, ...data },
-    select: { id: true, name: true, email: true, department: true, createdAt: true },
+    select: EMPLOYEE_SELECT,
   });
 }
 

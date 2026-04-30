@@ -12,12 +12,16 @@ async function main() {
   for (const admin of ADMINS) {
     const existing = await db.user.findUnique({ where: { email: admin.email } });
     if (existing) {
-      console.log(`Skipped (exists): ${admin.email}`);
+      await db.user.update({
+        where: { email: admin.email },
+        data: { isAdmin: true },
+      });
+      console.log(`Updated (isAdmin): ${admin.email}`);
       continue;
     }
     const hashedPassword = await bcrypt.hash(admin.password, 12);
     await db.user.create({
-      data: { name: admin.name, email: admin.email, password: hashedPassword },
+      data: { name: admin.name, email: admin.email, password: hashedPassword, isAdmin: true },
     });
     console.log(`Created: ${admin.email}`);
   }

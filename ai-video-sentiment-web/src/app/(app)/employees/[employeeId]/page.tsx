@@ -17,7 +17,7 @@ export default async function EmployeeDetailPage({ params }: PageProps) {
   const authSession = await auth();
   if (!authSession?.user?.id) notFound();
 
-  const userId = authSession.user.id;
+  const userId = authSession.user.isAdmin ? null : authSession.user.id;
   const [employee, allSessions, trends] = await Promise.all([
     findEmployeeById(employeeId, userId),
     getSessionsByUser(userId, { employeeId }),
@@ -39,12 +39,19 @@ export default async function EmployeeDetailPage({ params }: PageProps) {
         </Link>
         <div className="flex items-start justify-between">
           <div>
-            <h1 className="text-xl font-semibold text-gray-900">
-              {employee.name}
-            </h1>
-            <div className="mt-1 flex gap-3 text-sm text-gray-500">
+            <div className="flex items-center gap-2">
+              <h1 className="text-xl font-semibold text-gray-900">
+                {employee.name}
+              </h1>
+              <span className="rounded-full border border-gray-200 px-2 py-0.5 text-xs text-gray-500">
+                {employee.status}
+              </span>
+            </div>
+            <div className="mt-1 flex flex-wrap gap-x-4 gap-y-0.5 text-sm text-gray-500">
+              {employee.role && <span>{employee.role}</span>}
               {employee.department && <span>{employee.department}</span>}
               {employee.email && <span>{employee.email}</span>}
+              {employee.phone && <span>{employee.phone}</span>}
             </div>
           </div>
           <DeleteEmployeeButton employeeId={employeeId} />
@@ -107,7 +114,7 @@ export default async function EmployeeDetailPage({ params }: PageProps) {
       {/* Sessions */}
       <div className="flex flex-col gap-3">
         <h2 className="text-sm font-medium text-gray-700">Sessions</h2>
-        <SessionTable sessions={allSessions} />
+        <SessionTable sessions={allSessions} isAdmin={authSession.user.isAdmin ?? false} />
       </div>
     </div>
   );
