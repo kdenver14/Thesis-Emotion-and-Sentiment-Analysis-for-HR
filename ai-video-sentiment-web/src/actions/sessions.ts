@@ -23,25 +23,31 @@ import {
   type EmotionTrendRow,
 } from "~/server/repositories/session";
 
+async function getEffectiveUserId(): Promise<string | null | undefined> {
+  const session = await auth();
+  if (!session?.user?.id) return undefined;
+  return session.user.isAdmin ? null : session.user.id;
+}
+
 export async function getSessions(
   filters: SessionFilters = {},
 ): Promise<ParsedSession[]> {
-  const session = await auth();
-  if (!session?.user?.id) return [];
-  return getSessionsByUser(session.user.id, filters);
+  const userId = await getEffectiveUserId();
+  if (userId === undefined) return [];
+  return getSessionsByUser(userId, filters);
 }
 
 export async function getSession(
   sessionId: string,
 ): Promise<ParsedSessionWithUtterances | null> {
-  const session = await auth();
-  if (!session?.user?.id) return null;
-  return getSessionById(sessionId, session.user.id);
+  const userId = await getEffectiveUserId();
+  if (userId === undefined) return null;
+  return getSessionById(sessionId, userId);
 }
 
 export async function getDashboardStats(): Promise<SessionStats> {
-  const session = await auth();
-  if (!session?.user?.id) {
+  const userId = await getEffectiveUserId();
+  if (userId === undefined) {
     return {
       totalSessions: 0,
       avgEngagementScore: 0,
@@ -49,70 +55,70 @@ export async function getDashboardStats(): Promise<SessionStats> {
       sentimentBreakdown: { positive: 0, neutral: 0, negative: 0 },
     };
   }
-  return getSessionStats(session.user.id);
+  return getSessionStats(userId);
 }
 
 export async function getSentimentTrends(
   days = 30,
 ): Promise<TrendPoint[]> {
-  const session = await auth();
-  if (!session?.user?.id) return [];
-  return getEmotionTrendsOverTime(session.user.id, days);
+  const userId = await getEffectiveUserId();
+  if (userId === undefined) return [];
+  return getEmotionTrendsOverTime(userId, days);
 }
 
 export async function getHeatmapData(
   days = 30,
 ): Promise<EmotionTrendRow[]> {
-  const session = await auth();
-  if (!session?.user?.id) return [];
-  return getEmotionHeatmap(session.user.id, days);
+  const userId = await getEffectiveUserId();
+  if (userId === undefined) return [];
+  return getEmotionHeatmap(userId, days);
 }
 
 export async function getTypeBreakdown() {
-  const session = await auth();
-  if (!session?.user?.id) return [];
-  return getSessionTypeBreakdown(session.user.id);
+  const userId = await getEffectiveUserId();
+  if (userId === undefined) return [];
+  return getSessionTypeBreakdown(userId);
 }
 
 export async function fetchSessionStatus(
   sessionId: string,
 ): Promise<{ status: string; errorMessage: string | null } | null> {
-  const session = await auth();
-  if (!session?.user?.id) return null;
-  return getSessionStatusFromRepo(sessionId, session.user.id);
+  const userId = await getEffectiveUserId();
+  if (userId === undefined) return null;
+  return getSessionStatusFromRepo(sessionId, userId);
 }
 
 export async function renameSession(
   sessionId: string,
   title: string,
 ): Promise<void> {
-  const session = await auth();
-  if (!session?.user?.id) throw new Error("Unauthorized");
+  const userId = await getEffectiveUserId();
+  if (userId === undefined) throw new Error("Unauthorized");
   const trimmed = title.trim();
   if (!trimmed) throw new Error("Session title cannot be empty");
-  await updateSessionTitle(sessionId, session.user.id, trimmed);
+  await updateSessionTitle(sessionId, userId, trimmed);
 }
 
 export async function removeSession(sessionId: string): Promise<void> {
-  const session = await auth();
-  if (!session?.user?.id) throw new Error("Unauthorized");
-  await deleteSession(sessionId, session.user.id);
+  const userId = await getEffectiveUserId();
+  if (userId === undefined) throw new Error("Unauthorized");
+  await deleteSession(sessionId, userId);
 }
 
 export async function removeSessionsBulk(sessionIds: string[]): Promise<void> {
   if (sessionIds.length === 0) return;
-  const session = await auth();
-  if (!session?.user?.id) throw new Error("Unauthorized");
-  await deleteSessionsBulk(sessionIds, session.user.id);
+  const userId = await getEffectiveUserId();
+  if (userId === undefined) throw new Error("Unauthorized");
+  await deleteSessionsBulk(sessionIds, userId);
 }
 
 export async function assignSessionEmployee(
   sessionId: string,
   employeeId: string | null,
 ): Promise<void> {
-  const session = await auth();
-  if (!session?.user?.id) throw new Error("Unauthorized");
-  await updateSessionEmployee(sessionId, session.user.id, employeeId);
+  const userId = await getEffectiveUserId();
+  if (userId === undefined) throw new Error("Unauthorized");
+  await updateSessionEmployee(sessionId, userId, employeeId);
 }
 
 export async function renameSessionSpeaker(
@@ -120,18 +126,18 @@ export async function renameSessionSpeaker(
   oldName: string,
   newName: string,
 ): Promise<void> {
-  const session = await auth();
-  if (!session?.user?.id) throw new Error("Unauthorized");
+  const userId = await getEffectiveUserId();
+  if (userId === undefined) throw new Error("Unauthorized");
   const trimmed = newName.trim();
   if (!trimmed) throw new Error("Speaker name cannot be empty");
-  await renameSpeaker(sessionId, session.user.id, oldName, trimmed);
+  await renameSpeaker(sessionId, userId, oldName, trimmed);
 }
 
 export async function setEmployeeSpeaker(
   sessionId: string,
   employeeSpeakerId: string | null,
 ): Promise<void> {
-  const session = await auth();
-  if (!session?.user?.id) throw new Error("Unauthorized");
-  await updateEmployeeSpeaker(sessionId, session.user.id, employeeSpeakerId);
+  const userId = await getEffectiveUserId();
+  if (userId === undefined) throw new Error("Unauthorized");
+  await updateEmployeeSpeaker(sessionId, userId, employeeSpeakerId);
 }
