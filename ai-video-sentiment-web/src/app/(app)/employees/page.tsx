@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { FiPlus } from "react-icons/fi";
 import { getEmployees } from "~/actions/employees";
 import { AddEmployeeForm } from "./AddEmployeeForm";
 
@@ -28,7 +29,7 @@ export default async function EmployeesPage() {
         <div className="lg:col-span-2">
           {employees.length === 0 ? (
             <div className="flex h-40 items-center justify-center rounded-xl border border-dashed border-gray-200 text-sm text-gray-400">
-              No employees yet — add one to get started
+              No employees yet. Add one to get started.
             </div>
           ) : (
             <div className="flex flex-col gap-2">
@@ -45,33 +46,29 @@ export default async function EmployeesPage() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <span className="font-medium text-gray-900">
-                        {emp.name}
-                      </span>
+                      <span className="font-medium text-gray-900">{emp.name}</span>
                       <span className="rounded-full border border-gray-200 px-2 py-0.5 text-xs text-gray-500">
                         {emp.status}
                       </span>
                     </div>
-                    <div className="text-xs text-gray-500 truncate">
+                    <div className="truncate text-xs text-gray-500">
                       {[emp.role, emp.department, emp.email]
                         .filter(Boolean)
                         .join(" · ") || "No details"}
                     </div>
                   </div>
-                  <span className="flex-shrink-0 text-xs text-gray-400">
-                    View →
-                  </span>
                 </Link>
               ))}
             </div>
           )}
         </div>
 
-        {/* Add employee */}
+        {/* Add employee form */}
         <div className="rounded-xl border border-gray-200 p-4">
-          <h2 className="mb-3 text-sm font-medium text-gray-700">
-            Add employee
-          </h2>
+          <div className="mb-3 flex items-center gap-2">
+            <FiPlus className="h-4 w-4 text-gray-500" />
+            <h2 className="text-sm font-medium text-gray-700">Add employee</h2>
+          </div>
           <AddEmployeeForm />
         </div>
       </div>
