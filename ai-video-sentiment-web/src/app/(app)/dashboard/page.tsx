@@ -1,9 +1,9 @@
 import Link from "next/link";
 import { FiGrid, FiTrendingUp, FiUsers, FiActivity } from "react-icons/fi";
-import { getDashboardStats, getSessions, getSentimentTrends } from "~/actions/sessions";
+import { getDashboardStats, getSessions } from "~/actions/sessions";
 import { getEmployees } from "~/actions/employees";
 import { SessionTable } from "~/components/client/charts/SessionTable";
-import { SentimentLineChart } from "~/components/client/charts/SentimentLineChart";
+import { LatestSessionCard } from "~/components/client/LatestSessionCard";
 import { ExportButtons } from "~/components/client/ExportButtons";
 import { auth } from "~/server/auth";
 
@@ -21,10 +21,9 @@ export default async function DashboardPage() {
   const session = await auth();
   const isAdmin = session?.user?.isAdmin ?? false;
 
-  const [stats, sessions, trends, employees] = await Promise.all([
+  const [stats, sessions, employees] = await Promise.all([
     getDashboardStats(),
     getSessions(),
-    getSentimentTrends(30),
     getEmployees(),
   ]);
 
@@ -85,13 +84,8 @@ export default async function DashboardPage() {
         </div>
       </div>
 
-      {/* Sentiment trend chart */}
-      <div className="rounded-xl border border-gray-200 p-4">
-        <h2 className="mb-4 text-sm font-medium text-gray-700">
-          Sentiment trend (last 30 days)
-        </h2>
-        <SentimentLineChart data={trends} />
-      </div>
+      {/* Latest session */}
+      {sessions[0] && <LatestSessionCard session={sessions[0]} />}
 
       {/* Sessions table */}
       <div className="flex flex-col gap-3">
