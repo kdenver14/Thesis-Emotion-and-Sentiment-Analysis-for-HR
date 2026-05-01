@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { FiGrid, FiTrendingUp, FiUsers, FiActivity } from "react-icons/fi";
 import { getDashboardStats, getSessions } from "~/actions/sessions";
 import { getEmployees } from "~/actions/employees";
@@ -19,7 +18,9 @@ const EMOTION_EMOJI: Record<string, string> = {
 
 export default async function DashboardPage() {
   const session = await auth();
-  const isAdmin = session?.user?.isAdmin ?? false;
+  const role = session?.user?.role ?? "STAFF";
+  const isAdmin = role !== "STAFF";
+  const canMutate = role !== "DIRECTOR";
 
   const [stats, sessions, employees] = await Promise.all([
     getDashboardStats(),
@@ -31,7 +32,7 @@ export default async function DashboardPage() {
     <div className="flex flex-col gap-6 p-4 sm:p-8">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold text-gray-900">Dashboard</h1>
-        <ExportButtons aggregateParams={{}} label="Export all" />
+        <ExportButtons aggregateParams={{}} label="Export all" userRole={role} />
       </div>
 
       {/* Stats cards */}
@@ -91,14 +92,8 @@ export default async function DashboardPage() {
       <div className="flex flex-col gap-3">
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-medium text-gray-700">Recent sessions</h2>
-          <Link
-            href="/analytics"
-            className="text-xs text-gray-500 hover:text-gray-800 hover:underline"
-          >
-            View analytics →
-          </Link>
         </div>
-        <SessionTable sessions={sessions} employees={employees} isAdmin={isAdmin} />
+        <SessionTable sessions={sessions} employees={employees} isAdmin={isAdmin} canMutate={canMutate} />
       </div>
     </div>
   );

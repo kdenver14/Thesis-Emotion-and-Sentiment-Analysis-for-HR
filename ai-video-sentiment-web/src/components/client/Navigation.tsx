@@ -2,24 +2,38 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { FiUpload, FiGrid, FiTrendingUp, FiUsers } from "react-icons/fi";
+import { FiUpload, FiGrid, FiUsers, FiSettings } from "react-icons/fi";
 import { SignOutButton } from "./signout";
+import { EditableName } from "./EditableName";
+import { ChangePasswordModal } from "./ChangePasswordModal";
 
-const NAV_ITEMS = [
-  { href: "/", label: "Upload", icon: FiUpload },
+type NavItem = { href: string; label: string; icon: React.ComponentType<{ className?: string }> };
+
+const BASE_NAV: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: FiGrid },
-  { href: "/analytics", label: "Analytics", icon: FiTrendingUp },
   { href: "/employees", label: "Employees", icon: FiUsers },
-] as const;
+];
 
-export default function Navigation({ userName }: { userName?: string }) {
+export default function Navigation({
+  userName,
+  userRole = "STAFF",
+}: {
+  userName?: string;
+  userRole?: string;
+}) {
   const pathname = usePathname();
+
+  const navItems: NavItem[] = [
+    ...(userRole !== "DIRECTOR" ? [{ href: "/", label: "Upload", icon: FiUpload }] : []),
+    ...BASE_NAV,
+    ...(userRole === "MANAGER" || userRole === "DIRECTOR" ? [{ href: "/admin/users", label: "Users", icon: FiSettings }] : []),
+  ];
 
   return (
     <nav className="flex h-16 items-center justify-between border-b border-gray-200 px-6 sm:px-10">
       <div className="flex items-center gap-6">
         <div className="flex items-center gap-1">
-          {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
+          {navItems.map(({ href, label, icon: Icon }) => {
             const isActive =
               href === "/"
                 ? pathname === "/"
@@ -42,11 +56,10 @@ export default function Navigation({ userName }: { userName?: string }) {
         </div>
       </div>
       <div className="flex items-center gap-3">
-        {userName && (
-          <span className="hidden text-sm text-gray-500 sm:block">
-            {userName}
-          </span>
-        )}
+        <div className="hidden sm:flex items-center gap-2">
+          <EditableName initialName={userName ?? ""} />
+          {(userRole === "STAFF" || userRole === "DIRECTOR") && <ChangePasswordModal />}
+        </div>
         <SignOutButton />
       </div>
     </nav>

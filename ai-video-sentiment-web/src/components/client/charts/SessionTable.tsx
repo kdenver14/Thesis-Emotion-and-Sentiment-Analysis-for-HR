@@ -37,6 +37,7 @@ interface SessionTableProps {
   sessions: ParsedSession[];
   employees?: Employee[];
   isAdmin?: boolean;
+  canMutate?: boolean;
 }
 
 function EmployeeCell({
@@ -50,6 +51,9 @@ function EmployeeCell({
     session.employeeId ?? "",
   );
   const [isPending, startTransition] = useTransition();
+
+  const currentEmployee = session.employee;
+  const isDeleted = currentEmployee?.status === "Deleted";
 
   const handleChange = (value: string) => {
     const next = value === "" ? null : value;
@@ -67,6 +71,11 @@ function EmployeeCell({
       className="rounded border border-transparent bg-transparent py-0.5 text-sm text-gray-500 hover:border-gray-200 focus:border-gray-300 focus:outline-none disabled:opacity-50"
     >
       <option value="">—</option>
+      {isDeleted && currentEmployee && (
+        <option value={currentEmployee.id} disabled>
+          {currentEmployee.name} (deleted)
+        </option>
+      )}
       {employees.map((emp) => (
         <option key={emp.id} value={emp.id}>
           {emp.name}
@@ -168,7 +177,7 @@ function IndeterminateCheckbox({
   );
 }
 
-export function SessionTable({ sessions, employees = [], isAdmin = false }: SessionTableProps) {
+export function SessionTable({ sessions, employees = [], isAdmin = false, canMutate = false }: SessionTableProps) {
   const router = useRouter();
   const [sortKey, setSortKey] = useState<SortKey>("sessionDate");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
@@ -283,7 +292,7 @@ export function SessionTable({ sessions, employees = [], isAdmin = false }: Sess
       </div>
 
       {/* Bulk action bar */}
-      {selected.size > 0 && (
+      {canMutate && selected.size > 0 && (
         <div className="flex items-center justify-between rounded-lg border border-gray-200 bg-gray-50 px-4 py-2">
           <span className="text-sm text-gray-600">
             {selected.size} selected
@@ -303,14 +312,16 @@ export function SessionTable({ sessions, employees = [], isAdmin = false }: Sess
         <table className="w-full text-sm">
           <thead className="border-b border-gray-200 bg-gray-50">
             <tr>
-              <th className="w-10 px-4 py-3">
-                <IndeterminateCheckbox
-                  checked={allChecked}
-                  indeterminate={someChecked}
-                  onChange={toggleAll}
-                  className="h-3.5 w-3.5 cursor-pointer rounded border-gray-300"
-                />
-              </th>
+              {canMutate && (
+                <th className="w-10 px-4 py-3">
+                  <IndeterminateCheckbox
+                    checked={allChecked}
+                    indeterminate={someChecked}
+                    onChange={toggleAll}
+                    className="h-3.5 w-3.5 cursor-pointer rounded border-gray-300"
+                  />
+                </th>
+              )}
               <th className={th} onClick={() => handleSort("sessionDate")}>
                 Date <SortIcon col="sessionDate" />
               </th>
@@ -342,7 +353,7 @@ export function SessionTable({ sessions, employees = [], isAdmin = false }: Sess
           <tbody className="divide-y divide-gray-100">
             {sorted.length === 0 ? (
               <tr>
-                <td colSpan={showHandledBy ? 9 : 8} className="px-4 py-8 text-center text-gray-400">
+                <td colSpan={7 + (canMutate ? 1 : 0) + (showHandledBy ? 1 : 0)} className="px-4 py-8 text-center text-gray-400">
                   {search ? "No sessions match your search" : "No sessions yet"}
                 </td>
               </tr>
@@ -352,16 +363,21 @@ export function SessionTable({ sessions, employees = [], isAdmin = false }: Sess
                   key={s.id}
                   className={`hover:bg-gray-50 ${selected.has(s.id) ? "bg-gray-50" : ""}`}
                 >
-                  <td className="px-4 py-3">
-                    <input
-                      type="checkbox"
-                      checked={selected.has(s.id)}
-                      onChange={(e) => toggleOne(s.id, e.target.checked)}
-                      className="h-3.5 w-3.5 cursor-pointer rounded border-gray-300"
-                    />
-                  </td>
+                  {canMutate && (
+                    <td className="px-4 py-3">
+                      <input
+                        type="checkbox"
+                        checked={selected.has(s.id)}
+                        onChange={(e) => toggleOne(s.id, e.target.checked)}
+                        className="h-3.5 w-3.5 cursor-pointer rounded border-gray-300"
+                      />
+                    </td>
+                  )}
                   <td className="px-4 py-3 text-gray-600">
-                    {s.sessionDate.toLocaleDateString("en-GB")}
+                    <div className="flex flex-col">
+                      <span>{s.sessionDate.toLocaleDateString("en-GB")}</span>
+                      <span className="text-xs text-gray-400">Uploaded {s.createdAt.toLocaleDateString("en-GB")}</span>
+                    </div>
                   </td>
                   {showHandledBy && (
                     <td className="px-4 py-3">
@@ -371,7 +387,13 @@ export function SessionTable({ sessions, employees = [], isAdmin = false }: Sess
                     </td>
                   )}
                   <td className="px-4 py-3 font-medium">
-                    <TitleCell session={s} />
+                    {canMutate ? (
+                      <TitleCell session={s} />
+                    ) : (
+                      <Link href={`/dashboard/${s.id}`} className="hover:text-gray-600 hover:underline">
+                        {s.title}
+                      </Link>
+                    )}
                   </td>
                   <td className="px-4 py-3 text-gray-500">
                     {SESSION_TYPE_LABELS[
@@ -379,11 +401,14 @@ export function SessionTable({ sessions, employees = [], isAdmin = false }: Sess
                     ] ?? s.sessionType}
                   </td>
                   <td className="px-4 py-3">
-                    {employees.length > 0 ? (
+                    {canMutate && employees.length > 0 ? (
                       <EmployeeCell session={s} employees={employees} />
                     ) : (
                       <span className="text-gray-500">
                         {s.employee?.name ?? "—"}
+                        {s.employee?.status === "Deleted" && (
+                          <span className="ml-1 text-xs text-gray-400">(deleted)</span>
+                        )}
                       </span>
                     )}
                   </td>
