@@ -3,9 +3,8 @@ import Link from "next/link";
 import { FiArrowLeft } from "react-icons/fi";
 import { auth } from "~/server/auth";
 import { findEmployeeById } from "~/server/repositories/employee";
-import { getSessionsByUser, getEmotionTrendsOverTime } from "~/server/repositories/session";
+import { getSessionsByUser } from "~/server/repositories/session";
 import { SessionTable } from "~/components/client/charts/SessionTable";
-import { SentimentLineChart } from "~/components/client/charts/SentimentLineChart";
 import { DeleteEmployeeButton } from "./DeleteEmployeeButton";
 
 interface PageProps {
@@ -17,11 +16,11 @@ export default async function EmployeeDetailPage({ params }: PageProps) {
   const authSession = await auth();
   if (!authSession?.user?.id) notFound();
 
-  const userId = authSession.user.isAdmin ? null : authSession.user.id;
-  const [employee, allSessions, trends] = await Promise.all([
+  const canMutate = authSession.user.role !== "DIRECTOR";
+  const userId = authSession.user.role === "STAFF" ? authSession.user.id : null;
+  const [employee, allSessions] = await Promise.all([
     findEmployeeById(employeeId, userId),
     getSessionsByUser(userId, { employeeId }),
-    getEmotionTrendsOverTime(userId, 90, employeeId),
   ]);
 
   if (!employee) notFound();
@@ -61,13 +60,13 @@ export default async function EmployeeDetailPage({ params }: PageProps) {
               </span>
             </div>
             <div className="mt-1 flex flex-wrap gap-x-4 gap-y-0.5 text-sm text-gray-500">
-              {employee.role && <span>{employee.role}</span>}
               {employee.department && <span>{employee.department}</span>}
               {employee.email && <span>{employee.email}</span>}
               {employee.phone && <span>{employee.phone}</span>}
+              <span>Added {employee.createdAt.toLocaleDateString("en-GB")}</span>
             </div>
           </div>
-          <DeleteEmployeeButton employeeId={employeeId} />
+          {canMutate && <DeleteEmployeeButton employeeId={employeeId} />}
         </div>
       </div>
 
@@ -106,18 +105,10 @@ export default async function EmployeeDetailPage({ params }: PageProps) {
         </div>
       </div>
 
-      {/* Trend chart */}
-      <div className="rounded-xl border border-gray-200 p-4">
-        <h2 className="mb-4 text-sm font-medium text-gray-700">
-          Sentiment trend (90 days)
-        </h2>
-        <SentimentLineChart data={trends} height={200} />
-      </div>
-
       {/* Sessions */}
       <div className="flex flex-col gap-3">
         <h2 className="text-sm font-medium text-gray-700">Sessions</h2>
-        <SessionTable sessions={allSessions} isAdmin={authSession.user.isAdmin ?? false} />
+        <SessionTable sessions={allSessions} isAdmin={authSession.user.role !== "STAFF"} canMutate={canMutate} />
       </div>
     </div>
   );

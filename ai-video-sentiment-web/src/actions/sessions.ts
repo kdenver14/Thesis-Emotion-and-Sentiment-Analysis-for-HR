@@ -5,9 +5,6 @@ import {
   getSessionsByUser,
   getSessionById,
   getSessionStats,
-  getEmotionTrendsOverTime,
-  getEmotionHeatmap,
-  getSessionTypeBreakdown,
   deleteSession,
   deleteSessionsBulk,
   updateSessionEmployee,
@@ -19,14 +16,18 @@ import {
   type ParsedSession,
   type ParsedSessionWithUtterances,
   type SessionStats,
-  type TrendPoint,
-  type EmotionTrendRow,
 } from "~/server/repositories/session";
 
 async function getEffectiveUserId(): Promise<string | null | undefined> {
   const session = await auth();
   if (!session?.user?.id) return undefined;
-  return session.user.isAdmin ? null : session.user.id;
+  return session.user.role === "STAFF" ? session.user.id : null;
+}
+
+async function assertCanMutate(): Promise<void> {
+  const session = await auth();
+  if (!session?.user?.id) throw new Error("Unauthorized");
+  if (session.user.role === "DIRECTOR") throw new Error("Directors have view-only access");
 }
 
 export async function getSessions(
@@ -58,28 +59,6 @@ export async function getDashboardStats(): Promise<SessionStats> {
   return getSessionStats(userId);
 }
 
-export async function getSentimentTrends(
-  days = 30,
-): Promise<TrendPoint[]> {
-  const userId = await getEffectiveUserId();
-  if (userId === undefined) return [];
-  return getEmotionTrendsOverTime(userId, days);
-}
-
-export async function getHeatmapData(
-  days = 30,
-): Promise<EmotionTrendRow[]> {
-  const userId = await getEffectiveUserId();
-  if (userId === undefined) return [];
-  return getEmotionHeatmap(userId, days);
-}
-
-export async function getTypeBreakdown() {
-  const userId = await getEffectiveUserId();
-  if (userId === undefined) return [];
-  return getSessionTypeBreakdown(userId);
-}
-
 export async function fetchSessionStatus(
   sessionId: string,
 ): Promise<{ status: string; errorMessage: string | null } | null> {
@@ -92,6 +71,7 @@ export async function renameSession(
   sessionId: string,
   title: string,
 ): Promise<void> {
+  await assertCanMutate();
   const userId = await getEffectiveUserId();
   if (userId === undefined) throw new Error("Unauthorized");
   const trimmed = title.trim();
@@ -100,6 +80,7 @@ export async function renameSession(
 }
 
 export async function removeSession(sessionId: string): Promise<void> {
+  await assertCanMutate();
   const userId = await getEffectiveUserId();
   if (userId === undefined) throw new Error("Unauthorized");
   await deleteSession(sessionId, userId);
@@ -107,6 +88,7 @@ export async function removeSession(sessionId: string): Promise<void> {
 
 export async function removeSessionsBulk(sessionIds: string[]): Promise<void> {
   if (sessionIds.length === 0) return;
+  await assertCanMutate();
   const userId = await getEffectiveUserId();
   if (userId === undefined) throw new Error("Unauthorized");
   await deleteSessionsBulk(sessionIds, userId);
@@ -116,6 +98,7 @@ export async function assignSessionEmployee(
   sessionId: string,
   employeeId: string | null,
 ): Promise<void> {
+  await assertCanMutate();
   const userId = await getEffectiveUserId();
   if (userId === undefined) throw new Error("Unauthorized");
   await updateSessionEmployee(sessionId, userId, employeeId);
@@ -126,6 +109,7 @@ export async function renameSessionSpeaker(
   oldName: string,
   newName: string,
 ): Promise<void> {
+  await assertCanMutate();
   const userId = await getEffectiveUserId();
   if (userId === undefined) throw new Error("Unauthorized");
   const trimmed = newName.trim();
@@ -137,6 +121,7 @@ export async function setEmployeeSpeaker(
   sessionId: string,
   employeeSpeakerId: string | null,
 ): Promise<void> {
+  await assertCanMutate();
   const userId = await getEffectiveUserId();
   if (userId === undefined) throw new Error("Unauthorized");
   await updateEmployeeSpeaker(sessionId, userId, employeeSpeakerId);

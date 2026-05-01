@@ -12,6 +12,8 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   const userId = session.user.id;
+  const role = session.user.role ?? "STAFF";
+  const effectiveUserId = role === "STAFF" ? userId : null;
 
   const { searchParams } = new URL(req.url);
   const sessionId = searchParams.get("sessionId");
@@ -20,7 +22,7 @@ export async function GET(req: Request) {
   let filename: string;
 
   if (sessionId) {
-    const data = await getSessionById(sessionId, userId);
+    const data = await getSessionById(sessionId, effectiveUserId);
     if (!data) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
@@ -45,7 +47,7 @@ export async function GET(req: Request) {
     const from = searchParams.get("from");
     const to = searchParams.get("to");
 
-    const sessions = await getSessionsByUser(userId, {
+    const sessions = await getSessionsByUser(effectiveUserId, {
       from: from ? new Date(from) : undefined,
       to: to ? new Date(to) : undefined,
     });

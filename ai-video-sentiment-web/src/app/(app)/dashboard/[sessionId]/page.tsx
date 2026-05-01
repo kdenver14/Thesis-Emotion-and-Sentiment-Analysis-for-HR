@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { FiArrowLeft, FiLoader } from "react-icons/fi";
 import { getSession } from "~/actions/sessions";
+import { auth } from "~/server/auth";
 import { getEmployees } from "~/actions/employees";
 import { AssignEmployee } from "~/components/client/AssignEmployee";
 import { SessionSummary } from "~/components/client/SessionSummary";
@@ -18,10 +19,13 @@ interface PageProps {
 
 export default async function SessionDetailPage({ params }: PageProps) {
   const { sessionId } = await params;
-  const [session, employees] = await Promise.all([
+  const [session, employees, authSession] = await Promise.all([
     getSession(sessionId),
     getEmployees(),
+    auth(),
   ]);
+  const role = authSession?.user?.role ?? "STAFF";
+  const canMutate = role !== "DIRECTOR";
 
   if (!session) notFound();
 
@@ -74,7 +78,7 @@ export default async function SessionDetailPage({ params }: PageProps) {
           {session.errorMessage && (
             <p className="text-xs text-red-500">{session.errorMessage}</p>
           )}
-          <DeleteSessionButton sessionId={session.id} />
+          {canMutate && <DeleteSessionButton sessionId={session.id} />}
         </div>
       </div>
     );
@@ -103,6 +107,8 @@ export default async function SessionDetailPage({ params }: PageProps) {
               <span>{session.sessionDate.toLocaleDateString("en-GB")}</span>
               <span>·</span>
               <span>{sessionTypeLabel}</span>
+              <span>·</span>
+              <span>Uploaded {session.createdAt.toLocaleDateString("en-GB")}</span>
               {session.interviewerName && (
                 <>
                   <span>·</span>
@@ -110,11 +116,15 @@ export default async function SessionDetailPage({ params }: PageProps) {
                 </>
               )}
               <span>·</span>
-              <AssignEmployee
-                sessionId={session.id}
-                employees={employees}
-                current={session.employee ?? null}
-              />
+              {canMutate ? (
+                <AssignEmployee
+                  sessionId={session.id}
+                  employees={employees}
+                  current={session.employee ?? null}
+                />
+              ) : (
+                <span>{session.employee?.name ?? "Unassigned"}</span>
+              )}
               {session.durationSecs && (
                 <>
                   <span>·</span>
@@ -124,8 +134,8 @@ export default async function SessionDetailPage({ params }: PageProps) {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <ExportButtons sessionId={session.id} />
-            <DeleteSessionButton sessionId={session.id} />
+            <ExportButtons sessionId={session.id} userRole={role} />
+            {canMutate && <DeleteSessionButton sessionId={session.id} />}
           </div>
         </div>
       </div>
@@ -197,6 +207,7 @@ export default async function SessionDetailPage({ params }: PageProps) {
           utterances={session.utterances}
           speakers={speakers}
           employeeSpeakerId={session.employeeSpeakerId}
+          canMutate={canMutate}
         />
       </div>
     </div>

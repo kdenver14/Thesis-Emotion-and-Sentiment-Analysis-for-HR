@@ -7,9 +7,10 @@ import type { SessionMetadataInput } from "~/types/analysis";
 
 interface UploadVideoProps {
   metadata: SessionMetadataInput;
+  disabled?: boolean;
 }
 
-function UploadVideo({ metadata }: UploadVideoProps) {
+function UploadVideo({ metadata, disabled = false }: UploadVideoProps) {
   const router = useRouter();
   const [status, setStatus] = useState<"idle" | "uploading">("idle");
   const [error, setError] = useState<string | null>(null);
@@ -57,7 +58,7 @@ function UploadVideo({ metadata }: UploadVideoProps) {
           type="file"
           accept="video/mp4,video/mov,video/avi"
           className="hidden"
-          disabled={status === "uploading"}
+          disabled={status === "uploading" || disabled}
           onChange={(e) => {
             const file = e.target.files?.[0];
             if (file) void handleUpload(file);
@@ -66,7 +67,7 @@ function UploadVideo({ metadata }: UploadVideoProps) {
         />
         <label
           htmlFor="video-upload"
-          className={`flex cursor-pointer flex-col items-center ${status === "uploading" ? "opacity-60" : ""}`}
+          className={`flex cursor-pointer flex-col items-center ${status === "uploading" || disabled ? "cursor-not-allowed opacity-50" : ""}`}
         >
           <FiUpload className="min-h-8 min-w-8 text-gray-400" />
           <h3 className="text-md mt-2 from-indigo-50 text-slate-800">
@@ -77,6 +78,11 @@ function UploadVideo({ metadata }: UploadVideoProps) {
           </p>
         </label>
       </div>
+      {disabled && (
+        <p className="text-center text-xs text-gray-400">
+          Complete required fields above to upload.
+        </p>
+      )}
       {error && <div className="text-sm text-red-500">{error}</div>}
     </div>
   );
