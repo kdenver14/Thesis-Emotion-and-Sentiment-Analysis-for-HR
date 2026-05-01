@@ -14,14 +14,14 @@ async function main() {
     if (existing) {
       await db.user.update({
         where: { email: admin.email },
-        data: { isAdmin: true },
+        data: { role: "MANAGER" },
       });
-      console.log(`Updated (isAdmin): ${admin.email}`);
+      console.log(`Updated (role=MANAGER): ${admin.email}`);
       continue;
     }
     const hashedPassword = await bcrypt.hash(admin.password, 12);
     await db.user.create({
-      data: { name: admin.name, email: admin.email, password: hashedPassword, isAdmin: true },
+      data: { name: admin.name, email: admin.email, password: hashedPassword, role: "MANAGER" },
     });
     console.log(`Created: ${admin.email}`);
   }

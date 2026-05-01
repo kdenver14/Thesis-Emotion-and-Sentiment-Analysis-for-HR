@@ -3,6 +3,7 @@ import { auth } from "~/server/auth";
 import {
   getSessionById,
   getSessionsByUser,
+  type ParsedSession,
 } from "~/server/repositories/session";
 
 // jsPDF is browser-first but works in Node.js for basic usage
@@ -189,12 +190,152 @@ function buildSessionPdf(doc: JsPDFWithAutoTable, data: Awaited<ReturnType<typeo
   }
 }
 
+function buildExecutivePdf(
+  doc: JsPDFWithAutoTable,
+  sessions: ParsedSession[],
+  from?: Date,
+  to?: Date,
+) {
+  const completed = sessions.filter((s) => s.status === "COMPLETED");
+
+  doc.setFontSize(18);
+  doc.text("Executive HR Sentiment Report", 14, 20);
+  doc.setFontSize(10);
+  doc.setTextColor(100);
+  const period =
+    from && to
+      ? `${from.toLocaleDateString("en-GB")} – ${to.toLocaleDateString("en-GB")}`
+      : "All time";
+  doc.text(
+    `Generated: ${new Date().toLocaleDateString("en-GB")}  |  Period: ${period}`,
+    14,
+    30,
+  );
+  doc.setTextColor(0);
+
+  if (completed.length === 0) {
+    doc.setFontSize(11);
+    doc.text("No completed sessions found for the selected period.", 14, 45);
+    return;
+  }
+
+  const avgEngagement = Math.round(
+    completed.reduce((a, s) => a + s.engagementScore, 0) / completed.length,
+  );
+
+  const emotionCounts: Record<string, number> = {};
+  const sentimentCounts = { positive: 0, neutral: 0, negative: 0 };
+
+  for (const s of completed) {
+    emotionCounts[s.topEmotion] = (emotionCounts[s.topEmotion] ?? 0) + 1;
+    if (s.topSentiment in sentimentCounts) {
+      sentimentCounts[s.topSentiment as keyof typeof sentimentCounts]++;
+    }
+  }
+
+  const dominantEmotion =
+    Object.entries(emotionCounts).sort((a, b) => b[1] - a[1])[0]?.[0] ?? "—";
+
+  doc.setFontSize(12);
+  doc.text("Key Metrics", 14, 42);
+  doc.autoTable({
+    startY: 46,
+    head: [["Metric", "Value"]],
+    body: [
+      ["Total sessions", String(sessions.length)],
+      ["Completed sessions", String(completed.length)],
+      ["Average engagement score", `${avgEngagement}/100`],
+      ["Dominant emotion", dominantEmotion],
+    ],
+    theme: "striped",
+    headStyles: { fillColor: [40, 40, 40] },
+    styles: { fontSize: 9 },
+    tableWidth: 100,
+  });
+
+  const afterMetrics = doc.lastAutoTable.finalY + 10;
+  doc.setFontSize(12);
+  doc.text("Emotion Distribution", 14, afterMetrics);
+
+  const emotionRows = Object.entries(emotionCounts)
+    .sort((a, b) => b[1] - a[1])
+    .map(([label, count]) => [
+      label,
+      String(count),
+      `${Math.round((count / completed.length) * 100)}%`,
+    ]);
+
+  doc.autoTable({
+    startY: afterMetrics + 4,
+    head: [["Emotion", "Sessions", "Share"]],
+    body: emotionRows,
+    theme: "striped",
+    headStyles: { fillColor: [40, 40, 40] },
+    styles: { fontSize: 9 },
+    tableWidth: 90,
+  });
+
+  const afterEmotion = doc.lastAutoTable.finalY + 10;
+  doc.setFontSize(12);
+  doc.text("Sentiment Breakdown", 14, afterEmotion);
+
+  const total = completed.length;
+  doc.autoTable({
+    startY: afterEmotion + 4,
+    head: [["Sentiment", "Share"]],
+    body: [
+      ["Positive", `${Math.round((sentimentCounts.positive / total) * 100)}%`],
+      ["Neutral", `${Math.round((sentimentCounts.neutral / total) * 100)}%`],
+      ["Negative", `${Math.round((sentimentCounts.negative / total) * 100)}%`],
+    ],
+    theme: "striped",
+    headStyles: { fillColor: [40, 40, 40] },
+    styles: { fontSize: 9 },
+    tableWidth: 70,
+  });
+
+  const byMonth = new Map<string, { count: number; engagement: number[] }>();
+  for (const s of completed) {
+    const key = s.sessionDate.toLocaleDateString("en-GB", {
+      year: "numeric",
+      month: "short",
+    });
+    if (!byMonth.has(key)) byMonth.set(key, { count: 0, engagement: [] });
+    const entry = byMonth.get(key)!;
+    entry.count++;
+    entry.engagement.push(s.engagementScore);
+  }
+
+  if (byMonth.size > 1) {
+    const afterSentiment = doc.lastAutoTable.finalY + 10;
+    doc.setFontSize(12);
+    doc.text("Monthly Volume & Engagement", 14, afterSentiment);
+    const avg = (arr: number[]) =>
+      arr.reduce((a, b) => a + b, 0) / arr.length;
+    const monthRows = Array.from(byMonth.entries()).map(([month, v]) => [
+      month,
+      String(v.count),
+      `${Math.round(avg(v.engagement))}/100`,
+    ]);
+    doc.autoTable({
+      startY: afterSentiment + 4,
+      head: [["Month", "Sessions", "Avg Engagement"]],
+      body: monthRows,
+      theme: "striped",
+      headStyles: { fillColor: [40, 40, 40] },
+      styles: { fontSize: 9 },
+      tableWidth: 110,
+    });
+  }
+}
+
 export async function GET(req: Request) {
   const session = await auth();
   if (!session?.user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   const userId = session.user.id;
+  const role = session.user.role ?? "STAFF";
 
   const { searchParams } = new URL(req.url);
   const sessionId = searchParams.get("sessionId");
@@ -203,7 +344,8 @@ export async function GET(req: Request) {
   let filename: string;
 
   if (sessionId) {
-    const data = await getSessionById(sessionId, userId);
+    const effectiveUserId = role === "STAFF" ? userId : null;
+    const data = await getSessionById(sessionId, effectiveUserId);
     if (!data) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
@@ -212,41 +354,49 @@ export async function GET(req: Request) {
   } else {
     const from = searchParams.get("from");
     const to = searchParams.get("to");
+    const fromDate = from ? new Date(from) : undefined;
+    const toDate = to ? new Date(to) : undefined;
 
-    const sessions = await getSessionsByUser(userId, {
-      from: from ? new Date(from) : undefined,
-      to: to ? new Date(to) : undefined,
+    const effectiveUserId = role === "STAFF" ? userId : null;
+    const sessions = await getSessionsByUser(effectiveUserId, {
+      from: fromDate,
+      to: toDate,
     });
 
-    doc.setFontSize(18);
-    doc.text("Session Report", 14, 20);
-    doc.setFontSize(10);
-    doc.setTextColor(100);
-    doc.text(
-      `Generated: ${new Date().toLocaleDateString("en-GB")}  |  Total sessions: ${sessions.length}`,
-      14,
-      30,
-    );
-    doc.setTextColor(0);
+    if (role === "DIRECTOR") {
+      buildExecutivePdf(doc, sessions, fromDate, toDate);
+      filename = "executive-report.pdf";
+    } else {
+      doc.setFontSize(18);
+      doc.text("Session Report", 14, 20);
+      doc.setFontSize(10);
+      doc.setTextColor(100);
+      doc.text(
+        `Generated: ${new Date().toLocaleDateString("en-GB")}  |  Total sessions: ${sessions.length}`,
+        14,
+        30,
+      );
+      doc.setTextColor(0);
 
-    doc.autoTable({
-      startY: 40,
-      head: [["Date", "Title", "Type", "Employee", "Top Emotion", "Sentiment", "Engagement"]],
-      body: sessions.map((s) => [
-        s.sessionDate.toLocaleDateString("en-GB"),
-        s.title,
-        s.sessionType,
-        s.employee?.name ?? "—",
-        s.topEmotion,
-        s.topSentiment,
-        `${s.engagementScore}/100`,
-      ]),
-      theme: "striped",
-      headStyles: { fillColor: [40, 40, 40] },
-      styles: { fontSize: 8 },
-    });
+      doc.autoTable({
+        startY: 40,
+        head: [["Date", "Title", "Type", "Employee", "Top Emotion", "Sentiment", "Engagement"]],
+        body: sessions.map((s) => [
+          s.sessionDate.toLocaleDateString("en-GB"),
+          s.title,
+          s.sessionType,
+          s.employee?.name ?? "—",
+          s.topEmotion,
+          s.topSentiment,
+          `${s.engagementScore}/100`,
+        ]),
+        theme: "striped",
+        headStyles: { fillColor: [40, 40, 40] },
+        styles: { fontSize: 8 },
+      });
 
-    filename = "sessions-report.pdf";
+      filename = "sessions-report.pdf";
+    }
   }
 
   const pdfBuffer = new Uint8Array(doc.output("arraybuffer"));

@@ -6,13 +6,16 @@ interface ExportButtonsProps {
   sessionId?: string;
   aggregateParams?: { from?: string; to?: string };
   label?: string;
+  userRole?: string;
 }
 
 export function ExportButtons({
   sessionId,
   aggregateParams,
   label = "Export",
+  userRole,
 }: ExportButtonsProps) {
+  const hideCSV = aggregateParams !== undefined && userRole === "DIRECTOR";
   const buildQuery = (type: "pdf" | "csv") => {
     const base = `/api/export/${type}`;
     const params = new URLSearchParams();
@@ -37,14 +40,16 @@ export function ExportButtons({
         <FiDownload className="h-3.5 w-3.5" />
         PDF
       </a>
-      <a
-        href={buildQuery("csv")}
-        download
-        className="flex items-center gap-1.5 rounded-md border border-gray-200 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50"
-      >
-        <FiFileText className="h-3.5 w-3.5" />
-        CSV
-      </a>
+      {!hideCSV && (
+        <a
+          href={buildQuery("csv")}
+          download
+          className="flex items-center gap-1.5 rounded-md border border-gray-200 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50"
+        >
+          <FiFileText className="h-3.5 w-3.5" />
+          CSV
+        </a>
+      )}
     </div>
   );
 }

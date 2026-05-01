@@ -12,12 +12,19 @@ export default async function HomePage() {
     auth(),
   ]);
   const interviewerName = session?.user?.name ?? "";
+  const canUpload = session?.user?.role !== "DIRECTOR";
 
   return (
     <div className="min-h-screen bg-white">
-      <Navigation userName={interviewerName} />
+      <Navigation userName={interviewerName} userRole={session?.user?.role ?? "STAFF"} />
       <main className="flex min-h-screen w-full flex-col items-center gap-6 p-4 sm:p-10">
-        <Inference employees={employees} interviewerName={interviewerName} />
+        {canUpload ? (
+          <Inference employees={employees} interviewerName={interviewerName} />
+        ) : (
+          <div className="flex w-full max-w-2xl items-center justify-center rounded-xl border border-dashed border-gray-200 p-10 text-sm text-gray-400">
+            Directors have view-only access. Contact a manager to upload sessions.
+          </div>
+        )}
         <RecentSessionsList sessions={sessions.slice(0, 5)} />
       </main>
     </div>

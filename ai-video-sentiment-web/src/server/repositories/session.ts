@@ -27,7 +27,7 @@ export interface ParsedSession {
   createdAt: Date;
   employeeId: string | null;
   employeeSpeakerId: string | null;
-  employee: { id: string; name: string; department: string | null } | null;
+  employee: { id: string; name: string; department: string | null; status: string } | null;
   handledBy: { id: string; name: string | null };
   status: string;
   errorMessage: string | null;
@@ -90,7 +90,7 @@ function parseSession(raw: {
   createdAt: Date;
   employeeId: string | null;
   employeeSpeakerId: string | null;
-  employee: { id: string; name: string; department: string | null } | null;
+  employee: { id: string; name: string; department: string | null; status: string } | null;
   user: { id: string; name: string | null };
   status: string;
   errorMessage: string | null;
@@ -139,7 +139,7 @@ const SESSION_SELECT = {
   status: true,
   errorMessage: true,
   employee: {
-    select: { id: true, name: true, department: true },
+    select: { id: true, name: true, department: true, status: true },
   },
   user: {
     select: { id: true, name: true },

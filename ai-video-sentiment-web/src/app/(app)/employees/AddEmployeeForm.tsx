@@ -24,8 +24,7 @@ export function AddEmployeeForm() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [department, setDepartment] = useState("");
-  const [role, setRole] = useState("");
-  const [phone, setPhone] = useState("");
+  const [phone, setPhone] = useState("+63 ");
   const [status, setStatus] = useState<string>("Active");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -33,15 +32,19 @@ export function AddEmployeeForm() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return;
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setError("Invalid email format");
+      return;
+    }
     setLoading(true);
     setError(null);
 
+    const phoneValue = phone.trim();
     const result = await addEmployee({
       name,
       email: email || undefined,
       department: department || undefined,
-      role: role || undefined,
-      phone: phone || undefined,
+      phone: phoneValue && phoneValue !== "+63" ? phoneValue : undefined,
       status,
     });
 
@@ -51,8 +54,7 @@ export function AddEmployeeForm() {
       setName("");
       setEmail("");
       setDepartment("");
-      setRole("");
-      setPhone("");
+      setPhone("+63 ");
       setStatus("Active");
       router.refresh();
     }
@@ -77,32 +79,20 @@ export function AddEmployeeForm() {
           className={inputClass}
         />
       </div>
-      <div className="grid grid-cols-2 gap-2">
-        <div className="flex flex-col gap-1">
-          <label className="text-xs text-gray-500">Job title</label>
-          <input
-            type="text"
-            placeholder="e.g. Engineer"
-            value={role}
-            onChange={(e) => setRole(e.target.value)}
-            className={inputClass}
-          />
-        </div>
-        <div className="flex flex-col gap-1">
-          <label className="text-xs text-gray-500">Department</label>
-          <select
-            value={department}
-            onChange={(e) => setDepartment(e.target.value)}
-            className={selectClass}
-          >
-            <option value="">— Select —</option>
-            {DEPARTMENTS.map((d) => (
-              <option key={d} value={d}>
-                {d}
-              </option>
-            ))}
-          </select>
-        </div>
+      <div className="flex flex-col gap-1">
+        <label className="text-xs text-gray-500">Department</label>
+        <select
+          value={department}
+          onChange={(e) => setDepartment(e.target.value)}
+          className={selectClass}
+        >
+          <option value="">— Select —</option>
+          {DEPARTMENTS.map((d) => (
+            <option key={d} value={d}>
+              {d}
+            </option>
+          ))}
+        </select>
       </div>
       <div className="grid grid-cols-2 gap-2">
         <div className="flex flex-col gap-1">
@@ -119,7 +109,7 @@ export function AddEmployeeForm() {
           <label className="text-xs text-gray-500">Phone</label>
           <input
             type="tel"
-            placeholder="+1 555 000"
+            placeholder="+63 9XX XXX XXXX"
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
             className={inputClass}

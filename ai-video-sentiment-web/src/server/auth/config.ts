@@ -11,12 +11,12 @@ declare module "next-auth" {
   interface Session extends DefaultSession {
     user: {
       id: string;
-      isAdmin: boolean;
+      role: string;
     } & DefaultSession["user"];
   }
 
   interface User {
-    isAdmin?: boolean;
+    role?: string;
   }
 }
 
@@ -53,7 +53,7 @@ export const authConfig = {
             id: user.id,
             email: user.email,
             name: user.name,
-            isAdmin: user.isAdmin,
+            role: user.role,
           };
         } catch (error) {
           return null;
@@ -66,10 +66,13 @@ export const authConfig = {
   },
   adapter: PrismaAdapter(db),
   callbacks: {
-    jwt: ({ token, user }) => {
+    jwt: ({ token, user, trigger, session }) => {
       if (user) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (token as any).isAdmin = user.isAdmin ?? false;
+        (token as any).role = user.role ?? "STAFF";
+      }
+      if (trigger === "update" && typeof (session as { name?: unknown })?.name === "string") {
+        token.name = (session as { name: string }).name;
       }
       return token;
     },
@@ -79,7 +82,7 @@ export const authConfig = {
         ...session.user,
         id: token.sub,
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        isAdmin: Boolean((token as any).isAdmin),
+        role: String((token as any).role ?? "STAFF"),
       },
     }),
   },
