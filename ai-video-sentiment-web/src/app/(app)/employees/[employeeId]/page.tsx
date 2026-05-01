@@ -26,7 +26,22 @@ export default async function EmployeeDetailPage({ params }: PageProps) {
 
   if (!employee) notFound();
 
-  const employeeTrendData = trends;
+  const avgEngagement =
+    allSessions.length > 0
+      ? Math.round(
+          allSessions.reduce((a, s) => a + s.engagementScore, 0) /
+            allSessions.length,
+        )
+      : null;
+
+  const sentimentCounts: Record<string, number> = {};
+  for (const s of allSessions) {
+    sentimentCounts[s.topSentiment] =
+      (sentimentCounts[s.topSentiment] ?? 0) + 1;
+  }
+  const topSentiment =
+    Object.entries(sentimentCounts).sort((a, b) => b[1] - a[1])[0]?.[0] ??
+    null;
 
   return (
     <div className="flex flex-col gap-6 p-4 sm:p-8">
@@ -68,39 +83,29 @@ export default async function EmployeeDetailPage({ params }: PageProps) {
             {allSessions.length}
           </div>
         </div>
-        {allSessions.length > 0 && (
-          <>
-            <div className="rounded-xl border border-gray-200 p-4">
-              <div className="text-xs uppercase tracking-wide text-gray-400">
-                Avg engagement
-              </div>
-              <div className="mt-1 text-2xl font-semibold text-gray-900">
-                {Math.round(
-                  allSessions.reduce((a, s) => a + s.engagementScore, 0) /
-                    allSessions.length,
-                )}
+        <div className="rounded-xl border border-gray-200 p-4">
+          <div className="text-xs uppercase tracking-wide text-gray-400">
+            Avg engagement
+          </div>
+          <div className="mt-1 text-2xl font-semibold text-gray-900">
+            {avgEngagement !== null ? (
+              <>
+                {avgEngagement}
                 <span className="text-sm font-normal text-gray-500">/100</span>
-              </div>
-            </div>
-            <div className="rounded-xl border border-gray-200 p-4">
-              <div className="text-xs uppercase tracking-wide text-gray-400">
-                Top sentiment
-              </div>
-              <div className="mt-1 text-lg font-semibold capitalize text-gray-900">
-                {(() => {
-                  const counts: Record<string, number> = {};
-                  for (const s of allSessions) {
-                    counts[s.topSentiment] = (counts[s.topSentiment] ?? 0) + 1;
-                  }
-                  return (
-                    Object.entries(counts).sort((a, b) => b[1] - a[1])[0]?.[0] ??
-                    "—"
-                  );
-                })()}
-              </div>
-            </div>
-          </>
-        )}
+              </>
+            ) : (
+              <span className="text-gray-300">—</span>
+            )}
+          </div>
+        </div>
+        <div className="rounded-xl border border-gray-200 p-4">
+          <div className="text-xs uppercase tracking-wide text-gray-400">
+            Top sentiment
+          </div>
+          <div className="mt-1 text-lg font-semibold capitalize text-gray-900">
+            {topSentiment ?? <span className="text-gray-300">—</span>}
+          </div>
+        </div>
       </div>
 
       {/* Trend chart */}
@@ -108,7 +113,7 @@ export default async function EmployeeDetailPage({ params }: PageProps) {
         <h2 className="mb-4 text-sm font-medium text-gray-700">
           Sentiment trend (90 days)
         </h2>
-        <SentimentLineChart data={employeeTrendData} height={200} />
+        <SentimentLineChart data={trends} height={200} />
       </div>
 
       {/* Sessions */}

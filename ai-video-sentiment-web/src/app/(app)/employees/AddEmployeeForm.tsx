@@ -60,9 +60,9 @@ export function AddEmployeeForm() {
   };
 
   const selectClass =
-    "rounded-md border border-gray-200 bg-white px-3 py-1.5 text-sm focus:border-gray-400 focus:outline-none";
+    "w-full rounded-md border border-gray-200 bg-white px-3 py-1.5 text-sm focus:border-gray-400 focus:outline-none";
   const inputClass =
-    "rounded-md border border-gray-200 px-3 py-1.5 text-sm focus:border-gray-400 focus:outline-none";
+    "w-full rounded-md border border-gray-200 px-3 py-1.5 text-sm focus:border-gray-400 focus:outline-none";
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-3">
@@ -77,51 +77,58 @@ export function AddEmployeeForm() {
           className={inputClass}
         />
       </div>
-      <div className="flex flex-col gap-1">
-        <label className="text-xs text-gray-500">Job Title</label>
-        <input
-          type="text"
-          placeholder="e.g. Senior Engineer"
-          value={role}
-          onChange={(e) => setRole(e.target.value)}
-          className={inputClass}
-        />
+
+      <div className="grid grid-cols-2 gap-2">
+        <div className="flex flex-col gap-1">
+          <label className="text-xs text-gray-500">Job title</label>
+          <input
+            type="text"
+            placeholder="e.g. Engineer"
+            value={role}
+            onChange={(e) => setRole(e.target.value)}
+            className={inputClass}
+          />
+        </div>
+        <div className="flex flex-col gap-1">
+          <label className="text-xs text-gray-500">Department</label>
+          <select
+            value={department}
+            onChange={(e) => setDepartment(e.target.value)}
+            className={selectClass}
+          >
+            <option value="">— Select —</option>
+            {DEPARTMENTS.map((d) => (
+              <option key={d} value={d}>
+                {d}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
-      <div className="flex flex-col gap-1">
-        <label className="text-xs text-gray-500">Department</label>
-        <select
-          value={department}
-          onChange={(e) => setDepartment(e.target.value)}
-          className={selectClass}
-        >
-          <option value="">— Select department —</option>
-          {DEPARTMENTS.map((d) => (
-            <option key={d} value={d}>
-              {d}
-            </option>
-          ))}
-        </select>
+
+      <div className="grid grid-cols-2 gap-2">
+        <div className="flex flex-col gap-1">
+          <label className="text-xs text-gray-500">Email</label>
+          <input
+            type="email"
+            placeholder="name@example.com"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className={inputClass}
+          />
+        </div>
+        <div className="flex flex-col gap-1">
+          <label className="text-xs text-gray-500">Phone</label>
+          <input
+            type="tel"
+            placeholder="+1 555 000"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            className={inputClass}
+          />
+        </div>
       </div>
-      <div className="flex flex-col gap-1">
-        <label className="text-xs text-gray-500">Email</label>
-        <input
-          type="email"
-          placeholder="email@example.com"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          className={inputClass}
-        />
-      </div>
-      <div className="flex flex-col gap-1">
-        <label className="text-xs text-gray-500">Phone</label>
-        <input
-          type="tel"
-          placeholder="+1 555 000 0000"
-          value={phone}
-          onChange={(e) => setPhone(e.target.value)}
-          className={inputClass}
-        />
-      </div>
+
       <div className="flex flex-col gap-1">
         <label className="text-xs text-gray-500">Status</label>
         <select
@@ -136,6 +143,7 @@ export function AddEmployeeForm() {
           ))}
         </select>
       </div>
+
       {error && <p className="text-xs text-red-500">{error}</p>}
       <button
         type="submit"
