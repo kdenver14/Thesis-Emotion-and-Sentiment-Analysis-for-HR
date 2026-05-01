@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { FiPlus } from "react-icons/fi";
+import { auth } from "~/server/auth";
 import { getEmployees } from "~/actions/employees";
 import { AddEmployeeForm } from "./AddEmployeeForm";
 
@@ -13,7 +14,8 @@ function getInitials(name: string): string {
 }
 
 export default async function EmployeesPage() {
-  const employees = await getEmployees();
+  const [employees, session] = await Promise.all([getEmployees(), auth()]);
+  const canManage = session?.user?.role !== "DIRECTOR";
 
   return (
     <div className="flex flex-col gap-6 p-4 sm:p-8">
@@ -24,9 +26,9 @@ export default async function EmployeesPage() {
         )}
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-3">
+      <div className={`grid gap-6 ${canManage ? "lg:grid-cols-3" : ""}`}>
         {/* Employee list */}
-        <div className="lg:col-span-2">
+        <div className={canManage ? "lg:col-span-2" : ""}>
           {employees.length === 0 ? (
             <div className="flex h-40 items-center justify-center rounded-xl border border-dashed border-gray-200 text-sm text-gray-400">
               No employees yet. Add one to get started.
@@ -52,9 +54,13 @@ export default async function EmployeesPage() {
                       </span>
                     </div>
                     <div className="truncate text-xs text-gray-500">
-                      {[emp.role, emp.department, emp.email]
+                      {[
+                        emp.department,
+                        emp.email,
+                        `Added ${emp.createdAt.toLocaleDateString("en-GB")}`,
+                      ]
                         .filter(Boolean)
-                        .join(" · ") || "No details"}
+                        .join(" · ")}
                     </div>
                   </div>
                 </Link>
@@ -63,14 +69,16 @@ export default async function EmployeesPage() {
           )}
         </div>
 
-        {/* Add employee form */}
-        <div className="rounded-xl border border-gray-200 p-4">
-          <div className="mb-3 flex items-center gap-2">
-            <FiPlus className="h-4 w-4 text-gray-500" />
-            <h2 className="text-sm font-medium text-gray-700">Add employee</h2>
+        {/* Add employee form — MANAGER and STAFF only */}
+        {canManage && (
+          <div className="rounded-xl border border-gray-200 p-4">
+            <div className="mb-3 flex items-center gap-2">
+              <FiPlus className="h-4 w-4 text-gray-500" />
+              <h2 className="text-sm font-medium text-gray-700">Add employee</h2>
+            </div>
+            <AddEmployeeForm />
           </div>
-          <AddEmployeeForm />
-        </div>
+        )}
       </div>
     </div>
   );

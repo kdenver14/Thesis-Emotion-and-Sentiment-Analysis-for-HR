@@ -14,6 +14,7 @@ interface SpeakerTimelineProps {
   utterances: ParsedUtterance[];
   speakers: string[];
   employeeSpeakerId?: string | null;
+  canMutate?: boolean;
 }
 
 function EditableSpeakerName({
@@ -104,6 +105,7 @@ export function SpeakerTimeline({
   utterances,
   speakers: initialSpeakers,
   employeeSpeakerId,
+  canMutate = false,
 }: SpeakerTimelineProps) {
   const [selected, setSelected] = useState<string>(ALL_SPEAKERS);
   const [speakers, setSpeakers] = useState(initialSpeakers);
@@ -155,12 +157,14 @@ export function SpeakerTimeline({
                 >
                   {isEmployee ? "Employee" : speaker}
                 </button>
-                <EditableSpeakerName
-                  speaker={speaker}
-                  sessionId={sessionId}
-                  isEmployee={isEmployee}
-                  onRenamed={handleRenamed}
-                />
+                {canMutate && (
+                  <EditableSpeakerName
+                    speaker={speaker}
+                    sessionId={sessionId}
+                    isEmployee={isEmployee}
+                    onRenamed={handleRenamed}
+                  />
+                )}
               </div>
             );
           })}
@@ -172,12 +176,14 @@ export function SpeakerTimeline({
           <span className="text-xs text-gray-500">
             Speaker: {speakers[0]}
           </span>
-          <EditableSpeakerName
-            speaker={speakers[0]!}
-            sessionId={sessionId}
-            isEmployee={speakers[0] === employeeSpeakerId}
-            onRenamed={handleRenamed}
-          />
+          {canMutate && (
+            <EditableSpeakerName
+              speaker={speakers[0]!}
+              sessionId={sessionId}
+              isEmployee={speakers[0] === employeeSpeakerId}
+              onRenamed={handleRenamed}
+            />
+          )}
         </div>
       )}
 

@@ -5,7 +5,6 @@ export interface EmployeeRow {
   name: string;
   email: string | null;
   department: string | null;
-  role: string | null;
   phone: string | null;
   status: string;
   createdAt: Date;
@@ -16,17 +15,18 @@ const EMPLOYEE_SELECT = {
   name: true,
   email: true,
   department: true,
-  role: true,
   phone: true,
   status: true,
   createdAt: true,
 } as const;
 
 export async function findEmployeesByUser(
-  userId: string,
+  userId: string | null,
 ): Promise<EmployeeRow[]> {
   return db.employee.findMany({
-    where: { userId },
+    where: userId
+      ? { userId, status: { not: "Deleted" } }
+      : { status: { not: "Deleted" } },
     select: EMPLOYEE_SELECT,
     orderBy: { name: "asc" },
   });
@@ -56,5 +56,8 @@ export async function deleteEmployee(
   employeeId: string,
   userId: string,
 ): Promise<void> {
-  await db.employee.deleteMany({ where: { id: employeeId, userId } });
+  await db.employee.updateMany({
+    where: { id: employeeId, userId },
+    data: { status: "Deleted" },
+  });
 }

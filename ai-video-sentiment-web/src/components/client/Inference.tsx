@@ -6,6 +6,10 @@ import type { EmployeeRow } from "~/server/repositories/employee";
 import type { SessionType } from "~/types/analysis";
 import { SESSION_TYPES, SESSION_TYPE_LABELS } from "~/types/analysis";
 
+function isValidEmail(value: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+}
+
 interface InferenceProps {
   employees: EmployeeRow[];
   interviewerName: string;
@@ -23,9 +27,20 @@ export function Inference({ employees, interviewerName }: InferenceProps) {
   const [candidateName, setCandidateName] = useState("");
   const [candidatePosition, setCandidatePosition] = useState("");
   const [candidateEmail, setCandidateEmail] = useState("");
-  const [candidatePhone, setCandidatePhone] = useState("");
+  const [candidatePhone, setCandidatePhone] = useState("+63 ");
+
+  // Validation touch state
+  const [nameTouched, setNameTouched] = useState(false);
+  const [emailTouched, setEmailTouched] = useState(false);
 
   const isOnboarding = sessionType === "onboarding";
+
+  const nameError = nameTouched && !candidateName.trim() ? "Name is required" : null;
+  const emailError = emailTouched && candidateEmail && !isValidEmail(candidateEmail) ? "Invalid email format" : null;
+  const isOnboardingValid = !isOnboarding || (
+    candidateName.trim() !== "" &&
+    (!candidateEmail || isValidEmail(candidateEmail))
+  );
 
   const metadata = {
     title: title || `Session ${new Date().toLocaleDateString("en-GB")}`,
@@ -39,7 +54,7 @@ export function Inference({ employees, interviewerName }: InferenceProps) {
             name: candidateName,
             position: candidatePosition || undefined,
             email: candidateEmail || undefined,
-            phone: candidatePhone || undefined,
+            phone: (() => { const p = candidatePhone.trim(); return p && p !== "+63" ? p : undefined; })(),
           }
         : undefined,
   };
@@ -63,7 +78,11 @@ export function Inference({ employees, interviewerName }: InferenceProps) {
             <label className="text-xs text-gray-500">Type</label>
             <select
               value={sessionType}
-              onChange={(e) => setSessionType(e.target.value as SessionType)}
+              onChange={(e) => {
+                setSessionType(e.target.value as SessionType);
+                setNameTouched(false);
+                setEmailTouched(false);
+              }}
               className="rounded-md border border-gray-200 px-3 py-1.5 text-sm focus:border-gray-400 focus:outline-none"
             >
               {SESSION_TYPES.map((t) => (
@@ -120,8 +139,10 @@ export function Inference({ employees, interviewerName }: InferenceProps) {
                 placeholder="Candidate name"
                 value={candidateName}
                 onChange={(e) => setCandidateName(e.target.value)}
-                className="rounded-md border border-gray-200 px-3 py-1.5 text-sm focus:border-gray-400 focus:outline-none"
+                onBlur={() => setNameTouched(true)}
+                className={`rounded-md border px-3 py-1.5 text-sm focus:outline-none ${nameError ? "border-red-300 focus:border-red-400" : "border-gray-200 focus:border-gray-400"}`}
               />
+              {nameError && <p className="text-xs text-red-500">{nameError}</p>}
             </div>
             <div className="flex flex-col gap-1">
               <label className="text-xs text-gray-500">
@@ -138,12 +159,14 @@ export function Inference({ employees, interviewerName }: InferenceProps) {
             <div className="flex flex-col gap-1">
               <label className="text-xs text-gray-500">Email</label>
               <input
-                type="email"
+                type="text"
                 placeholder="candidate@email.com"
                 value={candidateEmail}
                 onChange={(e) => setCandidateEmail(e.target.value)}
-                className="rounded-md border border-gray-200 px-3 py-1.5 text-sm focus:border-gray-400 focus:outline-none"
+                onBlur={() => setEmailTouched(true)}
+                className={`rounded-md border px-3 py-1.5 text-sm focus:outline-none ${emailError ? "border-red-300 focus:border-red-400" : "border-gray-200 focus:border-gray-400"}`}
               />
+              {emailError && <p className="text-xs text-red-500">{emailError}</p>}
             </div>
             <div className="flex flex-col gap-1">
               <label className="text-xs text-gray-500">Phone</label>
@@ -159,7 +182,7 @@ export function Inference({ employees, interviewerName }: InferenceProps) {
         </div>
       )}
 
-      <UploadVideo metadata={metadata} />
+      <UploadVideo metadata={metadata} disabled={!isOnboardingValid} />
     </div>
   );
 }
