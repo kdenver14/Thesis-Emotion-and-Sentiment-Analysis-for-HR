@@ -36,12 +36,10 @@ export default async function EmployeeDetailPage({ params }: PageProps) {
 
   const sentimentCounts: Record<string, number> = {};
   for (const s of allSessions) {
-    sentimentCounts[s.topSentiment] =
-      (sentimentCounts[s.topSentiment] ?? 0) + 1;
+    sentimentCounts[s.topSentiment] = (sentimentCounts[s.topSentiment] ?? 0) + 1;
   }
   const topSentiment =
-    Object.entries(sentimentCounts).sort((a, b) => b[1] - a[1])[0]?.[0] ??
-    null;
+    Object.entries(sentimentCounts).sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
 
   return (
     <div className="flex flex-col gap-6 p-4 sm:p-8">
@@ -74,7 +72,7 @@ export default async function EmployeeDetailPage({ params }: PageProps) {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+      <div className="grid grid-cols-3 gap-4">
         <div className="rounded-xl border border-gray-200 p-4">
           <div className="text-xs uppercase tracking-wide text-gray-400">
             Sessions

@@ -77,7 +77,6 @@ export function AddEmployeeForm() {
           className={inputClass}
         />
       </div>
-
       <div className="grid grid-cols-2 gap-2">
         <div className="flex flex-col gap-1">
           <label className="text-xs text-gray-500">Job title</label>
@@ -105,7 +104,6 @@ export function AddEmployeeForm() {
           </select>
         </div>
       </div>
-
       <div className="grid grid-cols-2 gap-2">
         <div className="flex flex-col gap-1">
           <label className="text-xs text-gray-500">Email</label>
