@@ -81,7 +81,7 @@ model AnalysisSession {
     employeeSpeakerId    String?
     interviewerName      String?
     title                String
-    sessionType          String                @default("general")
+    sessionType          String                @default("interview")
     sessionDate          DateTime              @default(now())
     videoKey             String                @unique
     avgEmotions          String                @default("[]")

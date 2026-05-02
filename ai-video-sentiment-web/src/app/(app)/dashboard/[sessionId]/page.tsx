@@ -1,10 +1,11 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { FiArrowLeft, FiLoader } from "react-icons/fi";
-import { getSession } from "~/actions/sessions";
+import { getSession, renameSession } from "~/actions/sessions";
 import { auth } from "~/server/auth";
 import { getEmployees } from "~/actions/employees";
 import { AssignEmployee } from "~/components/client/AssignEmployee";
+import { InlineTitle } from "~/components/client/InlineTitle";
 import { SessionSummary } from "~/components/client/SessionSummary";
 import { EmotionBarChart } from "~/components/client/charts/EmotionBarChart";
 import { SpeakerTimeline } from "~/components/client/charts/SpeakerTimeline";
@@ -100,9 +101,17 @@ export default async function SessionDetailPage({ params }: PageProps) {
         </Link>
         <div className="flex items-start justify-between gap-4">
           <div>
-            <h1 className="text-xl font-semibold text-gray-900">
-              {session.title}
-            </h1>
+            {canMutate ? (
+              <InlineTitle
+                initialValue={session.title}
+                save={renameSession.bind(null, session.id)}
+                className="text-xl font-semibold text-gray-900"
+              />
+            ) : (
+              <h1 className="text-xl font-semibold text-gray-900">
+                {session.title}
+              </h1>
+            )}
             <div className="mt-1 flex flex-wrap items-center gap-3 text-sm text-gray-500">
               <span>{session.sessionDate.toLocaleDateString("en-GB")}</span>
               <span>·</span>

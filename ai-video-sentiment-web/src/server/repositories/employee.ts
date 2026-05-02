@@ -52,6 +52,17 @@ export async function createEmployee(
   });
 }
 
+export async function updateEmployeeName(
+  employeeId: string,
+  userId: string,
+  name: string,
+): Promise<void> {
+  await db.employee.updateMany({
+    where: { id: employeeId, userId },
+    data: { name },
+  });
+}
+
 export async function deleteEmployee(
   employeeId: string,
   userId: string,

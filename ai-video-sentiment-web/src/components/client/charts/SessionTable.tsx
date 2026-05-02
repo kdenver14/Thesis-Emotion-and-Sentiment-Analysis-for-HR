@@ -3,10 +3,10 @@
 import { useState, useTransition, useRef, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { FiChevronUp, FiChevronDown, FiEdit2, FiTrash2, FiSearch, FiX } from "react-icons/fi";
+import { FiChevronUp, FiChevronDown, FiTrash2, FiSearch, FiX } from "react-icons/fi";
 import type { ParsedSession } from "~/server/repositories/session";
 import { SESSION_TYPE_LABELS } from "~/types/analysis";
-import { assignSessionEmployee, renameSession, removeSessionsBulk } from "~/actions/sessions";
+import { assignSessionEmployee, removeSessionsBulk } from "~/actions/sessions";
 
 type SortKey = "sessionDate" | "title" | "topSentiment" | "engagementScore" | "employee";
 type SortDir = "asc" | "desc";
@@ -83,69 +83,6 @@ function EmployeeCell({
         </option>
       ))}
     </select>
-  );
-}
-
-function TitleCell({ session }: { session: ParsedSession }) {
-  const [editing, setEditing] = useState(false);
-  const [value, setValue] = useState(session.title);
-  const [isPending, startTransition] = useTransition();
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  const startEdit = () => {
-    setEditing(true);
-    setTimeout(() => inputRef.current?.select(), 0);
-  };
-
-  const commit = () => {
-    const trimmed = value.trim();
-    if (!trimmed || trimmed === session.title) {
-      setValue(session.title);
-      setEditing(false);
-      return;
-    }
-    startTransition(async () => {
-      await renameSession(session.id, trimmed);
-      setEditing(false);
-    });
-  };
-
-  if (editing) {
-    return (
-      <input
-        ref={inputRef}
-        value={value}
-        onChange={(e) => setValue(e.target.value)}
-        onBlur={commit}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") commit();
-          if (e.key === "Escape") {
-            setValue(session.title);
-            setEditing(false);
-          }
-        }}
-        disabled={isPending}
-        className="w-full rounded border border-gray-300 px-1.5 py-0.5 text-sm font-medium focus:border-gray-500 focus:outline-none disabled:opacity-50"
-      />
-    );
-  }
-
-  return (
-    <div className="group flex items-center gap-1.5">
-      <Link
-        href={`/dashboard/${session.id}`}
-        className="hover:text-gray-600 hover:underline"
-      >
-        {value}
-      </Link>
-      <button
-        onClick={startEdit}
-        className="invisible text-gray-400 hover:text-gray-700 group-hover:visible"
-        aria-label="Rename session"
-      >
-        <FiEdit2 className="h-3 w-3" />
-      </button>
-    </div>
   );
 }
 
@@ -387,13 +324,9 @@ export function SessionTable({ sessions, employees = [], isAdmin = false, canMut
                     </td>
                   )}
                   <td className="px-4 py-3 font-medium">
-                    {canMutate ? (
-                      <TitleCell session={s} />
-                    ) : (
-                      <Link href={`/dashboard/${s.id}`} className="hover:text-gray-600 hover:underline">
-                        {s.title}
-                      </Link>
-                    )}
+                    <Link href={`/dashboard/${s.id}`} className="hover:text-gray-600 hover:underline">
+                      {s.title}
+                    </Link>
                   </td>
                   <td className="px-4 py-3 text-gray-500">
                     {SESSION_TYPE_LABELS[
