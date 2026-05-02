@@ -4,6 +4,8 @@ import { FiArrowLeft } from "react-icons/fi";
 import { auth } from "~/server/auth";
 import { findEmployeeById } from "~/server/repositories/employee";
 import { getSessionsByUser } from "~/server/repositories/session";
+import { renameEmployee } from "~/actions/employees";
+import { InlineTitle } from "~/components/client/InlineTitle";
 import { SessionTable } from "~/components/client/charts/SessionTable";
 import { DeleteEmployeeButton } from "./DeleteEmployeeButton";
 
@@ -52,9 +54,17 @@ export default async function EmployeeDetailPage({ params }: PageProps) {
         <div className="flex items-start justify-between">
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-xl font-semibold text-gray-900">
-                {employee.name}
-              </h1>
+              {canMutate ? (
+                <InlineTitle
+                  initialValue={employee.name}
+                  save={renameEmployee.bind(null, employeeId)}
+                  className="text-xl font-semibold text-gray-900"
+                />
+              ) : (
+                <h1 className="text-xl font-semibold text-gray-900">
+                  {employee.name}
+                </h1>
+              )}
               <span className="rounded-full border border-gray-200 px-2 py-0.5 text-xs text-gray-500">
                 {employee.status}
               </span>

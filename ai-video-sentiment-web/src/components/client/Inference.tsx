@@ -17,7 +17,7 @@ interface InferenceProps {
 
 export function Inference({ employees, interviewerName }: InferenceProps) {
   const [title, setTitle] = useState("");
-  const [sessionType, setSessionType] = useState<SessionType>("general");
+  const [sessionType, setSessionType] = useState<SessionType>("interview");
   const [employeeId, setEmployeeId] = useState("");
   const [sessionDate, setSessionDate] = useState(
     new Date().toISOString().slice(0, 10),

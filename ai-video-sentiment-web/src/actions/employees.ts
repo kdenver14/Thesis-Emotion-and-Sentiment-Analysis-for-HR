@@ -5,6 +5,7 @@ import {
   createEmployee,
   deleteEmployee,
   findEmployeesByUser,
+  updateEmployeeName,
   type EmployeeRow,
 } from "~/server/repositories/employee";
 
@@ -42,6 +43,19 @@ export async function addEmployee(data: {
   });
 
   return { employee };
+}
+
+export async function renameEmployee(
+  employeeId: string,
+  name: string,
+): Promise<{ error?: string }> {
+  const session = await auth();
+  if (!session?.user?.id) return { error: "Unauthorized" };
+  if (session.user.role === "DIRECTOR") return { error: "Directors cannot edit employee records" };
+  const trimmed = name.trim();
+  if (!trimmed) return { error: "Name is required" };
+  await updateEmployeeName(employeeId, session.user.id, trimmed);
+  return {};
 }
 
 export async function removeEmployee(

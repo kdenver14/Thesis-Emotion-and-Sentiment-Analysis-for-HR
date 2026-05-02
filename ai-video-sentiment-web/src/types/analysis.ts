@@ -11,21 +11,21 @@ export const EMOTION_LABELS = [
 export const SENTIMENT_LABELS = ["negative", "neutral", "positive"] as const;
 
 export const SESSION_TYPES = [
-  "general",
   "interview",
   "performance_review",
   "onboarding",
   "exit_interview",
   "training",
+  "meeting",
 ] as const;
 
 export const SESSION_TYPE_LABELS: Record<SessionType, string> = {
-  general: "General",
   interview: "Interview",
   performance_review: "Performance Review",
   onboarding: "Onboarding",
   exit_interview: "Exit Interview",
   training: "Training",
+  meeting: "Meeting",
 };
 
 export type EmotionLabel = (typeof EMOTION_LABELS)[number];
