@@ -145,7 +145,7 @@ export async function POST(req: Request) {
     title:
       formData.get("title") ??
       `Session ${new Date().toLocaleDateString("en-GB")}`,
-    sessionType: formData.get("sessionType") ?? "general",
+    sessionType: formData.get("sessionType") ?? "interview",
     employeeId: formData.get("employeeId") ?? undefined,
     sessionDate: formData.get("sessionDate") ?? undefined,
     interviewerName: formData.get("interviewerName") ?? undefined,

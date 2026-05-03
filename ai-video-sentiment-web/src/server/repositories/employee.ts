@@ -54,11 +54,11 @@ export async function createEmployee(
 
 export async function updateEmployeeName(
   employeeId: string,
-  userId: string,
+  userId: string | null,
   name: string,
 ): Promise<void> {
   await db.employee.updateMany({
-    where: { id: employeeId, userId },
+    where: userId ? { id: employeeId, userId } : { id: employeeId },
     data: { name },
   });
 }

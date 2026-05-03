@@ -48,14 +48,14 @@ export async function addEmployee(data: {
 export async function renameEmployee(
   employeeId: string,
   name: string,
-): Promise<{ error?: string }> {
+): Promise<void> {
   const session = await auth();
-  if (!session?.user?.id) return { error: "Unauthorized" };
-  if (session.user.role === "DIRECTOR") return { error: "Directors cannot edit employee records" };
+  if (!session?.user?.id) throw new Error("Unauthorized");
+  if (session.user.role === "DIRECTOR") throw new Error("Directors cannot edit employee records");
   const trimmed = name.trim();
-  if (!trimmed) return { error: "Name is required" };
-  await updateEmployeeName(employeeId, session.user.id, trimmed);
-  return {};
+  if (!trimmed) throw new Error("Employee name is required");
+  const userId = session.user.role === "STAFF" ? session.user.id : null;
+  await updateEmployeeName(employeeId, userId, trimmed);
 }
 
 export async function removeEmployee(
