@@ -19,13 +19,14 @@ export const SESSION_TYPES = [
   "meeting",
 ] as const;
 
-export const SESSION_TYPE_LABELS: Record<SessionType, string> = {
+export const SESSION_TYPE_LABELS: Record<string, string> = {
   interview: "Interview",
   performance_review: "Performance Review",
   onboarding: "Onboarding",
   exit_interview: "Exit Interview",
   training: "Training",
   meeting: "Meeting",
+  general: "General",
 };
 
 export type EmotionLabel = (typeof EMOTION_LABELS)[number];
