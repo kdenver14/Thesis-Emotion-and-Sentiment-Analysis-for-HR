@@ -193,8 +193,12 @@ export default async function SessionDetailPage({ params }: PageProps) {
       {/* Summary */}
       <SessionSummary
         summary={session.summary}
-        engagementScore={session.engagementScore}
-        topEmotion={session.topEmotion}
+        avgSentiments={session.avgSentiments}
+        expressive={{
+          expressivenessPct: session.expressivenessPct,
+          topExpressiveEmotion: session.topExpressiveEmotion,
+          expressiveEmotions: session.expressiveEmotions,
+        }}
         topSentiment={session.topSentiment}
       />
 

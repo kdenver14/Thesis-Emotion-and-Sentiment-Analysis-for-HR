@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { ParsedSession } from "~/server/repositories/session";
-import { SESSION_TYPE_LABELS } from "~/types/analysis";
+import { SESSION_TYPE_LABELS, getSentimentBreakdown } from "~/types/analysis";
 
 const EMOTION_EMOJI: Record<string, string> = {
   anger: "😡",
@@ -67,26 +67,33 @@ export function LatestSessionCard({ session }: Props) {
         )}
       </div>
 
-      {session.status === "COMPLETED" && (
-        <div className="flex items-center gap-4 text-sm text-gray-600">
-          <span>
-            {EMOTION_EMOJI[session.topEmotion] ?? ""}{" "}
-            <span className="capitalize">{session.topEmotion}</span>
-          </span>
-          <span className="capitalize text-gray-500">{session.topSentiment}</span>
-          <div className="flex items-center gap-1.5">
-            <div className="h-1.5 w-20 rounded-full bg-gray-100">
-              <div
-                className="h-1.5 rounded-full bg-gray-800"
-                style={{ width: `${session.engagementScore}%` }}
-              />
-            </div>
+      {session.status === "COMPLETED" && (() => {
+        const b = getSentimentBreakdown(session.avgSentiments);
+        const topExprPct = Math.round(
+          (session.expressiveEmotions[0]?.confidence ?? 0) * 100,
+        );
+        return (
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-gray-600">
+            {session.expressivenessPct === 0 ? (
+              <span className="text-gray-500">Mostly neutral</span>
+            ) : (
+              <span>
+                {EMOTION_EMOJI[session.topExpressiveEmotion] ?? ""}{" "}
+                <span className="capitalize">
+                  {session.topExpressiveEmotion} {topExprPct}%
+                </span>
+                <span className="ml-1 text-xs text-gray-400">
+                  · {session.expressivenessPct}% expressive
+                </span>
+              </span>
+            )}
+            <span className="capitalize text-gray-500">{session.topSentiment}</span>
             <span className="text-xs text-gray-500">
-              {session.engagementScore}/100
+              {b.positive}% pos · {b.neutral}% neu · {b.negative}% neg
             </span>
           </div>
-        </div>
-      )}
+        );
+      })()}
     </Link>
   );
 }

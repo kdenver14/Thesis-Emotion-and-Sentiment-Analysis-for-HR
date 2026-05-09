@@ -5,10 +5,10 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FiChevronUp, FiChevronDown, FiTrash2, FiSearch, FiX } from "react-icons/fi";
 import type { ParsedSession } from "~/server/repositories/session";
-import { SESSION_TYPE_LABELS } from "~/types/analysis";
+import { SESSION_TYPE_LABELS, getSentimentBreakdown } from "~/types/analysis";
 import { assignSessionEmployee, removeSessionsBulk } from "~/actions/sessions";
 
-type SortKey = "sessionDate" | "title" | "topSentiment" | "engagementScore" | "employee";
+type SortKey = "sessionDate" | "title" | "topSentiment" | "employee";
 type SortDir = "asc" | "desc";
 
 const SENTIMENT_BADGE: Record<string, string> = {
@@ -150,8 +150,6 @@ export function SessionTable({ sessions, employees = [], isAdmin = false, canMut
       cmp = a.title.localeCompare(b.title);
     } else if (sortKey === "topSentiment") {
       cmp = a.topSentiment.localeCompare(b.topSentiment);
-    } else if (sortKey === "engagementScore") {
-      cmp = a.engagementScore - b.engagementScore;
     } else if (sortKey === "employee") {
       cmp = (a.employee?.name ?? "").localeCompare(b.employee?.name ?? "");
     }
@@ -282,8 +280,8 @@ export function SessionTable({ sessions, employees = [], isAdmin = false, canMut
               <th className={th} onClick={() => handleSort("topSentiment")}>
                 Sentiment <SortIcon col="topSentiment" />
               </th>
-              <th className={th} onClick={() => handleSort("engagementScore")}>
-                Engagement <SortIcon col="engagementScore" />
+              <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">
+                Sentiment %
               </th>
             </tr>
           </thead>
@@ -346,12 +344,24 @@ export function SessionTable({ sessions, employees = [], isAdmin = false, canMut
                     )}
                   </td>
                   <td className="px-4 py-3">
-                    {s.status === "PROCESSING" ? (
+                    {s.status !== "COMPLETED" ? (
                       <span className="text-xs text-gray-400">—</span>
+                    ) : s.expressivenessPct === 0 ? (
+                      <span className="text-xs text-gray-500">mostly neutral</span>
                     ) : (
-                      <span className="capitalize">
-                        {EMOTION_EMOJI[s.topEmotion] ?? ""} {s.topEmotion}
-                      </span>
+                      <div className="flex flex-col">
+                        <span className="capitalize">
+                          {EMOTION_EMOJI[s.topExpressiveEmotion] ?? ""}{" "}
+                          {s.topExpressiveEmotion}{" "}
+                          {Math.round(
+                            (s.expressiveEmotions[0]?.confidence ?? 0) * 100,
+                          )}
+                          %
+                        </span>
+                        <span className="text-xs text-gray-400">
+                          {s.expressivenessPct}% expressive
+                        </span>
+                      </div>
                     )}
                   </td>
                   <td className="px-4 py-3">
@@ -375,17 +385,18 @@ export function SessionTable({ sessions, employees = [], isAdmin = false, canMut
                     {s.status === "PROCESSING" || s.status === "FAILED" ? (
                       <span className="text-xs text-gray-400">—</span>
                     ) : (
-                      <div className="flex items-center gap-2">
-                        <div className="h-1.5 w-16 rounded-full bg-gray-100">
-                          <div
-                            className="h-1.5 rounded-full bg-gray-800"
-                            style={{ width: `${s.engagementScore}%` }}
-                          />
-                        </div>
-                        <span className="text-xs text-gray-500">
-                          {s.engagementScore}
-                        </span>
-                      </div>
+                      (() => {
+                        const b = getSentimentBreakdown(s.avgSentiments);
+                        return (
+                          <span className="whitespace-nowrap text-xs text-gray-600">
+                            {b.positive}% pos
+                            <span className="mx-1 text-gray-300">·</span>
+                            {b.neutral}% neu
+                            <span className="mx-1 text-gray-300">·</span>
+                            {b.negative}% neg
+                          </span>
+                        );
+                      })()
                     )}
                   </td>
                 </tr>

@@ -7,6 +7,7 @@ import { getSessionsByUser } from "~/server/repositories/session";
 import { renameEmployee } from "~/actions/employees";
 import { InlineTitle } from "~/components/client/InlineTitle";
 import { SessionTable } from "~/components/client/charts/SessionTable";
+import { getSentimentBreakdown } from "~/types/analysis";
 import { DeleteEmployeeButton } from "./DeleteEmployeeButton";
 
 interface PageProps {
@@ -27,20 +28,46 @@ export default async function EmployeeDetailPage({ params }: PageProps) {
 
   if (!employee) notFound();
 
-  const avgEngagement =
-    allSessions.length > 0
+  const completedSessions = allSessions.filter((s) => s.status === "COMPLETED");
+  const avgSentimentBreakdown =
+    completedSessions.length > 0
+      ? (() => {
+          const totals = completedSessions.reduce(
+            (acc, s) => {
+              const b = getSentimentBreakdown(s.avgSentiments);
+              acc.positive += b.positive;
+              acc.neutral += b.neutral;
+              acc.negative += b.negative;
+              return acc;
+            },
+            { positive: 0, neutral: 0, negative: 0 },
+          );
+          const n = completedSessions.length;
+          return {
+            positive: Math.round(totals.positive / n),
+            neutral: Math.round(totals.neutral / n),
+            negative: Math.round(totals.negative / n),
+          };
+        })()
+      : null;
+
+  const avgExpressivenessPct =
+    completedSessions.length > 0
       ? Math.round(
-          allSessions.reduce((a, s) => a + s.engagementScore, 0) /
-            allSessions.length,
+          completedSessions.reduce((a, s) => a + s.expressivenessPct, 0) /
+            completedSessions.length,
         )
       : null;
 
-  const sentimentCounts: Record<string, number> = {};
-  for (const s of allSessions) {
-    sentimentCounts[s.topSentiment] = (sentimentCounts[s.topSentiment] ?? 0) + 1;
+  const expressiveCounts: Record<string, number> = {};
+  for (const s of completedSessions) {
+    if (s.expressivenessPct > 0) {
+      expressiveCounts[s.topExpressiveEmotion] =
+        (expressiveCounts[s.topExpressiveEmotion] ?? 0) + 1;
+    }
   }
-  const topSentiment =
-    Object.entries(sentimentCounts).sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
+  const topExpressiveEmotion =
+    Object.entries(expressiveCounts).sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
 
   return (
     <div className="flex flex-col gap-6 p-4 sm:p-8">
@@ -92,14 +119,15 @@ export default async function EmployeeDetailPage({ params }: PageProps) {
         </div>
         <div className="rounded-xl border border-gray-200 p-4">
           <div className="text-xs uppercase tracking-wide text-gray-400">
-            Avg engagement
+            Avg sentiment
           </div>
-          <div className="mt-1 text-2xl font-semibold text-gray-900">
-            {avgEngagement !== null ? (
-              <>
-                {avgEngagement}
-                <span className="text-sm font-normal text-gray-500">/100</span>
-              </>
+          <div className="mt-1 text-sm font-medium text-gray-900">
+            {avgSentimentBreakdown ? (
+              <div className="flex flex-col gap-0.5">
+                <span>{avgSentimentBreakdown.positive}% positive</span>
+                <span>{avgSentimentBreakdown.neutral}% neutral</span>
+                <span>{avgSentimentBreakdown.negative}% negative</span>
+              </div>
             ) : (
               <span className="text-gray-300">—</span>
             )}
@@ -107,10 +135,24 @@ export default async function EmployeeDetailPage({ params }: PageProps) {
         </div>
         <div className="rounded-xl border border-gray-200 p-4">
           <div className="text-xs uppercase tracking-wide text-gray-400">
-            Top sentiment
+            Avg expressiveness
           </div>
-          <div className="mt-1 text-lg font-semibold capitalize text-gray-900">
-            {topSentiment ?? <span className="text-gray-300">—</span>}
+          <div className="mt-1 flex flex-col">
+            <span className="text-2xl font-semibold text-gray-900">
+              {avgExpressivenessPct !== null ? (
+                <>
+                  {avgExpressivenessPct}
+                  <span className="text-sm font-normal text-gray-500">%</span>
+                </>
+              ) : (
+                <span className="text-gray-300">—</span>
+              )}
+            </span>
+            {topExpressiveEmotion && (
+              <span className="text-xs capitalize text-gray-500">
+                top: {topExpressiveEmotion}
+              </span>
+            )}
           </div>
         </div>
       </div>

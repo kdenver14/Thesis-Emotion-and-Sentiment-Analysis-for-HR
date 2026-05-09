@@ -1,5 +1,5 @@
 import { db } from "~/server/db";
-import type { Score } from "~/types/analysis";
+import { computeExpressive, type Score } from "~/types/analysis";
 
 export interface ParsedUtterance {
   id: string;
@@ -32,6 +32,9 @@ export interface ParsedSession {
   status: string;
   errorMessage: string | null;
   utteranceCount?: number;
+  expressivenessPct: number;
+  topExpressiveEmotion: string;
+  expressiveEmotions: Score[];
 }
 
 export interface OnboardingCandidateRow {
@@ -94,8 +97,12 @@ function parseSession(raw: {
   user: { id: string; name: string | null };
   status: string;
   errorMessage: string | null;
-  _count?: { utterances: number };
+  utterances: { emotions: string }[];
 }): ParsedSession {
+  const utteranceEmotions = raw.utterances.map((u) => ({
+    emotions: JSON.parse(u.emotions) as Score[],
+  }));
+  const expressive = computeExpressive(utteranceEmotions);
   return {
     id: raw.id,
     title: raw.title,
@@ -116,7 +123,10 @@ function parseSession(raw: {
     handledBy: raw.user,
     status: raw.status,
     errorMessage: raw.errorMessage,
-    utteranceCount: raw._count?.utterances,
+    utteranceCount: raw.utterances.length,
+    expressivenessPct: expressive.expressivenessPct,
+    topExpressiveEmotion: expressive.topExpressiveEmotion,
+    expressiveEmotions: expressive.expressiveEmotions,
   };
 }
 
@@ -144,7 +154,7 @@ const SESSION_SELECT = {
   user: {
     select: { id: true, name: true },
   },
-  _count: { select: { utterances: true } },
+  utterances: { select: { emotions: true } },
 } as const;
 
 export async function getSessionsByUser(

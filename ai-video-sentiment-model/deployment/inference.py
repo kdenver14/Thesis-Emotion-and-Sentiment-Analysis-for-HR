@@ -143,7 +143,7 @@ def _assign_speaker(segment: dict, diarization) -> Optional[str]:
     for turn, _, speaker in diarization.itertracks(yield_label=True):
         overlap = max(0.0, min(segment["end"], turn.end) - max(segment["start"], turn.start))
         if overlap > 0:
-            speaker_overlap[speaker] = speaker_overlap.get(speaker, 0.0) + overlap
+            speaker_overlap[speaker] = speaker_overlap.get(speaker, 0) + overlap
     return max(speaker_overlap, key=speaker_overlap.get) if speaker_overlap else None
 
 

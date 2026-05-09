@@ -1,4 +1,4 @@
-import { FiGrid, FiTrendingUp, FiUsers, FiActivity } from "react-icons/fi";
+import { FiGrid, FiUsers } from "react-icons/fi";
 import { getDashboardStats, getSessions } from "~/actions/sessions";
 import { getEmployees } from "~/actions/employees";
 import { SessionTable } from "~/components/client/charts/SessionTable";
@@ -36,7 +36,7 @@ export default async function DashboardPage() {
       </div>
 
       {/* Stats cards */}
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div className="flex flex-col gap-1 rounded-xl border border-gray-200 p-4">
           <div className="flex items-center gap-2 text-gray-400">
             <FiGrid className="h-4 w-4" />
@@ -44,28 +44,6 @@ export default async function DashboardPage() {
           </div>
           <div className="text-2xl font-semibold text-gray-900">
             {stats.totalSessions}
-          </div>
-        </div>
-
-        <div className="flex flex-col gap-1 rounded-xl border border-gray-200 p-4">
-          <div className="flex items-center gap-2 text-gray-400">
-            <FiActivity className="h-4 w-4" />
-            <span className="text-xs uppercase tracking-wide">Avg Engagement</span>
-          </div>
-          <div className="text-2xl font-semibold text-gray-900">
-            {stats.avgEngagementScore}
-            <span className="text-sm font-normal text-gray-500">/100</span>
-          </div>
-        </div>
-
-        <div className="flex flex-col gap-1 rounded-xl border border-gray-200 p-4">
-          <div className="flex items-center gap-2 text-gray-400">
-            <FiTrendingUp className="h-4 w-4" />
-            <span className="text-xs uppercase tracking-wide">Positive rate</span>
-          </div>
-          <div className="text-2xl font-semibold text-green-600">
-            {stats.sentimentBreakdown.positive}
-            <span className="text-sm font-normal text-gray-500">%</span>
           </div>
         </div>
 
