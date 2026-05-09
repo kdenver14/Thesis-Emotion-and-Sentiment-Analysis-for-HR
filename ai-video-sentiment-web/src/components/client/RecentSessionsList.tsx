@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { ParsedSession } from "~/server/repositories/session";
+import { getSentimentBreakdown } from "~/types/analysis";
 
 interface Props {
   sessions: ParsedSession[];
@@ -34,6 +35,11 @@ export function RecentSessionsList({ sessions }: Props) {
         <ul className="flex flex-col divide-y divide-gray-100 rounded-xl border border-gray-200">
           {sessions.map((s) => {
             const label = statusLabel(s.status);
+            const completed = s.status === "COMPLETED";
+            const b = completed ? getSentimentBreakdown(s.avgSentiments) : null;
+            const topExprPct = completed
+              ? Math.round((s.expressiveEmotions[0]?.confidence ?? 0) * 100)
+              : 0;
             return (
               <li key={s.id}>
                 <Link
@@ -46,15 +52,20 @@ export function RecentSessionsList({ sessions }: Props) {
                     </span>
                     <span className="text-xs text-gray-500">
                       {s.sessionDate.toLocaleDateString("en-GB")}
-                      {s.status === "COMPLETED" && (
+                      {b && (
                         <>
                           {" · "}
-                          <span className="capitalize">{s.topSentiment}</span>
-                          {" · "}
-                          {s.engagementScore}/100
+                          {b.positive}% pos · {b.neutral}% neu · {b.negative}% neg
                         </>
                       )}
                     </span>
+                    {completed && (
+                      <span className="text-xs text-gray-400">
+                        {s.expressivenessPct === 0
+                          ? "mostly neutral"
+                          : `${s.topExpressiveEmotion} ${topExprPct}% · ${s.expressivenessPct}% expressive`}
+                      </span>
+                    )}
                   </div>
                   {label && (
                     <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600">

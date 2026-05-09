@@ -1,42 +1,33 @@
 "use client";
 
 import { FiTrendingUp, FiTrendingDown, FiMinus, FiActivity } from "react-icons/fi";
+import {
+  getSentimentBreakdown,
+  type ExpressiveBreakdown,
+  type Score,
+} from "~/types/analysis";
 
 interface SessionSummaryProps {
   summary: string;
-  engagementScore: number;
-  topEmotion: string;
+  avgSentiments: Score[];
+  expressive: ExpressiveBreakdown;
   topSentiment: string;
 }
 
-const SENTIMENT_COLORS: Record<string, string> = {
-  positive: "text-green-600",
-  neutral: "text-gray-500",
-  negative: "text-red-600",
-};
-
-const ENGAGEMENT_COLOR = (score: number) => {
-  if (score >= 70) return "text-green-600";
-  if (score >= 40) return "text-yellow-600";
-  return "text-red-600";
-};
-
-const ENGAGEMENT_BG = (score: number) => {
-  if (score >= 70) return "bg-green-100";
-  if (score >= 40) return "bg-yellow-100";
-  return "bg-red-100";
-};
-
 export function SessionSummary({
   summary,
-  engagementScore,
-  topEmotion,
+  avgSentiments,
+  expressive,
   topSentiment,
 }: SessionSummaryProps) {
   const TrendIcon =
     summary.includes("improved") ? FiTrendingUp
     : summary.includes("declined") ? FiTrendingDown
     : FiMinus;
+  const breakdown = getSentimentBreakdown(avgSentiments);
+  const topExprPct = Math.round(
+    (expressive.expressiveEmotions[0]?.confidence ?? 0) * 100,
+  );
 
   return (
     <div className="flex flex-col gap-4 rounded-xl border border-gray-200 p-5">
@@ -49,37 +40,36 @@ export function SessionSummary({
       </div>
 
       <div className="flex flex-wrap gap-3">
-        <div
-          className={`flex items-center gap-2 rounded-lg px-3 py-2 ${ENGAGEMENT_BG(engagementScore)}`}
-        >
-          <TrendIcon
-            className={`h-4 w-4 ${ENGAGEMENT_COLOR(engagementScore)}`}
-          />
+        <div className="flex items-center gap-2 rounded-lg bg-gray-50 px-3 py-2">
+          <TrendIcon className="h-4 w-4 text-gray-500" />
           <div>
-            <div
-              className={`text-lg font-semibold ${ENGAGEMENT_COLOR(engagementScore)}`}
-            >
-              {engagementScore}
-              <span className="text-sm font-normal">/100</span>
+            <div className="flex items-baseline gap-2 text-sm font-medium text-gray-800">
+              <span>{breakdown.positive}% pos</span>
+              <span className="text-gray-300">·</span>
+              <span>{breakdown.neutral}% neu</span>
+              <span className="text-gray-300">·</span>
+              <span>{breakdown.negative}% neg</span>
             </div>
-            <div className="text-xs text-gray-500">Engagement score</div>
+            <div className="text-xs text-gray-500">Sentiment distribution</div>
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-0.5 rounded-lg bg-gray-50 px-3 py-2">
+          {expressive.expressivenessPct === 0 ? (
+            <div className="text-sm font-medium text-gray-800">Mostly neutral</div>
+          ) : (
+            <div className="text-sm font-medium capitalize text-gray-800">
+              {expressive.topExpressiveEmotion} {topExprPct}%
+            </div>
+          )}
+          <div className="text-xs text-gray-500">
+            {expressive.expressivenessPct}% expressive · top expressive emotion
           </div>
         </div>
 
         <div className="flex items-center gap-2 rounded-lg bg-gray-50 px-3 py-2">
           <div>
             <div className="text-sm font-medium capitalize text-gray-800">
-              {topEmotion}
-            </div>
-            <div className="text-xs text-gray-500">Top emotion</div>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2 rounded-lg bg-gray-50 px-3 py-2">
-          <div>
-            <div
-              className={`text-sm font-medium capitalize ${SENTIMENT_COLORS[topSentiment] ?? "text-gray-800"}`}
-            >
               {topSentiment}
             </div>
             <div className="text-xs text-gray-500">Overall sentiment</div>
