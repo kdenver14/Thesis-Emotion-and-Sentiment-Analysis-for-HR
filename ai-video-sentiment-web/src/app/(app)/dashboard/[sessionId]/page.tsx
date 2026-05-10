@@ -12,7 +12,7 @@ import { SpeakerTimeline } from "~/components/client/charts/SpeakerTimeline";
 import { ExportButtons } from "~/components/client/ExportButtons";
 import { ProcessingPoller } from "~/components/client/ProcessingPoller";
 import { DeleteSessionButton } from "./DeleteSessionButton";
-import { SESSION_TYPE_LABELS } from "~/types/analysis";
+import { SESSION_TYPE_LABELS, computeTopEmotion } from "~/types/analysis";
 
 interface PageProps {
   params: Promise<{ sessionId: string }>;
@@ -199,6 +199,7 @@ export default async function SessionDetailPage({ params }: PageProps) {
           topExpressiveEmotion: session.topExpressiveEmotion,
           expressiveEmotions: session.expressiveEmotions,
         }}
+        allEmotions={computeTopEmotion(session.utterances)}
         topSentiment={session.topSentiment}
       />
 

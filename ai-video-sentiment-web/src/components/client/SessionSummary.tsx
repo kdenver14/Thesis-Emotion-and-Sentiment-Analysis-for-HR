@@ -1,16 +1,24 @@
 "use client";
 
-import { FiTrendingUp, FiTrendingDown, FiMinus, FiActivity } from "react-icons/fi";
+import {
+  FiTrendingUp,
+  FiTrendingDown,
+  FiMinus,
+  FiActivity,
+} from "react-icons/fi";
+import { ExpressiveToggle } from "~/components/client/ExpressiveToggle";
 import {
   getSentimentBreakdown,
   type ExpressiveBreakdown,
   type Score,
+  type TopEmotionBreakdown,
 } from "~/types/analysis";
 
 interface SessionSummaryProps {
   summary: string;
   avgSentiments: Score[];
   expressive: ExpressiveBreakdown;
+  allEmotions: TopEmotionBreakdown;
   topSentiment: string;
 }
 
@@ -18,6 +26,7 @@ export function SessionSummary({
   summary,
   avgSentiments,
   expressive,
+  allEmotions,
   topSentiment,
 }: SessionSummaryProps) {
   const TrendIcon =
@@ -25,9 +34,6 @@ export function SessionSummary({
     : summary.includes("declined") ? FiTrendingDown
     : FiMinus;
   const breakdown = getSentimentBreakdown(avgSentiments);
-  const topExprPct = Math.round(
-    (expressive.expressiveEmotions[0]?.confidence ?? 0) * 100,
-  );
 
   return (
     <div className="flex flex-col gap-4 rounded-xl border border-gray-200 p-5">
@@ -54,17 +60,13 @@ export function SessionSummary({
           </div>
         </div>
 
-        <div className="flex flex-col gap-0.5 rounded-lg bg-gray-50 px-3 py-2">
-          {expressive.expressivenessPct === 0 ? (
-            <div className="text-sm font-medium text-gray-800">Mostly neutral</div>
-          ) : (
-            <div className="text-sm font-medium capitalize text-gray-800">
-              {expressive.topExpressiveEmotion} {topExprPct}%
-            </div>
-          )}
-          <div className="text-xs text-gray-500">
-            {expressive.expressivenessPct}% expressive · top expressive emotion
-          </div>
+        <div className="rounded-lg bg-gray-50 px-3 py-2">
+          <ExpressiveToggle
+            expressive={expressive}
+            allEmotions={allEmotions}
+            totalLabel="utterances in session"
+            size="sm"
+          />
         </div>
 
         <div className="flex items-center gap-2 rounded-lg bg-gray-50 px-3 py-2">

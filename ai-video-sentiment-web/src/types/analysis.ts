@@ -14,7 +14,6 @@ export const SESSION_TYPES = [
   "interview",
   "performance_review",
   "onboarding",
-  "exit_interview",
   "training",
   "meeting",
 ] as const;
@@ -77,6 +76,36 @@ export interface ExpressiveBreakdown {
   expressivenessPct: number;
   topExpressiveEmotion: string;
   expressiveEmotions: Score[];
+}
+
+export interface TopEmotionBreakdown {
+  topEmotion: string;
+  topEmotionPct: number;
+  total: number;
+}
+
+export function computeTopEmotion(
+  utterances: { emotions: Score[] }[],
+): TopEmotionBreakdown {
+  if (utterances.length === 0) {
+    return { topEmotion: "neutral", topEmotionPct: 0, total: 0 };
+  }
+  const counts: Record<string, number> = {};
+  for (const u of utterances) {
+    if (u.emotions.length === 0) continue;
+    let top = u.emotions[0]!;
+    for (const e of u.emotions) {
+      if (e.confidence > top.confidence) top = e;
+    }
+    counts[top.label] = (counts[top.label] ?? 0) + 1;
+  }
+  const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+  const first = sorted[0];
+  return {
+    topEmotion: first?.[0] ?? "neutral",
+    topEmotionPct: first ? Math.round((first[1] / utterances.length) * 100) : 0,
+    total: utterances.length,
+  };
 }
 
 export function computeExpressive(

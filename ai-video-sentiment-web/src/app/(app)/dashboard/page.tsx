@@ -1,20 +1,14 @@
 import { FiGrid, FiUsers } from "react-icons/fi";
-import { getDashboardStats, getSessions } from "~/actions/sessions";
-import { getEmployees } from "~/actions/employees";
+import {
+  getDashboardEmotionMetrics,
+  getDashboardStats,
+  getSessions,
+} from "~/actions/sessions";
 import { SessionTable } from "~/components/client/charts/SessionTable";
 import { LatestSessionCard } from "~/components/client/LatestSessionCard";
 import { ExportButtons } from "~/components/client/ExportButtons";
+import { ExpressiveToggle } from "~/components/client/ExpressiveToggle";
 import { auth } from "~/server/auth";
-
-const EMOTION_EMOJI: Record<string, string> = {
-  anger: "😡",
-  disgust: "🤢",
-  fear: "😨",
-  joy: "😄",
-  neutral: "😐",
-  sadness: "😢",
-  surprise: "😲",
-};
 
 export default async function DashboardPage() {
   const session = await auth();
@@ -22,10 +16,10 @@ export default async function DashboardPage() {
   const isAdmin = role !== "STAFF";
   const canMutate = role !== "DIRECTOR";
 
-  const [stats, sessions, employees] = await Promise.all([
+  const [stats, emotionMetrics, sessions] = await Promise.all([
     getDashboardStats(),
+    getDashboardEmotionMetrics(),
     getSessions(),
-    getEmployees(),
   ]);
 
   return (
@@ -47,19 +41,17 @@ export default async function DashboardPage() {
           </div>
         </div>
 
-        <div className="flex flex-col gap-1 rounded-xl border border-gray-200 p-4">
+        <div className="flex flex-col gap-3 rounded-xl border border-gray-200 p-4">
           <div className="flex items-center gap-2 text-gray-400">
             <FiUsers className="h-4 w-4" />
-            <span className="text-xs uppercase tracking-wide">Top emotion</span>
+            <span className="text-xs uppercase tracking-wide">Emotion</span>
           </div>
-          <div className="flex items-center gap-2">
-            <span className="text-2xl">
-              {EMOTION_EMOJI[stats.mostCommonEmotion] ?? ""}
-            </span>
-            <span className="text-sm capitalize text-gray-600">
-              {stats.mostCommonEmotion}
-            </span>
-          </div>
+          <ExpressiveToggle
+            expressive={emotionMetrics.expressive}
+            allEmotions={emotionMetrics.allEmotions}
+            totalLabel="utterances analyzed"
+            size="lg"
+          />
         </div>
       </div>
 
@@ -71,7 +63,7 @@ export default async function DashboardPage() {
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-medium text-gray-700">Recent sessions</h2>
         </div>
-        <SessionTable sessions={sessions} employees={employees} isAdmin={isAdmin} canMutate={canMutate} />
+        <SessionTable sessions={sessions} isAdmin={isAdmin} canMutate={canMutate} />
       </div>
     </div>
   );

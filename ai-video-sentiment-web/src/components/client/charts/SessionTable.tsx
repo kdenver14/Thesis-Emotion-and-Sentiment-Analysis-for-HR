@@ -3,12 +3,17 @@
 import { useState, useTransition, useRef, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { FiChevronUp, FiChevronDown, FiTrash2, FiSearch, FiX } from "react-icons/fi";
+import { FiArrowUp, FiArrowDown, FiTrash2, FiSearch, FiX } from "react-icons/fi";
 import type { ParsedSession } from "~/server/repositories/session";
 import { SESSION_TYPE_LABELS, getSentimentBreakdown } from "~/types/analysis";
-import { assignSessionEmployee, removeSessionsBulk } from "~/actions/sessions";
+import { removeSessionsBulk } from "~/actions/sessions";
 
-type SortKey = "sessionDate" | "title" | "topSentiment" | "employee";
+type SortKey =
+  | "sessionDate"
+  | "title"
+  | "topSentiment"
+  | "employee"
+  | "sessionType";
 type SortDir = "asc" | "desc";
 
 const SENTIMENT_BADGE: Record<string, string> = {
@@ -27,65 +32,11 @@ const EMOTION_EMOJI: Record<string, string> = {
   surprise: "😲",
 };
 
-interface Employee {
-  id: string;
-  name: string;
-  department: string | null;
-}
-
 interface SessionTableProps {
   sessions: ParsedSession[];
-  employees?: Employee[];
   isAdmin?: boolean;
   canMutate?: boolean;
 }
-
-function EmployeeCell({
-  session,
-  employees,
-}: {
-  session: ParsedSession;
-  employees: Employee[];
-}) {
-  const [employeeId, setEmployeeId] = useState<string>(
-    session.employeeId ?? "",
-  );
-  const [isPending, startTransition] = useTransition();
-
-  const currentEmployee = session.employee;
-  const isDeleted = currentEmployee?.status === "Deleted";
-
-  const handleChange = (value: string) => {
-    const next = value === "" ? null : value;
-    setEmployeeId(value);
-    startTransition(async () => {
-      await assignSessionEmployee(session.id, next);
-    });
-  };
-
-  return (
-    <select
-      value={employeeId}
-      onChange={(e) => handleChange(e.target.value)}
-      disabled={isPending}
-      className="rounded border border-transparent bg-transparent py-0.5 text-sm text-gray-500 hover:border-gray-200 focus:border-gray-300 focus:outline-none disabled:opacity-50"
-    >
-      <option value="">—</option>
-      {isDeleted && currentEmployee && (
-        <option value={currentEmployee.id} disabled>
-          {currentEmployee.name} (deleted)
-        </option>
-      )}
-      {employees.map((emp) => (
-        <option key={emp.id} value={emp.id}>
-          {emp.name}
-          {emp.department ? ` (${emp.department})` : ""}
-        </option>
-      ))}
-    </select>
-  );
-}
-
 
 function IndeterminateCheckbox({
   checked,
@@ -114,33 +65,56 @@ function IndeterminateCheckbox({
   );
 }
 
-export function SessionTable({ sessions, employees = [], isAdmin = false, canMutate = false }: SessionTableProps) {
+export function SessionTable({ sessions, isAdmin = false, canMutate = false }: SessionTableProps) {
   const router = useRouter();
   const [sortKey, setSortKey] = useState<SortKey>("sessionDate");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const showHandledBy =
     isAdmin || new Set(sessions.map((s) => s.handledBy.id)).size > 1;
   const [search, setSearch] = useState("");
+  const [typeFilter, setTypeFilter] = useState<string>("all");
   const [selected, setSelected] = useState<Set<string>>(new Set());
+
+  const typeOptions = Array.from(
+    new Set(sessions.map((s) => s.sessionType)),
+  ).sort();
   const [isBulkDeleting, startBulkTransition] = useTransition();
 
-  const handleSort = (key: SortKey) => {
-    if (key === sortKey) {
-      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
-    } else {
-      setSortKey(key);
-      setSortDir("desc");
-    }
-  };
+  const SORT_OPTIONS: { value: SortKey; label: string }[] = [
+    { value: "sessionDate", label: "Date" },
+    { value: "title", label: "Title" },
+    { value: "sessionType", label: "Type" },
+    { value: "employee", label: "Employee" },
+    { value: "topSentiment", label: "Sentiment" },
+  ];
+
+  const byType =
+    typeFilter === "all"
+      ? sessions
+      : sessions.filter((s) => s.sessionType === typeFilter);
 
   const query = search.toLowerCase();
   const filtered = query
-    ? sessions.filter(
-        (s) =>
-          s.title.toLowerCase().includes(query) ||
-          (s.employee?.name ?? "").toLowerCase().includes(query),
-      )
-    : sessions;
+    ? byType.filter((s) => {
+        const typeLabel =
+          SESSION_TYPE_LABELS[
+            s.sessionType as keyof typeof SESSION_TYPE_LABELS
+          ] ?? s.sessionType;
+        const haystack = [
+          s.title,
+          s.sessionDate.toLocaleDateString("en-GB"),
+          s.handledBy.name ?? "",
+          s.sessionType,
+          typeLabel,
+          s.employee?.name ?? "",
+          s.topExpressiveEmotion,
+          s.topSentiment,
+        ]
+          .join(" ")
+          .toLowerCase();
+        return haystack.includes(query);
+      })
+    : byType;
 
   const sorted = [...filtered].sort((a, b) => {
     let cmp = 0;
@@ -152,6 +126,16 @@ export function SessionTable({ sessions, employees = [], isAdmin = false, canMut
       cmp = a.topSentiment.localeCompare(b.topSentiment);
     } else if (sortKey === "employee") {
       cmp = (a.employee?.name ?? "").localeCompare(b.employee?.name ?? "");
+    } else if (sortKey === "sessionType") {
+      const al =
+        SESSION_TYPE_LABELS[
+          a.sessionType as keyof typeof SESSION_TYPE_LABELS
+        ] ?? a.sessionType;
+      const bl =
+        SESSION_TYPE_LABELS[
+          b.sessionType as keyof typeof SESSION_TYPE_LABELS
+        ] ?? b.sessionType;
+      cmp = al.localeCompare(bl);
     }
     return sortDir === "asc" ? cmp : -cmp;
   });
@@ -192,38 +176,85 @@ export function SessionTable({ sessions, employees = [], isAdmin = false, canMut
     });
   };
 
-  const SortIcon = ({ col }: { col: SortKey }) => {
-    if (col !== sortKey) return null;
-    return sortDir === "asc" ? (
-      <FiChevronUp className="inline h-3 w-3" />
-    ) : (
-      <FiChevronDown className="inline h-3 w-3" />
-    );
-  };
-
   const th =
-    "px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide cursor-pointer select-none hover:text-gray-800";
+    "px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide";
 
   return (
     <div className="flex flex-col gap-3">
-      {/* Search */}
-      <div className="relative">
-        <FiSearch className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-400" />
-        <input
-          type="text"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search by session name or employee…"
-          className="w-full rounded-lg border border-gray-200 py-2 pl-9 pr-8 text-sm text-gray-700 placeholder-gray-400 focus:border-gray-400 focus:outline-none"
-        />
-        {search && (
-          <button
-            onClick={() => setSearch("")}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+      {/* Search + sort */}
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+        <div className="relative flex-1">
+          <FiSearch className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-400" />
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search by session name or employee…"
+            className="w-full rounded-lg border border-gray-200 py-2 pl-9 pr-8 text-sm text-gray-700 placeholder-gray-400 focus:border-gray-400 focus:outline-none"
+          />
+          {search && (
+            <button
+              onClick={() => setSearch("")}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+            >
+              <FiX className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <label
+            htmlFor="session-type-filter"
+            className="text-xs uppercase tracking-wide text-gray-500"
           >
-            <FiX className="h-3.5 w-3.5" />
+            Type
+          </label>
+          <select
+            id="session-type-filter"
+            value={typeFilter}
+            onChange={(e) => setTypeFilter(e.target.value)}
+            className="rounded-lg border border-gray-200 bg-white py-2 pl-3 pr-8 text-sm text-gray-700 focus:border-gray-400 focus:outline-none"
+          >
+            <option value="all">All types</option>
+            {typeOptions.map((t) => (
+              <option key={t} value={t}>
+                {SESSION_TYPE_LABELS[t as keyof typeof SESSION_TYPE_LABELS] ?? t}
+              </option>
+            ))}
+          </select>
+          <label
+            htmlFor="session-sort-key"
+            className="text-xs uppercase tracking-wide text-gray-500"
+          >
+            Sort by
+          </label>
+          <select
+            id="session-sort-key"
+            value={sortKey}
+            onChange={(e) => setSortKey(e.target.value as SortKey)}
+            className="rounded-lg border border-gray-200 bg-white py-2 pl-3 pr-8 text-sm text-gray-700 focus:border-gray-400 focus:outline-none"
+          >
+            {SORT_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+          <button
+            type="button"
+            onClick={() => setSortDir((d) => (d === "asc" ? "desc" : "asc"))}
+            aria-label={`Sort direction: ${sortDir === "asc" ? "ascending" : "descending"}`}
+            className="flex items-center gap-1 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
+          >
+            {sortDir === "asc" ? (
+              <FiArrowUp className="h-3.5 w-3.5" />
+            ) : (
+              <FiArrowDown className="h-3.5 w-3.5" />
+            )}
+            <span className="text-xs uppercase tracking-wide text-gray-500">
+              {sortDir === "asc" ? "Asc" : "Desc"}
+            </span>
           </button>
-        )}
+        </div>
       </div>
 
       {/* Bulk action bar */}
@@ -257,39 +288,23 @@ export function SessionTable({ sessions, employees = [], isAdmin = false, canMut
                   />
                 </th>
               )}
-              <th className={th} onClick={() => handleSort("sessionDate")}>
-                Date <SortIcon col="sessionDate" />
-              </th>
-              {showHandledBy && (
-                <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">
-                  Handled by
-                </th>
-              )}
-              <th className={th} onClick={() => handleSort("title")}>
-                Title <SortIcon col="title" />
-              </th>
-              <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">
-                Type
-              </th>
-              <th className={th} onClick={() => handleSort("employee")}>
-                Employee <SortIcon col="employee" />
-              </th>
-              <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">
-                Emotion
-              </th>
-              <th className={th} onClick={() => handleSort("topSentiment")}>
-                Sentiment <SortIcon col="topSentiment" />
-              </th>
-              <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">
-                Sentiment %
-              </th>
+              <th className={th}>Date</th>
+              {showHandledBy && <th className={th}>Handled by</th>}
+              <th className={th}>Title</th>
+              <th className={th}>Type</th>
+              <th className={th}>Employee</th>
+              <th className={th}>Emotion</th>
+              <th className={th}>Sentiment</th>
+              <th className={th}>Sentiment %</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
             {sorted.length === 0 ? (
               <tr>
                 <td colSpan={7 + (canMutate ? 1 : 0) + (showHandledBy ? 1 : 0)} className="px-4 py-8 text-center text-gray-400">
-                  {search ? "No sessions match your search" : "No sessions yet"}
+                  {search || typeFilter !== "all"
+                    ? "No sessions match your filters"
+                    : "No sessions yet"}
                 </td>
               </tr>
             ) : (
@@ -332,16 +347,12 @@ export function SessionTable({ sessions, employees = [], isAdmin = false, canMut
                     ] ?? s.sessionType}
                   </td>
                   <td className="px-4 py-3">
-                    {canMutate && employees.length > 0 ? (
-                      <EmployeeCell session={s} employees={employees} />
-                    ) : (
-                      <span className="text-gray-500">
-                        {s.employee?.name ?? "—"}
-                        {s.employee?.status === "Deleted" && (
-                          <span className="ml-1 text-xs text-gray-400">(deleted)</span>
-                        )}
-                      </span>
-                    )}
+                    <span className="text-gray-500">
+                      {s.employee?.name ?? "—"}
+                      {s.employee?.status === "Deleted" && (
+                        <span className="ml-1 text-xs text-gray-400">(deleted)</span>
+                      )}
+                    </span>
                   </td>
                   <td className="px-4 py-3">
                     {s.status !== "COMPLETED" ? (

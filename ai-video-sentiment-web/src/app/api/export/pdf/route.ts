@@ -41,7 +41,7 @@ function buildSessionPdf(doc: JsPDFWithAutoTable, data: Awaited<ReturnType<typeo
   doc.setFontSize(10);
   doc.setTextColor(100);
   doc.text(
-    `Date: ${data.sessionDate.toLocaleDateString("en-GB")}  |  Type: ${data.sessionType}  |  Engagement: ${data.engagementScore}/100`,
+    `Date: ${data.sessionDate.toLocaleDateString("en-GB")}  |  Type: ${data.sessionType}`,
     14,
     30,
   );
@@ -219,10 +219,6 @@ function buildExecutivePdf(
     return;
   }
 
-  const avgEngagement = Math.round(
-    completed.reduce((a, s) => a + s.engagementScore, 0) / completed.length,
-  );
-
   const emotionCounts: Record<string, number> = {};
   const sentimentCounts = { positive: 0, neutral: 0, negative: 0 };
 
@@ -244,7 +240,6 @@ function buildExecutivePdf(
     body: [
       ["Total sessions", String(sessions.length)],
       ["Completed sessions", String(completed.length)],
-      ["Average engagement score", `${avgEngagement}/100`],
       ["Dominant emotion", dominantEmotion],
     ],
     theme: "striped",
@@ -294,37 +289,32 @@ function buildExecutivePdf(
     tableWidth: 70,
   });
 
-  const byMonth = new Map<string, { count: number; engagement: number[] }>();
+  const byMonth = new Map<string, { count: number }>();
   for (const s of completed) {
     const key = s.sessionDate.toLocaleDateString("en-GB", {
       year: "numeric",
       month: "short",
     });
-    if (!byMonth.has(key)) byMonth.set(key, { count: 0, engagement: [] });
-    const entry = byMonth.get(key)!;
-    entry.count++;
-    entry.engagement.push(s.engagementScore);
+    if (!byMonth.has(key)) byMonth.set(key, { count: 0 });
+    byMonth.get(key)!.count++;
   }
 
   if (byMonth.size > 1) {
     const afterSentiment = doc.lastAutoTable.finalY + 10;
     doc.setFontSize(12);
-    doc.text("Monthly Volume & Engagement", 14, afterSentiment);
-    const avg = (arr: number[]) =>
-      arr.reduce((a, b) => a + b, 0) / arr.length;
+    doc.text("Monthly Volume", 14, afterSentiment);
     const monthRows = Array.from(byMonth.entries()).map(([month, v]) => [
       month,
       String(v.count),
-      `${Math.round(avg(v.engagement))}/100`,
     ]);
     doc.autoTable({
       startY: afterSentiment + 4,
-      head: [["Month", "Sessions", "Avg Engagement"]],
+      head: [["Month", "Sessions"]],
       body: monthRows,
       theme: "striped",
       headStyles: { fillColor: [40, 40, 40] },
       styles: { fontSize: 9 },
-      tableWidth: 110,
+      tableWidth: 80,
     });
   }
 }
@@ -380,7 +370,7 @@ export async function GET(req: Request) {
 
       doc.autoTable({
         startY: 40,
-        head: [["Date", "Title", "Type", "Employee", "Top Emotion", "Sentiment", "Engagement"]],
+        head: [["Date", "Title", "Type", "Employee", "Top Emotion", "Sentiment"]],
         body: sessions.map((s) => [
           s.sessionDate.toLocaleDateString("en-GB"),
           s.title,
@@ -388,7 +378,6 @@ export async function GET(req: Request) {
           s.employee?.name ?? "—",
           s.topEmotion,
           s.topSentiment,
-          `${s.engagementScore}/100`,
         ]),
         theme: "striped",
         headStyles: { fillColor: [40, 40, 40] },

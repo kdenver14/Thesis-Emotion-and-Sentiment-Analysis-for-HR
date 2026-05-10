@@ -1,9 +1,9 @@
 import Link from "next/link";
 import type { ParsedSession } from "~/server/repositories/session";
-import { getSentimentBreakdown } from "~/types/analysis";
 
 interface Props {
   sessions: ParsedSession[];
+  isAdmin?: boolean;
 }
 
 function statusLabel(status: string): string | null {
@@ -12,7 +12,7 @@ function statusLabel(status: string): string | null {
   return null;
 }
 
-export function RecentSessionsList({ sessions }: Props) {
+export function RecentSessionsList({ sessions, isAdmin = false }: Props) {
   return (
     <div className="flex w-full max-w-2xl flex-col gap-2">
       <div className="flex items-center justify-between">
@@ -35,11 +35,6 @@ export function RecentSessionsList({ sessions }: Props) {
         <ul className="flex flex-col divide-y divide-gray-100 rounded-xl border border-gray-200">
           {sessions.map((s) => {
             const label = statusLabel(s.status);
-            const completed = s.status === "COMPLETED";
-            const b = completed ? getSentimentBreakdown(s.avgSentiments) : null;
-            const topExprPct = completed
-              ? Math.round((s.expressiveEmotions[0]?.confidence ?? 0) * 100)
-              : 0;
             return (
               <li key={s.id}>
                 <Link
@@ -52,18 +47,12 @@ export function RecentSessionsList({ sessions }: Props) {
                     </span>
                     <span className="text-xs text-gray-500">
                       {s.sessionDate.toLocaleDateString("en-GB")}
-                      {b && (
-                        <>
-                          {" · "}
-                          {b.positive}% pos · {b.neutral}% neu · {b.negative}% neg
-                        </>
-                      )}
                     </span>
-                    {completed && (
-                      <span className="text-xs text-gray-400">
-                        {s.expressivenessPct === 0
-                          ? "mostly neutral"
-                          : `${s.topExpressiveEmotion} ${topExprPct}% · ${s.expressivenessPct}% expressive`}
+                    {isAdmin && (
+                      <span className="text-xs text-gray-600">
+                        Interviewer: {s.interviewerName ?? s.handledBy.name ?? "—"}
+                        {" · "}
+                        Interviewee: {s.employee?.name ?? "Unassigned"}
                       </span>
                     )}
                   </div>

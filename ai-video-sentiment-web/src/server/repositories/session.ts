@@ -1,5 +1,11 @@
 import { db } from "~/server/db";
-import { computeExpressive, type Score } from "~/types/analysis";
+import {
+  computeExpressive,
+  computeTopEmotion,
+  type ExpressiveBreakdown,
+  type Score,
+  type TopEmotionBreakdown,
+} from "~/types/analysis";
 
 export interface ParsedUtterance {
   id: string;
@@ -272,6 +278,29 @@ export async function getSessionStats(userId: string | null): Promise<SessionSta
       neutral: Math.round((sentimentCounts.neutral / total) * 100),
       negative: Math.round((sentimentCounts.negative / total) * 100),
     },
+  };
+}
+
+export async function getAggregateEmotionMetrics(
+  userId: string | null,
+): Promise<{
+  expressive: ExpressiveBreakdown;
+  allEmotions: TopEmotionBreakdown;
+}> {
+  const where: Record<string, unknown> = { status: "COMPLETED" };
+  if (userId) where.userId = userId;
+
+  const rows = await db.utterance.findMany({
+    where: { session: where },
+    select: { emotions: true },
+  });
+
+  const utterances = rows.map((u) => ({
+    emotions: JSON.parse(u.emotions) as Score[],
+  }));
+  return {
+    expressive: computeExpressive(utterances),
+    allEmotions: computeTopEmotion(utterances),
   };
 }
 
