@@ -38,7 +38,6 @@ export async function GET(req: Request) {
       text: u.text,
       top_emotion: [...u.emotions].sort((a, b) => b.confidence - a.confidence)[0]?.label ?? "",
       top_sentiment: [...u.sentiments].sort((a, b) => b.confidence - a.confidence)[0]?.label ?? "",
-      engagement_score: data.engagementScore,
     }));
 
     csv = Papa.unparse(rows);
@@ -60,7 +59,6 @@ export async function GET(req: Request) {
       employee: s.employee?.name ?? "",
       top_emotion: s.topEmotion,
       top_sentiment: s.topSentiment,
-      engagement_score: s.engagementScore,
       utterance_count: s.utteranceCount ?? 0,
       duration_secs: s.durationSecs ?? "",
     }));

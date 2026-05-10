@@ -12,11 +12,13 @@ export default async function HomePage() {
     auth(),
   ]);
   const interviewerName = session?.user?.name ?? "";
-  const canUpload = session?.user?.role !== "DIRECTOR";
+  const role = session?.user?.role ?? "STAFF";
+  const isAdmin = role !== "STAFF";
+  const canUpload = role !== "DIRECTOR";
 
   return (
     <div className="min-h-screen bg-white">
-      <Navigation userName={interviewerName} userRole={session?.user?.role ?? "STAFF"} />
+      <Navigation userName={interviewerName} userRole={role} />
       <main className="flex min-h-screen w-full flex-col items-center gap-6 p-4 sm:p-10">
         {canUpload ? (
           <Inference employees={employees} interviewerName={interviewerName} />
@@ -25,7 +27,7 @@ export default async function HomePage() {
             Directors have view-only access. Contact a manager to upload sessions.
           </div>
         )}
-        <RecentSessionsList sessions={sessions.slice(0, 5)} />
+        <RecentSessionsList sessions={sessions.slice(0, 5)} isAdmin={isAdmin} />
       </main>
     </div>
   );

@@ -5,6 +5,7 @@ import {
   getSessionsByUser,
   getSessionById,
   getSessionStats,
+  getAggregateEmotionMetrics,
   deleteSession,
   deleteSessionsBulk,
   updateSessionEmployee,
@@ -57,6 +58,21 @@ export async function getDashboardStats(): Promise<SessionStats> {
     };
   }
   return getSessionStats(userId);
+}
+
+export async function getDashboardEmotionMetrics() {
+  const userId = await getEffectiveUserId();
+  if (userId === undefined) {
+    return {
+      expressive: {
+        expressivenessPct: 0,
+        topExpressiveEmotion: "neutral",
+        expressiveEmotions: [],
+      },
+      allEmotions: { topEmotion: "neutral", topEmotionPct: 0, total: 0 },
+    };
+  }
+  return getAggregateEmotionMetrics(userId);
 }
 
 export async function fetchSessionStatus(
