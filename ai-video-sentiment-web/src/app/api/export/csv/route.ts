@@ -27,6 +27,10 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
 
+    const sessionTopExprPct = Math.round(
+      (data.expressiveEmotions[0]?.confidence ?? 0) * 100,
+    );
+
     const rows = data.utterances.map((u) => ({
       session_id: data.id,
       session_title: data.title,
@@ -38,6 +42,9 @@ export async function GET(req: Request) {
       text: u.text,
       top_emotion: [...u.emotions].sort((a, b) => b.confidence - a.confidence)[0]?.label ?? "",
       top_sentiment: [...u.sentiments].sort((a, b) => b.confidence - a.confidence)[0]?.label ?? "",
+      expressiveness_pct: data.expressivenessPct,
+      top_expressive_emotion: data.topExpressiveEmotion,
+      top_expressive_pct: sessionTopExprPct,
     }));
 
     csv = Papa.unparse(rows);
@@ -59,6 +66,11 @@ export async function GET(req: Request) {
       employee: s.employee?.name ?? "",
       top_emotion: s.topEmotion,
       top_sentiment: s.topSentiment,
+      expressiveness_pct: s.expressivenessPct,
+      top_expressive_emotion: s.topExpressiveEmotion,
+      top_expressive_pct: Math.round(
+        (s.expressiveEmotions[0]?.confidence ?? 0) * 100,
+      ),
       utterance_count: s.utteranceCount ?? 0,
       duration_secs: s.durationSecs ?? "",
     }));

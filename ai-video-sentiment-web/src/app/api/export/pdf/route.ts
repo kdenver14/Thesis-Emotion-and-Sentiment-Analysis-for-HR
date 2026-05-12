@@ -40,8 +40,15 @@ function buildSessionPdf(doc: JsPDFWithAutoTable, data: Awaited<ReturnType<typeo
 
   doc.setFontSize(10);
   doc.setTextColor(100);
+  const sessionTopExprPct = Math.round(
+    (data.expressiveEmotions[0]?.confidence ?? 0) * 100,
+  );
+  const expressiveSummary =
+    data.expressivenessPct === 0
+      ? "Mostly neutral"
+      : `${data.topExpressiveEmotion} ${sessionTopExprPct}% (${data.expressivenessPct}% overall)`;
   doc.text(
-    `Date: ${data.sessionDate.toLocaleDateString("en-GB")}  |  Type: ${data.sessionType}`,
+    `Date: ${data.sessionDate.toLocaleDateString("en-GB")}  |  Type: ${data.sessionType}  |  Expressive: ${expressiveSummary}`,
     14,
     30,
   );
@@ -232,6 +239,20 @@ function buildExecutivePdf(
   const dominantEmotion =
     Object.entries(emotionCounts).sort((a, b) => b[1] - a[1])[0]?.[0] ?? "—";
 
+  const avgExpressiveness = Math.round(
+    completed.reduce((a, s) => a + s.expressivenessPct, 0) / completed.length,
+  );
+  const expressiveEmotionCounts: Record<string, number> = {};
+  for (const s of completed) {
+    if (s.expressivenessPct > 0) {
+      expressiveEmotionCounts[s.topExpressiveEmotion] =
+        (expressiveEmotionCounts[s.topExpressiveEmotion] ?? 0) + 1;
+    }
+  }
+  const topExpressiveEmotion =
+    Object.entries(expressiveEmotionCounts).sort((a, b) => b[1] - a[1])[0]?.[0] ??
+    "—";
+
   doc.setFontSize(12);
   doc.text("Key Metrics", 14, 42);
   doc.autoTable({
@@ -241,6 +262,8 @@ function buildExecutivePdf(
       ["Total sessions", String(sessions.length)],
       ["Completed sessions", String(completed.length)],
       ["Dominant emotion", dominantEmotion],
+      ["Avg expressiveness", `${avgExpressiveness}%`],
+      ["Top expressive emotion", topExpressiveEmotion],
     ],
     theme: "striped",
     headStyles: { fillColor: [40, 40, 40] },
@@ -289,32 +312,40 @@ function buildExecutivePdf(
     tableWidth: 70,
   });
 
-  const byMonth = new Map<string, { count: number }>();
+  const byMonth = new Map<
+    string,
+    { count: number; expressiveness: number[] }
+  >();
   for (const s of completed) {
     const key = s.sessionDate.toLocaleDateString("en-GB", {
       year: "numeric",
       month: "short",
     });
-    if (!byMonth.has(key)) byMonth.set(key, { count: 0 });
-    byMonth.get(key)!.count++;
+    if (!byMonth.has(key)) byMonth.set(key, { count: 0, expressiveness: [] });
+    const entry = byMonth.get(key)!;
+    entry.count++;
+    entry.expressiveness.push(s.expressivenessPct);
   }
 
   if (byMonth.size > 1) {
     const afterSentiment = doc.lastAutoTable.finalY + 10;
     doc.setFontSize(12);
-    doc.text("Monthly Volume", 14, afterSentiment);
+    doc.text("Monthly Volume & Expressiveness", 14, afterSentiment);
+    const avg = (arr: number[]) =>
+      arr.length === 0 ? 0 : arr.reduce((a, b) => a + b, 0) / arr.length;
     const monthRows = Array.from(byMonth.entries()).map(([month, v]) => [
       month,
       String(v.count),
+      `${Math.round(avg(v.expressiveness))}%`,
     ]);
     doc.autoTable({
       startY: afterSentiment + 4,
-      head: [["Month", "Sessions"]],
+      head: [["Month", "Sessions", "Avg Expressive"]],
       body: monthRows,
       theme: "striped",
       headStyles: { fillColor: [40, 40, 40] },
       styles: { fontSize: 9 },
-      tableWidth: 80,
+      tableWidth: 110,
     });
   }
 }
@@ -370,15 +401,35 @@ export async function GET(req: Request) {
 
       doc.autoTable({
         startY: 40,
-        head: [["Date", "Title", "Type", "Employee", "Top Emotion", "Sentiment"]],
-        body: sessions.map((s) => [
-          s.sessionDate.toLocaleDateString("en-GB"),
-          s.title,
-          s.sessionType,
-          s.employee?.name ?? "—",
-          s.topEmotion,
-          s.topSentiment,
-        ]),
+        head: [
+          [
+            "Date",
+            "Title",
+            "Type",
+            "Employee",
+            "Top Emotion",
+            "Sentiment",
+            "Expressive",
+          ],
+        ],
+        body: sessions.map((s) => {
+          const pct = Math.round(
+            (s.expressiveEmotions[0]?.confidence ?? 0) * 100,
+          );
+          const expressiveCell =
+            s.expressivenessPct === 0
+              ? "Mostly neutral"
+              : `${s.topExpressiveEmotion} ${pct}% (${s.expressivenessPct}%)`;
+          return [
+            s.sessionDate.toLocaleDateString("en-GB"),
+            s.title,
+            s.sessionType,
+            s.employee?.name ?? "—",
+            s.topEmotion,
+            s.topSentiment,
+            expressiveCell,
+          ];
+        }),
         theme: "striped",
         headStyles: { fillColor: [40, 40, 40] },
         styles: { fontSize: 8 },
