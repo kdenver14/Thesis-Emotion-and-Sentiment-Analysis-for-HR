@@ -20,6 +20,7 @@ export default async function EmployeeDetailPage({ params }: PageProps) {
   if (!authSession?.user?.id) notFound();
 
   const canMutate = authSession.user.role !== "DIRECTOR";
+  const seesAllUsers = authSession.user.role !== "STAFF";
   const userId = authSession.user.role === "STAFF" ? authSession.user.id : null;
   const [employee, allSessions] = await Promise.all([
     findEmployeeById(employeeId, userId),
@@ -92,15 +93,15 @@ export default async function EmployeeDetailPage({ params }: PageProps) {
                   {employee.name}
                 </h1>
               )}
-              <span className="rounded-full border border-gray-200 px-2 py-0.5 text-xs text-gray-500">
-                {employee.status}
-              </span>
             </div>
             <div className="mt-1 flex flex-wrap gap-x-4 gap-y-0.5 text-sm text-gray-500">
               {employee.department && <span>{employee.department}</span>}
               {employee.email && <span>{employee.email}</span>}
               {employee.phone && <span>{employee.phone}</span>}
               <span>Added {employee.createdAt.toLocaleDateString("en-GB")}</span>
+              {seesAllUsers && employee.addedBy && (
+                <span>Added by {employee.addedBy.name ?? "—"}</span>
+              )}
             </div>
           </div>
           {canMutate && <DeleteEmployeeButton employeeId={employeeId} />}
@@ -160,7 +161,7 @@ export default async function EmployeeDetailPage({ params }: PageProps) {
       {/* Sessions */}
       <div className="flex flex-col gap-3">
         <h2 className="text-sm font-medium text-gray-700">Sessions</h2>
-        <SessionTable sessions={allSessions} isAdmin={authSession.user.role !== "STAFF"} canMutate={canMutate} />
+        <SessionTable sessions={allSessions} seesAllUsers={authSession.user.role !== "STAFF"} canMutate={canMutate} />
       </div>
     </div>
   );

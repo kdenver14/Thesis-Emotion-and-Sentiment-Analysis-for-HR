@@ -57,8 +57,12 @@ export default function Navigation({
       </div>
       <div className="flex items-center gap-3">
         <div className="hidden sm:flex items-center gap-2">
-          <EditableName initialName={userName ?? ""} />
-          {(userRole === "STAFF" || userRole === "DIRECTOR") && <ChangePasswordModal />}
+          {userRole === "MANAGER" ? (
+            <EditableName initialName={userName ?? ""} />
+          ) : (
+            <span className="truncate text-xs text-gray-500">{userName ?? "—"}</span>
+          )}
+          <ChangePasswordModal />
         </div>
         <SignOutButton />
       </div>

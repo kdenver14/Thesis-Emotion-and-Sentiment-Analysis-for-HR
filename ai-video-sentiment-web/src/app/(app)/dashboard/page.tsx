@@ -1,7 +1,6 @@
-import { FiGrid, FiUsers } from "react-icons/fi";
+import { FiUsers } from "react-icons/fi";
 import {
   getDashboardEmotionMetrics,
-  getDashboardStats,
   getSessions,
 } from "~/actions/sessions";
 import { SessionTable } from "~/components/client/charts/SessionTable";
@@ -13,11 +12,10 @@ import { auth } from "~/server/auth";
 export default async function DashboardPage() {
   const session = await auth();
   const role = session?.user?.role ?? "STAFF";
-  const isAdmin = role !== "STAFF";
+  const seesAllUsers = role !== "STAFF";
   const canMutate = role !== "DIRECTOR";
 
-  const [stats, emotionMetrics, sessions] = await Promise.all([
-    getDashboardStats(),
+  const [emotionMetrics, sessions] = await Promise.all([
     getDashboardEmotionMetrics(),
     getSessions(),
   ]);
@@ -29,30 +27,18 @@ export default async function DashboardPage() {
         <ExportButtons aggregateParams={{}} label="Export all" userRole={role} />
       </div>
 
-      {/* Stats cards */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <div className="flex flex-col gap-1 rounded-xl border border-gray-200 p-4">
-          <div className="flex items-center gap-2 text-gray-400">
-            <FiGrid className="h-4 w-4" />
-            <span className="text-xs uppercase tracking-wide">Sessions</span>
-          </div>
-          <div className="text-2xl font-semibold text-gray-900">
-            {stats.totalSessions}
-          </div>
+      {/* Emotion card */}
+      <div className="flex flex-col gap-3 rounded-xl border border-gray-200 p-4">
+        <div className="flex items-center gap-2 text-gray-400">
+          <FiUsers className="h-4 w-4" />
+          <span className="text-xs uppercase tracking-wide">Emotion</span>
         </div>
-
-        <div className="flex flex-col gap-3 rounded-xl border border-gray-200 p-4">
-          <div className="flex items-center gap-2 text-gray-400">
-            <FiUsers className="h-4 w-4" />
-            <span className="text-xs uppercase tracking-wide">Emotion</span>
-          </div>
-          <ExpressiveToggle
-            expressive={emotionMetrics.expressive}
-            allEmotions={emotionMetrics.allEmotions}
-            totalLabel="utterances analyzed"
-            size="lg"
-          />
-        </div>
+        <ExpressiveToggle
+          expressive={emotionMetrics.expressive}
+          allEmotions={emotionMetrics.allEmotions}
+          totalLabel="utterances analyzed"
+          size="lg"
+        />
       </div>
 
       {/* Latest session */}
@@ -61,9 +47,16 @@ export default async function DashboardPage() {
       {/* Sessions table */}
       <div className="flex flex-col gap-3">
         <div className="flex items-center justify-between">
-          <h2 className="text-sm font-medium text-gray-700">Recent sessions</h2>
+          <h2 className="text-sm font-medium text-gray-700">
+            Recent sessions
+            {sessions.length > 0 && (
+              <span className="ml-2 font-normal text-gray-400">
+                · {sessions.length}
+              </span>
+            )}
+          </h2>
         </div>
-        <SessionTable sessions={sessions} isAdmin={isAdmin} canMutate={canMutate} />
+        <SessionTable sessions={sessions} seesAllUsers={seesAllUsers} canMutate={canMutate} />
       </div>
     </div>
   );

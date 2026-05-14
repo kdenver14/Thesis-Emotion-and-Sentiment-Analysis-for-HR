@@ -56,13 +56,6 @@ export interface ParsedSessionWithUtterances extends ParsedSession {
   onboardingCandidate: OnboardingCandidateRow | null;
 }
 
-export interface SessionStats {
-  totalSessions: number;
-  avgEngagementScore: number;
-  mostCommonEmotion: string;
-  sentimentBreakdown: { positive: number; neutral: number; negative: number };
-}
-
 export interface SessionFilters {
   employeeId?: string;
   sessionType?: string;
@@ -227,58 +220,6 @@ export async function getSessionById(
   }));
 
   return { ...base, utterances, onboardingCandidate: row.onboardingCandidate ?? null };
-}
-
-export async function getSessionStats(userId: string | null): Promise<SessionStats> {
-  const where: Record<string, unknown> = { status: "COMPLETED" };
-  if (userId) where.userId = userId;
-
-  const sessions = await db.analysisSession.findMany({
-    where,
-    select: {
-      topEmotion: true,
-      topSentiment: true,
-      engagementScore: true,
-    },
-  });
-
-  const total = sessions.length;
-
-  if (total === 0) {
-    return {
-      totalSessions: 0,
-      avgEngagementScore: 0,
-      mostCommonEmotion: "neutral",
-      sentimentBreakdown: { positive: 0, neutral: 0, negative: 0 },
-    };
-  }
-
-  const emotionCounts: Record<string, number> = {};
-  const sentimentCounts = { positive: 0, neutral: 0, negative: 0 };
-  let totalEngagement = 0;
-
-  for (const s of sessions) {
-    emotionCounts[s.topEmotion] = (emotionCounts[s.topEmotion] ?? 0) + 1;
-    if (s.topSentiment in sentimentCounts) {
-      sentimentCounts[s.topSentiment as keyof typeof sentimentCounts]++;
-    }
-    totalEngagement += s.engagementScore;
-  }
-
-  const mostCommonEmotion =
-    Object.entries(emotionCounts).sort((a, b) => b[1] - a[1])[0]?.[0] ??
-    "neutral";
-
-  return {
-    totalSessions: total,
-    avgEngagementScore: Math.round(totalEngagement / total),
-    mostCommonEmotion,
-    sentimentBreakdown: {
-      positive: Math.round((sentimentCounts.positive / total) * 100),
-      neutral: Math.round((sentimentCounts.neutral / total) * 100),
-      negative: Math.round((sentimentCounts.negative / total) * 100),
-    },
-  };
 }
 
 export async function getAggregateEmotionMetrics(

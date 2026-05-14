@@ -34,7 +34,7 @@ const EMOTION_EMOJI: Record<string, string> = {
 
 interface SessionTableProps {
   sessions: ParsedSession[];
-  isAdmin?: boolean;
+  seesAllUsers?: boolean;
   canMutate?: boolean;
 }
 
@@ -65,12 +65,12 @@ function IndeterminateCheckbox({
   );
 }
 
-export function SessionTable({ sessions, isAdmin = false, canMutate = false }: SessionTableProps) {
+export function SessionTable({ sessions, seesAllUsers = false, canMutate = false }: SessionTableProps) {
   const router = useRouter();
   const [sortKey, setSortKey] = useState<SortKey>("sessionDate");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const showHandledBy =
-    isAdmin || new Set(sessions.map((s) => s.handledBy.id)).size > 1;
+    seesAllUsers || new Set(sessions.map((s) => s.handledBy.id)).size > 1;
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState<string>("all");
   const [selected, setSelected] = useState<Set<string>>(new Set());

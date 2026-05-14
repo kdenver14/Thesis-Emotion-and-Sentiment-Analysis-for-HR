@@ -1,14 +1,23 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { FiChevronDown, FiChevronUp, FiCopy, FiCheck, FiTrash2 } from "react-icons/fi";
-import { removeUser } from "~/actions/users";
+import { FiChevronDown, FiChevronUp, FiCopy, FiCheck, FiTrash2, FiEdit2, FiX } from "react-icons/fi";
+import { removeUser, updateUserName } from "~/actions/users";
 import type { UserRow } from "~/actions/users";
 
 const ROLE_LABEL: Record<string, string> = {
   MANAGER: "HR Manager",
   DIRECTOR: "HR Director",
+  STAFF: "HR Staff",
+};
+
+const ROLE_ORDER = ["MANAGER", "DIRECTOR", "STAFF"] as const;
+type RoleKey = (typeof ROLE_ORDER)[number];
+
+const SECTION_LABEL: Record<RoleKey, string> = {
+  MANAGER: "HR Managers",
+  DIRECTOR: "HR Directors",
   STAFF: "HR Staff",
 };
 
@@ -37,8 +46,41 @@ function UserRow({ user, readOnly }: { user: UserRow; readOnly?: boolean }) {
   const router = useRouter();
   const [expanded, setExpanded] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [editingName, setEditingName] = useState(false);
+  const [nameDraft, setNameDraft] = useState(user.name ?? "");
+  const [savingName, setSavingName] = useState(false);
+  const nameInputRef = useRef<HTMLInputElement>(null);
 
   const credentialText = `Name: ${user.name ?? ""}\nEmail: ${user.email ?? ""}\nRole: ${ROLE_LABEL[user.role] ?? user.role}`;
+
+  const startNameEdit = () => {
+    setNameDraft(user.name ?? "");
+    setEditingName(true);
+    setTimeout(() => nameInputRef.current?.focus(), 0);
+  };
+
+  const cancelNameEdit = () => {
+    setEditingName(false);
+    setNameDraft(user.name ?? "");
+  };
+
+  const saveName = async () => {
+    const trimmed = nameDraft.trim();
+    if (!trimmed || trimmed === user.name) {
+      cancelNameEdit();
+      return;
+    }
+    setSavingName(true);
+    const result = await updateUserName(user.id, trimmed);
+    if (result.error) {
+      alert(result.error);
+      setSavingName(false);
+      return;
+    }
+    setSavingName(false);
+    setEditingName(false);
+    router.refresh();
+  };
 
   const handleDelete = async () => {
     if (!confirm("Delete this user? Their sessions will be kept but unlinked.")) return;
@@ -83,9 +125,53 @@ function UserRow({ user, readOnly }: { user: UserRow; readOnly?: boolean }) {
               <CopyButton text={credentialText} />
             </div>
             <div className="flex flex-col gap-1 rounded-md bg-gray-50 px-3 py-2 text-xs text-gray-600">
-              <div className="flex justify-between">
+              <div className="flex items-center justify-between gap-2">
                 <span className="text-gray-400">Name</span>
-                <span>{user.name ?? "—"}</span>
+                {editingName && !readOnly ? (
+                  <div className="flex items-center gap-1">
+                    <input
+                      ref={nameInputRef}
+                      type="text"
+                      value={nameDraft}
+                      onChange={(e) => setNameDraft(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") void saveName();
+                        if (e.key === "Escape") cancelNameEdit();
+                      }}
+                      disabled={savingName}
+                      className="w-40 rounded border border-gray-300 px-1.5 py-0.5 text-xs text-gray-900 focus:border-gray-500 focus:outline-none"
+                    />
+                    <button
+                      onClick={() => void saveName()}
+                      disabled={savingName}
+                      className="text-gray-500 hover:text-gray-900 disabled:opacity-50"
+                      aria-label="Save name"
+                    >
+                      <FiCheck className="h-3.5 w-3.5" />
+                    </button>
+                    <button
+                      onClick={cancelNameEdit}
+                      disabled={savingName}
+                      className="text-gray-400 hover:text-gray-700 disabled:opacity-50"
+                      aria-label="Cancel"
+                    >
+                      <FiX className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-1.5">
+                    <span>{user.name ?? "—"}</span>
+                    {!readOnly && (
+                      <button
+                        onClick={startNameEdit}
+                        className="text-gray-400 hover:text-gray-700"
+                        aria-label="Edit name"
+                      >
+                        <FiEdit2 className="h-3 w-3" />
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-400">Email</span>
@@ -129,11 +215,56 @@ export function UserList({ users, readOnly }: { users: UserRow[]; readOnly?: boo
     );
   }
 
+  const grouped: Record<RoleKey, UserRow[]> = {
+    MANAGER: [],
+    DIRECTOR: [],
+    STAFF: [],
+  };
+  const other: UserRow[] = [];
+  for (const u of users) {
+    if (u.role === "MANAGER" || u.role === "DIRECTOR" || u.role === "STAFF") {
+      grouped[u.role].push(u);
+    } else {
+      other.push(u);
+    }
+  }
+
   return (
-    <div className="flex flex-col gap-2">
-      {users.map((u) => (
-        <UserRow key={u.id} user={u} readOnly={readOnly} />
-      ))}
+    <div className="flex flex-col gap-6">
+      {ROLE_ORDER.map((role) => {
+        const list = grouped[role];
+        if (list.length === 0) return null;
+        return (
+          <section key={role} className="flex flex-col gap-2">
+            <div className="flex items-center justify-between px-1">
+              <h2 className="text-xs font-medium uppercase tracking-wide text-gray-500">
+                {SECTION_LABEL[role]}
+              </h2>
+              <span className="text-xs text-gray-400">{list.length}</span>
+            </div>
+            <div className="flex flex-col gap-2">
+              {list.map((u) => (
+                <UserRow key={u.id} user={u} readOnly={readOnly} />
+              ))}
+            </div>
+          </section>
+        );
+      })}
+      {other.length > 0 && (
+        <section className="flex flex-col gap-2">
+          <div className="flex items-center justify-between px-1">
+            <h2 className="text-xs font-medium uppercase tracking-wide text-gray-500">
+              Other
+            </h2>
+            <span className="text-xs text-gray-400">{other.length}</span>
+          </div>
+          <div className="flex flex-col gap-2">
+            {other.map((u) => (
+              <UserRow key={u.id} user={u} readOnly={readOnly} />
+            ))}
+          </div>
+        </section>
+      )}
     </div>
   );
 }
