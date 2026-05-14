@@ -17,15 +17,12 @@ const DEPARTMENTS = [
   "Other",
 ] as const;
 
-const STATUSES = ["Active", "Inactive", "On Leave"] as const;
-
 export function AddEmployeeForm() {
   const router = useRouter();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [department, setDepartment] = useState("");
   const [phone, setPhone] = useState("+63 ");
-  const [status, setStatus] = useState<string>("Active");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -45,7 +42,6 @@ export function AddEmployeeForm() {
       email: email || undefined,
       department: department || undefined,
       phone: phoneValue && phoneValue !== "+63" ? phoneValue : undefined,
-      status,
     });
 
     if (result.error) {
@@ -55,7 +51,6 @@ export function AddEmployeeForm() {
       setEmail("");
       setDepartment("");
       setPhone("+63 ");
-      setStatus("Active");
       router.refresh();
     }
     setLoading(false);
@@ -115,21 +110,6 @@ export function AddEmployeeForm() {
             className={inputClass}
           />
         </div>
-      </div>
-
-      <div className="flex flex-col gap-1">
-        <label className="text-xs text-gray-500">Status</label>
-        <select
-          value={status}
-          onChange={(e) => setStatus(e.target.value)}
-          className={selectClass}
-        >
-          {STATUSES.map((s) => (
-            <option key={s} value={s}>
-              {s}
-            </option>
-          ))}
-        </select>
       </div>
 
       {error && <p className="text-xs text-red-500">{error}</p>}

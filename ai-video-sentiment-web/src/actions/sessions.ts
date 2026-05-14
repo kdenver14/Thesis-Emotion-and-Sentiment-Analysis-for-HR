@@ -1,10 +1,8 @@
 "use server";
 
-import { auth } from "~/server/auth";
 import {
   getSessionsByUser,
   getSessionById,
-  getSessionStats,
   getAggregateEmotionMetrics,
   deleteSession,
   deleteSessionsBulk,
@@ -16,19 +14,15 @@ import {
   type SessionFilters,
   type ParsedSession,
   type ParsedSessionWithUtterances,
-  type SessionStats,
 } from "~/server/repositories/session";
+import { effectiveScopeUserId, requireMutator } from "~/server/auth/guards";
 
 async function getEffectiveUserId(): Promise<string | null | undefined> {
-  const session = await auth();
-  if (!session?.user?.id) return undefined;
-  return session.user.role === "STAFF" ? session.user.id : null;
+  return effectiveScopeUserId();
 }
 
 async function assertCanMutate(): Promise<void> {
-  const session = await auth();
-  if (!session?.user?.id) throw new Error("Unauthorized");
-  if (session.user.role === "DIRECTOR") throw new Error("Directors have view-only access");
+  await requireMutator();
 }
 
 export async function getSessions(
@@ -45,19 +39,6 @@ export async function getSession(
   const userId = await getEffectiveUserId();
   if (userId === undefined) return null;
   return getSessionById(sessionId, userId);
-}
-
-export async function getDashboardStats(): Promise<SessionStats> {
-  const userId = await getEffectiveUserId();
-  if (userId === undefined) {
-    return {
-      totalSessions: 0,
-      avgEngagementScore: 0,
-      mostCommonEmotion: "neutral",
-      sentimentBreakdown: { positive: 0, neutral: 0, negative: 0 },
-    };
-  }
-  return getSessionStats(userId);
 }
 
 export async function getDashboardEmotionMetrics() {

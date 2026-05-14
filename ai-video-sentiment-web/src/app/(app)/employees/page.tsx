@@ -15,7 +15,9 @@ function getInitials(name: string): string {
 
 export default async function EmployeesPage() {
   const [employees, session] = await Promise.all([getEmployees(), auth()]);
-  const canManage = session?.user?.role !== "DIRECTOR";
+  const role = session?.user?.role ?? "STAFF";
+  const canManage = role !== "DIRECTOR";
+  const seesAllUsers = role !== "STAFF";
 
   return (
     <div className="flex flex-col gap-6 p-4 sm:p-8">
@@ -49,15 +51,15 @@ export default async function EmployeesPage() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <span className="font-medium text-gray-900">{emp.name}</span>
-                      <span className="rounded-full border border-gray-200 px-2 py-0.5 text-xs text-gray-500">
-                        {emp.status}
-                      </span>
                     </div>
                     <div className="truncate text-xs text-gray-500">
                       {[
                         emp.department,
                         emp.email,
                         `Added ${emp.createdAt.toLocaleDateString("en-GB")}`,
+                        seesAllUsers && emp.addedBy
+                          ? `by ${emp.addedBy.name ?? "—"}`
+                          : null,
                       ]
                         .filter(Boolean)
                         .join(" · ")}

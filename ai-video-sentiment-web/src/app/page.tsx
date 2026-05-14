@@ -13,7 +13,7 @@ export default async function HomePage() {
   ]);
   const interviewerName = session?.user?.name ?? "";
   const role = session?.user?.role ?? "STAFF";
-  const isAdmin = role !== "STAFF";
+  const seesAllUsers = role !== "STAFF";
   const canUpload = role !== "DIRECTOR";
 
   return (
@@ -27,7 +27,7 @@ export default async function HomePage() {
             Directors have view-only access. Contact a manager to upload sessions.
           </div>
         )}
-        <RecentSessionsList sessions={sessions.slice(0, 5)} isAdmin={isAdmin} />
+        <RecentSessionsList sessions={sessions.slice(0, 5)} seesAllUsers={seesAllUsers} />
       </main>
     </div>
   );

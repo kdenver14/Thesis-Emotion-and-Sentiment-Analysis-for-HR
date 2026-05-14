@@ -4,6 +4,7 @@ import { type DefaultSession, type NextAuthConfig } from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import { loginSchema } from "~/schemas/auth";
 import bcrypt from "bcryptjs";
+import { asRole, type Role } from "~/types/roles";
 
 import { db } from "~/server/db";
 
@@ -11,7 +12,7 @@ declare module "next-auth" {
   interface Session extends DefaultSession {
     user: {
       id: string;
-      role: string;
+      role: Role;
     } & DefaultSession["user"];
   }
 
@@ -68,8 +69,7 @@ export const authConfig = {
   callbacks: {
     jwt: ({ token, user, trigger, session }) => {
       if (user) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (token as any).role = user.role ?? "STAFF";
+        (token as { role?: Role }).role = asRole(user.role);
       }
       if (trigger === "update" && typeof (session as { name?: unknown })?.name === "string") {
         token.name = (session as { name: string }).name;
@@ -81,8 +81,7 @@ export const authConfig = {
       user: {
         ...session.user,
         id: token.sub,
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        role: String((token as any).role ?? "STAFF"),
+        role: asRole((token as { role?: unknown }).role),
       },
     }),
   },

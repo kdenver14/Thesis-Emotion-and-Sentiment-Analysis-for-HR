@@ -3,7 +3,7 @@ import type { ParsedSession } from "~/server/repositories/session";
 
 interface Props {
   sessions: ParsedSession[];
-  isAdmin?: boolean;
+  seesAllUsers?: boolean;
 }
 
 function statusLabel(status: string): string | null {
@@ -12,7 +12,7 @@ function statusLabel(status: string): string | null {
   return null;
 }
 
-export function RecentSessionsList({ sessions, isAdmin = false }: Props) {
+export function RecentSessionsList({ sessions, seesAllUsers = false }: Props) {
   return (
     <div className="flex w-full max-w-2xl flex-col gap-2">
       <div className="flex items-center justify-between">
@@ -48,7 +48,7 @@ export function RecentSessionsList({ sessions, isAdmin = false }: Props) {
                     <span className="text-xs text-gray-500">
                       {s.sessionDate.toLocaleDateString("en-GB")}
                     </span>
-                    {isAdmin && (
+                    {seesAllUsers && (
                       <span className="text-xs text-gray-600">
                         Interviewer: {s.interviewerName ?? s.handledBy.name ?? "—"}
                         {" · "}

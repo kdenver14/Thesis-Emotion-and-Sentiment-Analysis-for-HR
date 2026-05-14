@@ -3,12 +3,14 @@
 import bcrypt from "bcryptjs";
 import { auth } from "~/server/auth";
 import { db } from "~/server/db";
+import { getManagerOrError } from "~/server/auth/guards";
+import type { Role } from "~/types/roles";
 
 export type UserRow = {
   id: string;
   name: string | null;
   email: string | null;
-  role: string;
+  role: Role;
   createdAt: Date | null;
 };
 
@@ -16,10 +18,11 @@ export async function getUsers(): Promise<UserRow[]> {
   const session = await auth();
   const role = session?.user?.role;
   if (role !== "MANAGER" && role !== "DIRECTOR") return [];
-  return db.user.findMany({
+  const rows = await db.user.findMany({
     select: { id: true, name: true, email: true, role: true, createdAt: true },
     orderBy: { name: "asc" },
   });
+  return rows.map((r) => ({ ...r, role: r.role as Role }));
 }
 
 export async function createUser(data: {
@@ -28,8 +31,8 @@ export async function createUser(data: {
   password: string;
   role: "STAFF" | "DIRECTOR";
 }): Promise<{ error?: string }> {
-  const session = await auth();
-  if (session?.user?.role !== "MANAGER") return { error: "Unauthorized" };
+  const guard = await getManagerOrError();
+  if (!guard.ok) return { error: guard.error };
 
   if (!data.name.trim()) return { error: "Name is required" };
   if (!data.email.trim()) return { error: "Email is required" };
@@ -56,8 +59,8 @@ export async function resetUserPassword(
   userId: string,
   newPassword: string,
 ): Promise<{ error?: string }> {
-  const session = await auth();
-  if (session?.user?.role !== "MANAGER") return { error: "Unauthorized" };
+  const guard = await getManagerOrError();
+  if (!guard.ok) return { error: guard.error };
   if (newPassword.length < 8) return { error: "Password must be at least 8 characters" };
   const hashed = await bcrypt.hash(newPassword, 12);
   await db.user.update({ where: { id: userId }, data: { password: hashed } });
@@ -65,9 +68,9 @@ export async function resetUserPassword(
 }
 
 export async function removeUser(userId: string): Promise<{ error?: string }> {
-  const session = await auth();
-  if (session?.user?.role !== "MANAGER") return { error: "Unauthorized" };
-  if (session.user.id === userId) return { error: "Cannot delete your own account" };
+  const guard = await getManagerOrError();
+  if (!guard.ok) return { error: guard.error };
+  if (guard.user.id === userId) return { error: "Cannot delete your own account" };
   await db.user.delete({ where: { id: userId } });
   return {};
 }
@@ -95,11 +98,25 @@ export async function updateCurrentUserPassword(
 export async function updateCurrentUserName(
   name: string,
 ): Promise<{ error?: string }> {
-  const session = await auth();
-  if (!session?.user?.id) return { error: "Unauthorized" };
+  const guard = await getManagerOrError();
+  if (!guard.ok) return { error: "Only an admin can change your name" };
   if (!name.trim()) return { error: "Name is required" };
   await db.user.update({
-    where: { id: session.user.id },
+    where: { id: guard.user.id },
+    data: { name: name.trim() },
+  });
+  return {};
+}
+
+export async function updateUserName(
+  userId: string,
+  name: string,
+): Promise<{ error?: string }> {
+  const guard = await getManagerOrError();
+  if (!guard.ok) return { error: guard.error };
+  if (!name.trim()) return { error: "Name is required" };
+  await db.user.update({
+    where: { id: userId },
     data: { name: name.trim() },
   });
   return {};
