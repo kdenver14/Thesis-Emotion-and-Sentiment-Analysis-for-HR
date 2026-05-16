@@ -1,17 +1,8 @@
-import Link from "next/link";
 import { FiPlus } from "react-icons/fi";
 import { auth } from "~/server/auth";
 import { getEmployees } from "~/actions/employees";
 import { AddEmployeeForm } from "./AddEmployeeForm";
-
-function getInitials(name: string): string {
-  return name
-    .split(" ")
-    .map((w) => w[0] ?? "")
-    .slice(0, 2)
-    .join("")
-    .toUpperCase();
-}
+import { EmployeeList } from "./EmployeeList";
 
 export default async function EmployeesPage() {
   const [employees, session] = await Promise.all([getEmployees(), auth()]);
@@ -31,44 +22,7 @@ export default async function EmployeesPage() {
       <div className={`grid gap-6 ${canManage ? "lg:grid-cols-3" : ""}`}>
         {/* Employee list */}
         <div className={canManage ? "lg:col-span-2" : ""}>
-          {employees.length === 0 ? (
-            <div className="flex h-40 items-center justify-center rounded-xl border border-dashed border-gray-200 text-sm text-gray-400">
-              No employees yet. Add one to get started.
-            </div>
-          ) : (
-            <div className="flex flex-col gap-2">
-              {employees.map((emp) => (
-                <Link
-                  key={emp.id}
-                  href={`/employees/${emp.id}`}
-                  className="flex items-center gap-3 rounded-xl border border-gray-200 px-4 py-3 hover:bg-gray-50"
-                >
-                  <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-gray-100">
-                    <span className="text-xs font-medium text-gray-600">
-                      {getInitials(emp.name)}
-                    </span>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium text-gray-900">{emp.name}</span>
-                    </div>
-                    <div className="truncate text-xs text-gray-500">
-                      {[
-                        emp.department,
-                        emp.email,
-                        `Added ${emp.createdAt.toLocaleDateString("en-GB")}`,
-                        seesAllUsers && emp.addedBy
-                          ? `by ${emp.addedBy.name ?? "—"}`
-                          : null,
-                      ]
-                        .filter(Boolean)
-                        .join(" · ")}
-                    </div>
-                  </div>
-                </Link>
-              ))}
-            </div>
-          )}
+          <EmployeeList employees={employees} seesAllUsers={seesAllUsers} />
         </div>
 
         {/* Add employee form — MANAGER and STAFF only */}

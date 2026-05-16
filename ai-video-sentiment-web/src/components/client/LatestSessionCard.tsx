@@ -1,6 +1,13 @@
 import Link from "next/link";
 import type { ParsedSession } from "~/server/repositories/session";
 import { SESSION_TYPE_LABELS, getSentimentBreakdown } from "~/types/analysis";
+import {
+  NEGATIVE_CLASS,
+  NEUTRAL_CLASS,
+  POSITIVE_CLASS,
+  emotionColorClass,
+  sentimentToneClass,
+} from "~/lib/sentiment";
 
 const EMOTION_EMOJI: Record<string, string> = {
   anger: "😡",
@@ -79,7 +86,9 @@ export function LatestSessionCard({ session }: Props) {
             ) : (
               <span>
                 {EMOTION_EMOJI[session.topExpressiveEmotion] ?? ""}{" "}
-                <span className="capitalize">
+                <span
+                  className={`capitalize ${emotionColorClass(session.topExpressiveEmotion)}`}
+                >
                   {session.topExpressiveEmotion} {topExprPct}%
                 </span>
                 <span className="ml-1 text-xs text-gray-400">
@@ -87,9 +96,17 @@ export function LatestSessionCard({ session }: Props) {
                 </span>
               </span>
             )}
-            <span className="capitalize text-gray-500">{session.topSentiment}</span>
-            <span className="text-xs text-gray-500">
-              {b.positive}% pos · {b.neutral}% neu · {b.negative}% neg
+            <span
+              className={`capitalize ${sentimentToneClass(session.topSentiment)}`}
+            >
+              {session.topSentiment}
+            </span>
+            <span className="text-xs">
+              <span className={POSITIVE_CLASS}>{b.positive}% pos</span>
+              <span className="text-gray-400"> · </span>
+              <span className={NEUTRAL_CLASS}>{b.neutral}% neu</span>
+              <span className="text-gray-400"> · </span>
+              <span className={NEGATIVE_CLASS}>{b.negative}% neg</span>
             </span>
           </div>
         );

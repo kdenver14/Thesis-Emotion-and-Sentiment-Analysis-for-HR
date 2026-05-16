@@ -5,6 +5,12 @@ import UploadVideo from "./UploadVideo";
 import type { EmployeeRow } from "~/server/repositories/employee";
 import type { SessionType } from "~/types/analysis";
 import { SESSION_TYPES, SESSION_TYPE_LABELS } from "~/types/analysis";
+import {
+  PHONE_DIGITS,
+  formatPhone,
+  normalizePhone,
+  toStoredPhone,
+} from "~/lib/phone";
 
 function isValidEmail(value: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
@@ -24,37 +30,49 @@ export function Inference({ employees, interviewerName }: InferenceProps) {
   );
 
   // Onboarding candidate fields
-  const [candidateName, setCandidateName] = useState("");
+  const [candidateFirstName, setCandidateFirstName] = useState("");
+  const [candidateLastName, setCandidateLastName] = useState("");
   const [candidatePosition, setCandidatePosition] = useState("");
   const [candidateEmail, setCandidateEmail] = useState("");
-  const [candidatePhone, setCandidatePhone] = useState("+63 ");
+  const [candidatePhone, setCandidatePhone] = useState("");
 
   // Validation touch state
   const [nameTouched, setNameTouched] = useState(false);
   const [emailTouched, setEmailTouched] = useState(false);
 
-  const isOnboarding = sessionType === "onboarding";
+  const isInterview = sessionType === "interview";
 
-  const nameError = nameTouched && !candidateName.trim() ? "Name is required" : null;
+  const candidateName =
+    `${candidateFirstName.trim()} ${candidateLastName.trim()}`.trim();
+  const hasFullName =
+    candidateFirstName.trim() !== "" && candidateLastName.trim() !== "";
+
+  const nameError =
+    nameTouched && !hasFullName ? "First and last name are required" : null;
   const emailError = emailTouched && candidateEmail && !isValidEmail(candidateEmail) ? "Invalid email format" : null;
-  const isOnboardingValid = !isOnboarding || (
-    candidateName.trim() !== "" &&
-    (!candidateEmail || isValidEmail(candidateEmail))
+  const phoneError =
+    candidatePhone && candidatePhone.length !== PHONE_DIGITS
+      ? `Phone number must be exactly ${PHONE_DIGITS} digits`
+      : null;
+  const isInterviewValid = !isInterview || (
+    hasFullName &&
+    (!candidateEmail || isValidEmail(candidateEmail)) &&
+    !phoneError
   );
 
   const metadata = {
     title: title || `Session ${new Date().toLocaleDateString("en-GB")}`,
     sessionType,
-    employeeId: !isOnboarding && employeeId ? employeeId : undefined,
+    employeeId: !isInterview && employeeId ? employeeId : undefined,
     sessionDate: sessionDate ? new Date(sessionDate).toISOString() : undefined,
     interviewerName: interviewerName || undefined,
     onboardingCandidate:
-      isOnboarding && candidateName
+      isInterview && hasFullName
         ? {
             name: candidateName,
             position: candidatePosition || undefined,
             email: candidateEmail || undefined,
-            phone: (() => { const p = candidatePhone.trim(); return p && p !== "+63" ? p : undefined; })(),
+            phone: toStoredPhone(candidatePhone),
           }
         : undefined,
   };
@@ -64,7 +82,7 @@ export function Inference({ employees, interviewerName }: InferenceProps) {
       <div className="flex flex-col gap-2 rounded-xl border border-gray-200 p-4">
         <h3 className="text-sm font-medium text-slate-700">Session details</h3>
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-          <div className="flex flex-col gap-1">
+          <div className="flex flex-col gap-1 sm:col-span-2">
             <label className="text-xs text-gray-500">Title</label>
             <input
               type="text"
@@ -92,8 +110,17 @@ export function Inference({ employees, interviewerName }: InferenceProps) {
               ))}
             </select>
           </div>
-          {!isOnboarding && (
-            <div className="flex flex-col gap-1">
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-gray-500">Date</label>
+            <input
+              type="date"
+              value={sessionDate}
+              onChange={(e) => setSessionDate(e.target.value)}
+              className="rounded-md border border-gray-200 px-3 py-1.5 text-sm focus:border-gray-400 focus:outline-none"
+            />
+          </div>
+          {!isInterview && (
+            <div className="flex flex-col gap-1 sm:col-span-2">
               <label className="text-xs text-gray-500">
                 Employee (optional)
               </label>
@@ -112,19 +139,10 @@ export function Inference({ employees, interviewerName }: InferenceProps) {
               </select>
             </div>
           )}
-          <div className="flex flex-col gap-1">
-            <label className="text-xs text-gray-500">Date</label>
-            <input
-              type="date"
-              value={sessionDate}
-              onChange={(e) => setSessionDate(e.target.value)}
-              className="rounded-md border border-gray-200 px-3 py-1.5 text-sm focus:border-gray-400 focus:outline-none"
-            />
-          </div>
         </div>
       </div>
 
-      {isOnboarding && (
+      {isInterview && (
         <div className="flex flex-col gap-2 rounded-xl border border-gray-200 p-4">
           <h3 className="text-sm font-medium text-slate-700">
             Candidate details
@@ -132,13 +150,26 @@ export function Inference({ employees, interviewerName }: InferenceProps) {
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             <div className="flex flex-col gap-1">
               <label className="text-xs text-gray-500">
-                Full name <span className="text-red-400">*</span>
+                First name <span className="text-red-400">*</span>
               </label>
               <input
                 type="text"
-                placeholder="Candidate name"
-                value={candidateName}
-                onChange={(e) => setCandidateName(e.target.value)}
+                placeholder="First name"
+                value={candidateFirstName}
+                onChange={(e) => setCandidateFirstName(e.target.value)}
+                onBlur={() => setNameTouched(true)}
+                className={`rounded-md border px-3 py-1.5 text-sm focus:outline-none ${nameError ? "border-red-300 focus:border-red-400" : "border-gray-200 focus:border-gray-400"}`}
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-gray-500">
+                Last name <span className="text-red-400">*</span>
+              </label>
+              <input
+                type="text"
+                placeholder="Last name"
+                value={candidateLastName}
+                onChange={(e) => setCandidateLastName(e.target.value)}
                 onBlur={() => setNameTouched(true)}
                 className={`rounded-md border px-3 py-1.5 text-sm focus:outline-none ${nameError ? "border-red-300 focus:border-red-400" : "border-gray-200 focus:border-gray-400"}`}
               />
@@ -157,6 +188,27 @@ export function Inference({ employees, interviewerName }: InferenceProps) {
               />
             </div>
             <div className="flex flex-col gap-1">
+              <label className="text-xs text-gray-500">Phone</label>
+              <div
+                className={`flex items-center rounded-md border ${phoneError ? "border-red-300 focus-within:border-red-400" : "border-gray-200 focus-within:border-gray-400"}`}
+              >
+                <span className="pl-3 text-sm text-gray-500">+63</span>
+                <input
+                  type="tel"
+                  inputMode="numeric"
+                  placeholder="9XX XXX XXXX"
+                  value={formatPhone(candidatePhone)}
+                  onChange={(e) =>
+                    setCandidatePhone(normalizePhone(e.target.value))
+                  }
+                  className="w-full bg-transparent px-2 py-1.5 text-sm focus:outline-none"
+                />
+              </div>
+              {phoneError && (
+                <p className="text-xs text-red-500">{phoneError}</p>
+              )}
+            </div>
+            <div className="flex flex-col gap-1 sm:col-span-2">
               <label className="text-xs text-gray-500">Email</label>
               <input
                 type="text"
@@ -168,21 +220,11 @@ export function Inference({ employees, interviewerName }: InferenceProps) {
               />
               {emailError && <p className="text-xs text-red-500">{emailError}</p>}
             </div>
-            <div className="flex flex-col gap-1">
-              <label className="text-xs text-gray-500">Phone</label>
-              <input
-                type="tel"
-                placeholder="+63 9XX XXX XXXX"
-                value={candidatePhone}
-                onChange={(e) => setCandidatePhone(e.target.value)}
-                className="rounded-md border border-gray-200 px-3 py-1.5 text-sm focus:border-gray-400 focus:outline-none"
-              />
-            </div>
           </div>
         </div>
       )}
 
-      <UploadVideo metadata={metadata} disabled={!isOnboardingValid} />
+      <UploadVideo metadata={metadata} disabled={!isInterviewValid} />
     </div>
   );
 }

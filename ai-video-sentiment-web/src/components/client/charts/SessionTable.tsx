@@ -6,6 +6,12 @@ import { useRouter } from "next/navigation";
 import { FiArrowUp, FiArrowDown, FiTrash2, FiSearch, FiX } from "react-icons/fi";
 import type { ParsedSession } from "~/server/repositories/session";
 import { SESSION_TYPE_LABELS, getSentimentBreakdown } from "~/types/analysis";
+import {
+  NEGATIVE_CLASS,
+  NEUTRAL_CLASS,
+  POSITIVE_CLASS,
+  emotionColorClass,
+} from "~/lib/sentiment";
 import { removeSessionsBulk } from "~/actions/sessions";
 
 type SortKey =
@@ -70,7 +76,8 @@ export function SessionTable({ sessions, seesAllUsers = false, canMutate = false
   const [sortKey, setSortKey] = useState<SortKey>("sessionDate");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const showHandledBy =
-    seesAllUsers || new Set(sessions.map((s) => s.handledBy.id)).size > 1;
+    seesAllUsers ||
+    new Set(sessions.map((s) => s.handledBy?.id ?? "")).size > 1;
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState<string>("all");
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -103,7 +110,7 @@ export function SessionTable({ sessions, seesAllUsers = false, canMutate = false
         const haystack = [
           s.title,
           s.sessionDate.toLocaleDateString("en-GB"),
-          s.handledBy.name ?? "",
+          s.handledBy?.name ?? "",
           s.sessionType,
           typeLabel,
           s.employee?.name ?? "",
@@ -332,7 +339,7 @@ export function SessionTable({ sessions, seesAllUsers = false, canMutate = false
                   {showHandledBy && (
                     <td className="px-4 py-3">
                       <span className="rounded-full border border-gray-200 px-2 py-0.5 text-xs text-gray-500">
-                        {s.handledBy.name ?? "—"}
+                        {s.handledBy?.name ?? "—"}
                       </span>
                     </td>
                   )}
@@ -363,11 +370,17 @@ export function SessionTable({ sessions, seesAllUsers = false, canMutate = false
                       <div className="flex flex-col">
                         <span className="capitalize">
                           {EMOTION_EMOJI[s.topExpressiveEmotion] ?? ""}{" "}
-                          {s.topExpressiveEmotion}{" "}
-                          {Math.round(
-                            (s.expressiveEmotions[0]?.confidence ?? 0) * 100,
-                          )}
-                          %
+                          <span
+                            className={emotionColorClass(
+                              s.topExpressiveEmotion,
+                            )}
+                          >
+                            {s.topExpressiveEmotion}{" "}
+                            {Math.round(
+                              (s.expressiveEmotions[0]?.confidence ?? 0) * 100,
+                            )}
+                            %
+                          </span>
                         </span>
                         <span className="text-xs text-gray-400">
                           {s.expressivenessPct}% expressive
@@ -399,12 +412,18 @@ export function SessionTable({ sessions, seesAllUsers = false, canMutate = false
                       (() => {
                         const b = getSentimentBreakdown(s.avgSentiments);
                         return (
-                          <span className="whitespace-nowrap text-xs text-gray-600">
-                            {b.positive}% pos
+                          <span className="whitespace-nowrap text-xs">
+                            <span className={POSITIVE_CLASS}>
+                              {b.positive}% pos
+                            </span>
                             <span className="mx-1 text-gray-300">·</span>
-                            {b.neutral}% neu
+                            <span className={NEUTRAL_CLASS}>
+                              {b.neutral}% neu
+                            </span>
                             <span className="mx-1 text-gray-300">·</span>
-                            {b.negative}% neg
+                            <span className={NEGATIVE_CLASS}>
+                              {b.negative}% neg
+                            </span>
                           </span>
                         );
                       })()

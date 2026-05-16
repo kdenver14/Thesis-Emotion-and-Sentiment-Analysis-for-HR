@@ -149,7 +149,7 @@ export default async function SessionDetailPage({ params }: PageProps) {
         </div>
       </div>
 
-      {/* Onboarding candidate */}
+      {/* Interview candidate */}
       {session.onboardingCandidate && (
         <div className="rounded-xl border border-gray-200 p-4">
           <h2 className="mb-3 text-sm font-medium text-gray-700">

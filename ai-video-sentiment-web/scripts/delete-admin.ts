@@ -7,7 +7,8 @@ async function main() {
   if (!email) {
     console.error("Usage: npx tsx scripts/delete-admin.ts <email> --yes");
     console.error("  Deletes the user with the given email.");
-    console.error("  Cascades to: accounts, login sessions, employees, analysis sessions.");
+    console.error("  Deletes: accounts, login sessions, employees.");
+    console.error("  Retains: analysis sessions (kept, owner set to none).");
     console.error("  --yes is required (destructive, irreversible).");
     process.exit(1);
   }
@@ -50,10 +51,11 @@ async function main() {
     console.log(`  name:            ${user.name ?? "—"}`);
     console.log(`  role:            ${user.role}`);
     console.log(`  id:              ${user.id}`);
-    console.log("Cascade will delete:");
-    console.log(`  analysisSessions: ${user._count.analysisSessions}`);
+    console.log("Will delete (cascade):");
     console.log(`  employees:        ${user._count.employees}`);
     console.log(`  accounts:         ${user._count.accounts}`);
+    console.log("Will retain (owner cleared):");
+    console.log(`  analysisSessions: ${user._count.analysisSessions}`);
 
     if (!confirmFlag) {
       console.error("\nDry run. Pass --yes to confirm deletion.");

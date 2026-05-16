@@ -34,7 +34,7 @@ export interface ParsedSession {
   employeeId: string | null;
   employeeSpeakerId: string | null;
   employee: { id: string; name: string; department: string | null; status: string } | null;
-  handledBy: { id: string; name: string | null };
+  handledBy: { id: string; name: string | null } | null;
   status: string;
   errorMessage: string | null;
   utteranceCount?: number;
@@ -93,7 +93,7 @@ function parseSession(raw: {
   employeeId: string | null;
   employeeSpeakerId: string | null;
   employee: { id: string; name: string; department: string | null; status: string } | null;
-  user: { id: string; name: string | null };
+  user: { id: string; name: string | null } | null;
   status: string;
   errorMessage: string | null;
   utterances: { emotions: string }[];

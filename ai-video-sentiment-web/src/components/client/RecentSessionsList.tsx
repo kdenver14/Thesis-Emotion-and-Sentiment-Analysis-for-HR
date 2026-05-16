@@ -50,7 +50,7 @@ export function RecentSessionsList({ sessions, seesAllUsers = false }: Props) {
                     </span>
                     {seesAllUsers && (
                       <span className="text-xs text-gray-600">
-                        Interviewer: {s.interviewerName ?? s.handledBy.name ?? "—"}
+                        Interviewer: {s.interviewerName ?? s.handledBy?.name ?? "—"}
                         {" · "}
                         Interviewee: {s.employee?.name ?? "Unassigned"}
                       </span>
