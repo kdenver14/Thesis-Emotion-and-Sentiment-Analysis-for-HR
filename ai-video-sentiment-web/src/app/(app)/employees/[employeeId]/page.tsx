@@ -8,7 +8,14 @@ import { renameEmployee } from "~/actions/employees";
 import { InlineTitle } from "~/components/client/InlineTitle";
 import { SessionTable } from "~/components/client/charts/SessionTable";
 import { getSentimentBreakdown } from "~/types/analysis";
+import {
+  NEGATIVE_CLASS,
+  NEUTRAL_CLASS,
+  POSITIVE_CLASS,
+  emotionColorClass,
+} from "~/lib/sentiment";
 import { DeleteEmployeeButton } from "./DeleteEmployeeButton";
+import { EditDemographics } from "./EditDemographics";
 
 interface PageProps {
   params: Promise<{ employeeId: string }>;
@@ -98,6 +105,18 @@ export default async function EmployeeDetailPage({ params }: PageProps) {
               {employee.department && <span>{employee.department}</span>}
               {employee.email && <span>{employee.email}</span>}
               {employee.phone && <span>{employee.phone}</span>}
+              {canMutate ? (
+                <EditDemographics
+                  employeeId={employeeId}
+                  age={employee.age}
+                  gender={employee.gender}
+                />
+              ) : (
+                <>
+                  {employee.age !== null && <span>{employee.age} yrs</span>}
+                  {employee.gender && <span>{employee.gender}</span>}
+                </>
+              )}
               <span>Added {employee.createdAt.toLocaleDateString("en-GB")}</span>
               {seesAllUsers && employee.addedBy && (
                 <span>Added by {employee.addedBy.name ?? "—"}</span>
@@ -109,52 +128,62 @@ export default async function EmployeeDetailPage({ params }: PageProps) {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-3 gap-4">
-        <div className="rounded-xl border border-gray-200 p-4">
-          <div className="text-xs uppercase tracking-wide text-gray-400">
+      <div className="flex flex-wrap items-stretch divide-x divide-gray-200 rounded-xl border border-gray-200">
+        <div className="flex flex-col px-4 py-3">
+          <span className="text-xs uppercase tracking-wide text-gray-400">
             Sessions
-          </div>
-          <div className="mt-1 text-2xl font-semibold text-gray-900">
+          </span>
+          <span className="mt-0.5 text-lg font-semibold text-gray-900">
             {allSessions.length}
-          </div>
+          </span>
         </div>
-        <div className="rounded-xl border border-gray-200 p-4">
-          <div className="text-xs uppercase tracking-wide text-gray-400">
+        <div className="flex flex-col px-4 py-3">
+          <span className="text-xs uppercase tracking-wide text-gray-400">
             Avg sentiment
-          </div>
-          <div className="mt-1 text-sm font-medium text-gray-900">
+          </span>
+          <span className="mt-0.5 text-sm font-medium text-gray-900">
             {avgSentimentBreakdown ? (
-              <div className="flex flex-col gap-0.5">
-                <span>{avgSentimentBreakdown.positive}% positive</span>
-                <span>{avgSentimentBreakdown.neutral}% neutral</span>
-                <span>{avgSentimentBreakdown.negative}% negative</span>
-              </div>
+              <>
+                <span className={POSITIVE_CLASS}>
+                  {avgSentimentBreakdown.positive}% pos
+                </span>
+                <span className="text-gray-400"> · </span>
+                <span className={NEUTRAL_CLASS}>
+                  {avgSentimentBreakdown.neutral}% neu
+                </span>
+                <span className="text-gray-400"> · </span>
+                <span className={NEGATIVE_CLASS}>
+                  {avgSentimentBreakdown.negative}% neg
+                </span>
+              </>
             ) : (
               <span className="text-gray-300">—</span>
             )}
-          </div>
+          </span>
         </div>
-        <div className="rounded-xl border border-gray-200 p-4">
-          <div className="text-xs uppercase tracking-wide text-gray-400">
+        <div className="flex flex-col px-4 py-3">
+          <span className="text-xs uppercase tracking-wide text-gray-400">
             Avg expressiveness
-          </div>
-          <div className="mt-1 flex flex-col">
-            <span className="text-2xl font-semibold text-gray-900">
-              {avgExpressivenessPct !== null ? (
-                <>
-                  {avgExpressivenessPct}
-                  <span className="text-sm font-normal text-gray-500">%</span>
-                </>
-              ) : (
-                <span className="text-gray-300">—</span>
-              )}
-            </span>
-            {topExpressiveEmotion && (
-              <span className="text-xs capitalize text-gray-500">
-                top: {topExpressiveEmotion}
-              </span>
+          </span>
+          <span className="mt-0.5 text-sm font-medium text-gray-900">
+            {avgExpressivenessPct !== null ? (
+              <>
+                {avgExpressivenessPct}%
+                {topExpressiveEmotion && (
+                  <span className="font-normal text-gray-500">
+                    {" · "}top:{" "}
+                    <span
+                      className={`capitalize ${emotionColorClass(topExpressiveEmotion)}`}
+                    >
+                      {topExpressiveEmotion}
+                    </span>
+                  </span>
+                )}
+              </>
+            ) : (
+              <span className="text-gray-300">—</span>
             )}
-          </div>
+          </span>
         </div>
       </div>
 

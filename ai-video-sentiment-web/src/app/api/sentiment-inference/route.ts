@@ -178,7 +178,7 @@ export async function POST(req: Request) {
   }
 
   let candidateData: { name: string; position?: string; email?: string; phone?: string } | null = null;
-  if (metadata.sessionType === "onboarding") {
+  if (metadata.sessionType === "interview") {
     const raw = formData.get("onboardingCandidate");
     if (raw && typeof raw === "string") {
       let parsed: unknown;
@@ -189,7 +189,7 @@ export async function POST(req: Request) {
       }
       const candidateParsed = onboardingCandidateSchema.safeParse(parsed);
       if (!candidateParsed.success) {
-        return NextResponse.json({ error: "Candidate name is required for onboarding sessions" }, { status: 400 });
+        return NextResponse.json({ error: "Candidate name is required for interview sessions" }, { status: 400 });
       }
       candidateData = {
         name: candidateParsed.data.name,

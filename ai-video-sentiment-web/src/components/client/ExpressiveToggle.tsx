@@ -5,6 +5,7 @@ import type {
   ExpressiveBreakdown,
   TopEmotionBreakdown,
 } from "~/types/analysis";
+import { emotionColorClass } from "~/lib/sentiment";
 
 const EMOTION_EMOJI: Record<string, string> = {
   anger: "😡",
@@ -70,9 +71,9 @@ export function ExpressiveToggle({
           </div>
         ) : (
           <div className="flex flex-col gap-0.5">
-            <div className={`${heading} flex items-center gap-2 capitalize text-gray-800`}>
+            <div className={`${heading} flex items-center gap-2 capitalize`}>
               <span>{EMOTION_EMOJI[expressive.topExpressiveEmotion] ?? ""}</span>
-              <span>
+              <span className={emotionColorClass(expressive.topExpressiveEmotion)}>
                 {expressive.topExpressiveEmotion} {topExprPct}%
               </span>
             </div>
@@ -88,9 +89,9 @@ export function ExpressiveToggle({
         </div>
       ) : (
         <div className="flex flex-col gap-0.5">
-          <div className={`${heading} flex items-center gap-2 capitalize text-gray-800`}>
+          <div className={`${heading} flex items-center gap-2 capitalize`}>
             <span>{EMOTION_EMOJI[allEmotions.topEmotion] ?? ""}</span>
-            <span>
+            <span className={emotionColorClass(allEmotions.topEmotion)}>
               {allEmotions.topEmotion} {allEmotions.topEmotionPct}%
             </span>
           </div>
