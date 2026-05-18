@@ -7,8 +7,10 @@ import { getEmployees } from "~/actions/employees";
 import { AssignEmployee } from "~/components/client/AssignEmployee";
 import { InlineTitle } from "~/components/client/InlineTitle";
 import { SessionSummary } from "~/components/client/SessionSummary";
+import { PromoteCandidateButton } from "~/components/client/PromoteCandidateButton";
 import { EmotionBarChart } from "~/components/client/charts/EmotionBarChart";
 import { SpeakerTimeline } from "~/components/client/charts/SpeakerTimeline";
+import { MeetingSpeakerBinding } from "~/components/client/MeetingSpeakerBinding";
 import { ExportButtons } from "~/components/client/ExportButtons";
 import { ProcessingPoller } from "~/components/client/ProcessingPoller";
 import { DeleteSessionButton } from "./DeleteSessionButton";
@@ -125,7 +127,12 @@ export default async function SessionDetailPage({ params }: PageProps) {
                 </>
               )}
               <span>·</span>
-              {canMutate ? (
+              {session.sessionType === "meeting" ? (
+                <span>
+                  {session.participants.length} participant
+                  {session.participants.length !== 1 ? "s" : ""}
+                </span>
+              ) : canMutate ? (
                 <AssignEmployee
                   sessionId={session.id}
                   employees={employees}
@@ -186,7 +193,33 @@ export default async function SessionDetailPage({ params }: PageProps) {
                 </dd>
               </div>
             )}
+            {session.onboardingCandidate.age !== null && (
+              <div>
+                <dt className="text-xs text-gray-500">Age</dt>
+                <dd className="font-medium text-gray-900">
+                  {session.onboardingCandidate.age}
+                </dd>
+              </div>
+            )}
+            {session.onboardingCandidate.gender && (
+              <div>
+                <dt className="text-xs text-gray-500">Gender</dt>
+                <dd className="font-medium text-gray-900">
+                  {session.onboardingCandidate.gender}
+                </dd>
+              </div>
+            )}
           </dl>
+          {canMutate && (
+            <div className="mt-4 border-t border-gray-100 pt-3">
+              <PromoteCandidateButton
+                sessionId={session.id}
+                promotedEmployeeId={
+                  session.onboardingCandidate.promotedEmployeeId
+                }
+              />
+            </div>
+          )}
         </div>
       )}
 
@@ -210,6 +243,16 @@ export default async function SessionDetailPage({ params }: PageProps) {
         </h2>
         <EmotionBarChart data={session.avgEmotions} height={200} />
       </div>
+
+      {/* Meeting participant ↔ speaker binding */}
+      {session.sessionType === "meeting" && (
+        <MeetingSpeakerBinding
+          sessionId={session.id}
+          speakers={speakers}
+          participants={session.participants}
+          canMutate={canMutate}
+        />
+      )}
 
       {/* Utterance timeline */}
       <div className="rounded-xl border border-gray-200 p-4">

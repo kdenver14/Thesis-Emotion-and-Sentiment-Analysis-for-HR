@@ -2,18 +2,10 @@
 
 import { useState } from "react";
 import type { ParsedUtterance } from "~/server/repositories/session";
-
-const EMOTION_COLORS: Record<string, { bg: string; text: string }> = {
-  anger: { bg: "#ef4444", text: "#dc2626" },
-  disgust: { bg: "#a855f7", text: "#7c3aed" },
-  fear: { bg: "#f97316", text: "#ea580c" },
-  joy: { bg: "#22c55e", text: "#16a34a" },
-  neutral: { bg: "#6b7280", text: "#4b5563" },
-  sadness: { bg: "#3b82f6", text: "#2563eb" },
-  surprise: { bg: "#eab308", text: "#ca8a04" },
-};
-
-const DEFAULT_COLOR = { bg: "#6b7280", text: "#4b5563" };
+import {
+  EMOTION_HEX as EMOTION_COLORS,
+  EMOTION_HEX_DEFAULT as DEFAULT_COLOR,
+} from "~/lib/sentiment";
 
 interface EmotionTimelineProps {
   utterances: ParsedUtterance[];

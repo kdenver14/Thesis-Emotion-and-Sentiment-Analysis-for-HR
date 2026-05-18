@@ -11,6 +11,14 @@ import {
   normalizePhone,
   toStoredPhone,
 } from "~/lib/phone";
+import {
+  EMPLOYEE_GENDERS,
+  MAX_EMPLOYEE_AGE,
+  MIN_EMPLOYEE_AGE,
+} from "~/schemas/employee";
+
+const MIN_MEETING_PARTICIPANTS = 2;
+const MAX_MEETING_PARTICIPANTS = 20;
 
 function isValidEmail(value: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
@@ -29,18 +37,54 @@ export function Inference({ employees, interviewerName }: InferenceProps) {
     new Date().toISOString().slice(0, 10),
   );
 
+  // Meeting participants (declared at upload; bound to speakers later)
+  const [participantIds, setParticipantIds] = useState<string[]>(() =>
+    Array<string>(MIN_MEETING_PARTICIPANTS).fill(""),
+  );
+
+  function handleParticipantCount(n: number) {
+    const clamped = Math.max(
+      MIN_MEETING_PARTICIPANTS,
+      Math.min(MAX_MEETING_PARTICIPANTS, Number.isNaN(n) ? MIN_MEETING_PARTICIPANTS : n),
+    );
+    setParticipantIds((prev) => {
+      const next = prev.slice(0, clamped);
+      while (next.length < clamped) next.push("");
+      return next;
+    });
+  }
+
+  function handleParticipantChange(idx: number, value: string) {
+    setParticipantIds((prev) =>
+      prev.map((v, i) => (i === idx ? value : v)),
+    );
+  }
+
   // Onboarding candidate fields
   const [candidateFirstName, setCandidateFirstName] = useState("");
   const [candidateLastName, setCandidateLastName] = useState("");
   const [candidatePosition, setCandidatePosition] = useState("");
   const [candidateEmail, setCandidateEmail] = useState("");
   const [candidatePhone, setCandidatePhone] = useState("");
+  const [candidateAge, setCandidateAge] = useState("");
+  const [candidateGender, setCandidateGender] = useState("");
 
   // Validation touch state
   const [nameTouched, setNameTouched] = useState(false);
   const [emailTouched, setEmailTouched] = useState(false);
 
   const isInterview = sessionType === "interview";
+  const isMeeting = sessionType === "meeting";
+
+  const meetingParticipantIds = [
+    ...new Set(participantIds.filter((id) => id !== "")),
+  ];
+  const isMeetingValid =
+    !isMeeting || meetingParticipantIds.length >= MIN_MEETING_PARTICIPANTS;
+  const hasDuplicateParticipants =
+    isMeeting &&
+    meetingParticipantIds.length !==
+      participantIds.filter((id) => id !== "").length;
 
   const candidateName =
     `${candidateFirstName.trim()} ${candidateLastName.trim()}`.trim();
@@ -63,7 +107,9 @@ export function Inference({ employees, interviewerName }: InferenceProps) {
   const metadata = {
     title: title || `Session ${new Date().toLocaleDateString("en-GB")}`,
     sessionType,
-    employeeId: !isInterview && employeeId ? employeeId : undefined,
+    employeeId:
+      !isInterview && !isMeeting && employeeId ? employeeId : undefined,
+    participantEmployeeIds: isMeeting ? meetingParticipantIds : undefined,
     sessionDate: sessionDate ? new Date(sessionDate).toISOString() : undefined,
     interviewerName: interviewerName || undefined,
     onboardingCandidate:
@@ -73,6 +119,8 @@ export function Inference({ employees, interviewerName }: InferenceProps) {
             position: candidatePosition || undefined,
             email: candidateEmail || undefined,
             phone: toStoredPhone(candidatePhone),
+            age: candidateAge ? Number(candidateAge) : undefined,
+            gender: candidateGender || undefined,
           }
         : undefined,
   };
@@ -119,7 +167,7 @@ export function Inference({ employees, interviewerName }: InferenceProps) {
               className="rounded-md border border-gray-200 px-3 py-1.5 text-sm focus:border-gray-400 focus:outline-none"
             />
           </div>
-          {!isInterview && (
+          {!isInterview && !isMeeting && (
             <div className="flex flex-col gap-1 sm:col-span-2">
               <label className="text-xs text-gray-500">
                 Employee (optional)
@@ -137,6 +185,59 @@ export function Inference({ employees, interviewerName }: InferenceProps) {
                   </option>
                 ))}
               </select>
+            </div>
+          )}
+          {isMeeting && (
+            <div className="flex flex-col gap-2 sm:col-span-2">
+              <div className="flex flex-col gap-1">
+                <label className="text-xs text-gray-500">
+                  Number of participants
+                </label>
+                <input
+                  type="number"
+                  min={MIN_MEETING_PARTICIPANTS}
+                  max={MAX_MEETING_PARTICIPANTS}
+                  value={participantIds.length}
+                  onChange={(e) =>
+                    handleParticipantCount(Number(e.target.value))
+                  }
+                  className="rounded-md border border-gray-200 px-3 py-1.5 text-sm focus:border-gray-400 focus:outline-none"
+                />
+              </div>
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                {participantIds.map((id, i) => (
+                  <div key={i} className="flex flex-col gap-1">
+                    <label className="text-xs text-gray-500">
+                      Participant {i + 1}
+                    </label>
+                    <select
+                      value={id}
+                      onChange={(e) =>
+                        handleParticipantChange(i, e.target.value)
+                      }
+                      className="rounded-md border border-gray-200 px-3 py-1.5 text-sm focus:border-gray-400 focus:outline-none"
+                    >
+                      <option value="">— select employee —</option>
+                      {employees.map((emp) => (
+                        <option key={emp.id} value={emp.id}>
+                          {emp.name}
+                          {emp.department ? ` (${emp.department})` : ""}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                ))}
+              </div>
+              {hasDuplicateParticipants && (
+                <p className="text-xs text-gray-400">
+                  Each participant must be a different employee.
+                </p>
+              )}
+              {!isMeetingValid && !hasDuplicateParticipants && (
+                <p className="text-xs text-gray-400">
+                  Select at least {MIN_MEETING_PARTICIPANTS} employees.
+                </p>
+              )}
             </div>
           )}
         </div>
@@ -208,6 +309,33 @@ export function Inference({ employees, interviewerName }: InferenceProps) {
                 <p className="text-xs text-red-500">{phoneError}</p>
               )}
             </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-gray-500">Age</label>
+              <input
+                type="number"
+                min={MIN_EMPLOYEE_AGE}
+                max={MAX_EMPLOYEE_AGE}
+                placeholder="e.g. 28"
+                value={candidateAge}
+                onChange={(e) => setCandidateAge(e.target.value)}
+                className="rounded-md border border-gray-200 px-3 py-1.5 text-sm focus:border-gray-400 focus:outline-none"
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-gray-500">Gender</label>
+              <select
+                value={candidateGender}
+                onChange={(e) => setCandidateGender(e.target.value)}
+                className="rounded-md border border-gray-200 px-3 py-1.5 text-sm focus:border-gray-400 focus:outline-none"
+              >
+                <option value="">— select —</option>
+                {EMPLOYEE_GENDERS.map((g) => (
+                  <option key={g} value={g}>
+                    {g}
+                  </option>
+                ))}
+              </select>
+            </div>
             <div className="flex flex-col gap-1 sm:col-span-2">
               <label className="text-xs text-gray-500">Email</label>
               <input
@@ -224,7 +352,10 @@ export function Inference({ employees, interviewerName }: InferenceProps) {
         </div>
       )}
 
-      <UploadVideo metadata={metadata} disabled={!isInterviewValid} />
+      <UploadVideo
+        metadata={metadata}
+        disabled={!isInterviewValid || !isMeetingValid}
+      />
     </div>
   );
 }
