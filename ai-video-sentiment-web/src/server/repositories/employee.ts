@@ -103,10 +103,10 @@ export async function updateEmployeeDemographics(
 
 export async function deleteEmployee(
   employeeId: string,
-  userId: string,
+  userId: string | null,
 ): Promise<void> {
   await db.employee.updateMany({
-    where: { id: employeeId, userId },
+    where: userId ? { id: employeeId, userId } : { id: employeeId },
     data: { status: "Deleted" },
   });
 }

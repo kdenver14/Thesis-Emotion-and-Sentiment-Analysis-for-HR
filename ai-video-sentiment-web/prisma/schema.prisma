@@ -67,11 +67,12 @@ model Employee {
     age              Int?
     gender           String?
     status           String            @default("Active")
-    userId           String
-    user             User              @relation(fields: [userId], references: [id], onDelete: Cascade)
-    analysisSessions AnalysisSession[]
-    createdAt        DateTime          @default(now())
-    updatedAt        DateTime          @updatedAt
+    userId              String
+    user                User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+    analysisSessions    AnalysisSession[]
+    sessionParticipants SessionParticipant[]
+    createdAt           DateTime              @default(now())
+    updatedAt           DateTime              @updatedAt
 }
 
 model AnalysisSession {
@@ -98,6 +99,25 @@ model AnalysisSession {
     createdAt            DateTime              @default(now())
     utterances           Utterance[]
     onboardingCandidate  OnboardingCandidate?
+    participants         SessionParticipant[]
+}
+
+// Meeting sessions only: declared employee participants. `speakerLabel`
+// is null at upload (no diarized labels yet) and bound post-inference to
+// a detected speaker. Single-employee session types use
+// AnalysisSession.employeeId / employeeSpeakerId instead and never touch
+// this table.
+model SessionParticipant {
+    id           String          @id @default(cuid())
+    sessionId    String
+    session      AnalysisSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+    employeeId   String
+    employee     Employee        @relation(fields: [employeeId], references: [id])
+    speakerLabel String?
+    createdAt    DateTime        @default(now())
+
+    @@unique([sessionId, employeeId])
+    @@unique([sessionId, speakerLabel])
 }
 
 model OnboardingCandidate {
@@ -108,6 +128,12 @@ model OnboardingCandidate {
     position  String?
     email     String?
     phone     String?
+    age       Int?
+    gender    String?
+    // Set once the candidate is promoted to an Employee from the session
+    // page. Bare id (no FK relation), mirroring AnalysisSession.employeeSpeakerId;
+    // employees soft-delete so this never dangles in practice.
+    promotedEmployeeId String?
     createdAt DateTime        @default(now())
 }
 
@@ -121,4 +147,22 @@ model Utterance {
     speaker    String?
     emotions   String
     sentiments String
+}
+
+// Append-only admin action trail. No FK relations: actor and target are
+// snapshotted by id + name at write time so a record outlives the user it
+// references (compliance: logs must survive subject deletion). Mirrors the
+// bare-id convention of AnalysisSession.employeeSpeakerId /
+// OnboardingCandidate.promotedEmployeeId.
+model AuditLog {
+    id         String   @id @default(cuid())
+    actorId    String
+    actorName  String
+    action     String
+    targetType String
+    targetId   String
+    targetName String?
+    createdAt  DateTime @default(now())
+
+    @@index([createdAt])
 }

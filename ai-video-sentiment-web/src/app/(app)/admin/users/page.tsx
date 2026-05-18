@@ -28,7 +28,7 @@ export default async function UsersPage() {
         </div>
 
         {!isDirector && (
-          <div className="rounded-xl border border-gray-200 p-4">
+          <div className="self-start rounded-xl border border-gray-200 p-4">
             <div className="mb-3 flex items-center gap-2">
               <FiPlus className="h-4 w-4 text-gray-500" />
               <h2 className="text-sm font-medium text-gray-700">Create account</h2>

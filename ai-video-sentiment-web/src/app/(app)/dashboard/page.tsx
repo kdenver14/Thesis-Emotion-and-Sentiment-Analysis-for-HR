@@ -1,12 +1,14 @@
-import { FiUsers } from "react-icons/fi";
 import {
   getDashboardEmotionMetrics,
+  getEmotionTrend,
   getSessions,
 } from "~/actions/sessions";
+import type { EmotionTrendRow } from "~/server/repositories/session";
 import { SessionTable } from "~/components/client/charts/SessionTable";
 import { LatestSessionCard } from "~/components/client/LatestSessionCard";
 import { ExportButtons } from "~/components/client/ExportButtons";
-import { ExpressiveToggle } from "~/components/client/ExpressiveToggle";
+import { EmotionPanel } from "~/components/client/charts/EmotionPanel";
+import { allowedWindows, hasTrendAccess } from "~/lib/trend";
 import { auth } from "~/server/auth";
 
 export default async function DashboardPage() {
@@ -15,34 +17,36 @@ export default async function DashboardPage() {
   const seesAllUsers = role !== "STAFF";
   const canMutate = role !== "DIRECTOR";
 
-  const [emotionMetrics, sessions] = await Promise.all([
+  const showTrend = hasTrendAccess(role);
+  const windows = allowedWindows(role);
+  const trendDays = windows[0] ?? 30;
+
+  const [emotionMetrics, trend, sessions] = await Promise.all([
     getDashboardEmotionMetrics(),
+    showTrend
+      ? getEmotionTrend(trendDays)
+      : Promise.resolve<EmotionTrendRow[]>([]),
     getSessions(),
   ]);
 
   return (
     <div className="flex flex-col gap-6 p-4 sm:p-8">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-gray-900">Dashboard</h1>
+      <div className="flex items-center justify-end">
         <ExportButtons aggregateParams={{}} label="Export all" userRole={role} />
       </div>
 
-      {/* Emotion card */}
-      <div className="flex flex-col gap-3 rounded-xl border border-gray-200 p-4">
-        <div className="flex items-center gap-2 text-gray-400">
-          <FiUsers className="h-4 w-4" />
-          <span className="text-xs uppercase tracking-wide">Emotion</span>
-        </div>
-        <ExpressiveToggle
-          expressive={emotionMetrics.expressive}
-          allEmotions={emotionMetrics.allEmotions}
-          totalLabel="utterances analyzed"
-          size="lg"
-        />
-      </div>
-
-      {/* Latest session */}
-      {sessions[0] && <LatestSessionCard session={sessions[0]} />}
+      {/* Emotion bars + emotion trend, driven by shared switch; latest
+          session fills the left column under the bars card */}
+      <EmotionPanel
+        metrics={emotionMetrics}
+        trend={trend}
+        windows={windows}
+        initialDays={trendDays}
+        showTrend={showTrend}
+        latestSession={
+          sessions[0] ? <LatestSessionCard session={sessions[0]} /> : null
+        }
+      />
 
       {/* Sessions table */}
       <div className="flex flex-col gap-3">
