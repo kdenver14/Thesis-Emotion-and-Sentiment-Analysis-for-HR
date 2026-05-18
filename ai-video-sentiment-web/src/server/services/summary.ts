@@ -1,4 +1,4 @@
-import type { UtteranceData } from "~/types/analysis";
+import { computeEngagementScore, type UtteranceData } from "~/types/analysis";
 
 export interface SummaryResult {
   text: string;
@@ -37,7 +37,6 @@ export function generateSummary(utterances: UtteranceData[]): SummaryResult {
   let stressPeaks = 0;
   let positiveCount = 0;
   let neutralCount = 0;
-  let negativeCount = 0;
 
   for (const utterance of utterances) {
     const topEmotion = [...utterance.emotions].sort(
@@ -58,13 +57,11 @@ export function generateSummary(utterances: UtteranceData[]): SummaryResult {
     if (topSentiment) {
       if (topSentiment.label === "positive") positiveCount++;
       else if (topSentiment.label === "neutral") neutralCount++;
-      else negativeCount++;
     }
   }
 
   const positiveRatio = positiveCount / total;
   const neutralRatio = neutralCount / total;
-  const negativeRatio = negativeCount / total;
 
   const uniqueEmotions = new Set(
     utterances.map((u) => {
@@ -80,25 +77,7 @@ export function generateSummary(utterances: UtteranceData[]): SummaryResult {
     neutralRatio > 0.85 && emotionVariety < 0.4;
   const hasPositiveMoments = positiveCount >= 2 && positiveRatio > 0.2;
 
-  const BASELINE = 60;
-  const positiveBonus = positiveRatio * 25;
-  const varietyBonus = emotionVariety * 15;
-  const negativePenalty = negativeRatio * 40;
-  const disengagementPenalty = hasDisengagement ? 20 : 0;
-
-  const engagementScore = Math.round(
-    Math.max(
-      0,
-      Math.min(
-        100,
-        BASELINE +
-          positiveBonus +
-          varietyBonus -
-          negativePenalty -
-          disengagementPenalty,
-      ),
-    ),
-  );
+  const engagementScore = computeEngagementScore(utterances);
 
   const half = Math.floor(total / 2);
   const firstPos = positiveRatioOf(utterances.slice(0, half));

@@ -55,6 +55,8 @@ export interface OnboardingCandidateInput {
   position?: string;
   email?: string;
   phone?: string;
+  age?: number;
+  gender?: string;
 }
 
 export interface SessionMetadataInput {
@@ -64,6 +66,9 @@ export interface SessionMetadataInput {
   sessionDate?: string;
   interviewerName?: string;
   onboardingCandidate?: OnboardingCandidateInput;
+  // Meeting type only: employee ids declared at upload, bound to
+  // detected speakers post-inference.
+  participantEmployeeIds?: string[];
 }
 
 export interface SentimentBreakdown {
@@ -82,13 +87,15 @@ export interface TopEmotionBreakdown {
   topEmotion: string;
   topEmotionPct: number;
   total: number;
+  // Share of utterances by their dominant emotion (incl. neutral), sorted desc.
+  breakdown: Score[];
 }
 
 export function computeTopEmotion(
   utterances: { emotions: Score[] }[],
 ): TopEmotionBreakdown {
   if (utterances.length === 0) {
-    return { topEmotion: "neutral", topEmotionPct: 0, total: 0 };
+    return { topEmotion: "neutral", topEmotionPct: 0, total: 0, breakdown: [] };
   }
   const counts: Record<string, number> = {};
   for (const u of utterances) {
@@ -101,10 +108,15 @@ export function computeTopEmotion(
   }
   const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]);
   const first = sorted[0];
+  const breakdown: Score[] = sorted.map(([label, c]) => ({
+    label,
+    confidence: c / utterances.length,
+  }));
   return {
     topEmotion: first?.[0] ?? "neutral",
     topEmotionPct: first ? Math.round((first[1] / utterances.length) * 100) : 0,
     total: utterances.length,
+    breakdown,
   };
 }
 
@@ -142,6 +154,138 @@ export function computeExpressive(
     expressivenessPct,
     topExpressiveEmotion: expressiveEmotions[0]?.label ?? "neutral",
     expressiveEmotions,
+  };
+}
+
+type ScoredUtterance = { emotions: Score[]; sentiments: Score[] };
+
+export function computeAverages(utterances: ScoredUtterance[]): {
+  avgEmotions: Score[];
+  avgSentiments: Score[];
+  topEmotion: string;
+  topSentiment: string;
+} {
+  const emotionMap: Record<string, number[]> = {};
+  const sentimentMap: Record<string, number[]> = {};
+
+  for (const u of utterances) {
+    for (const e of u.emotions) {
+      if (!emotionMap[e.label]) emotionMap[e.label] = [];
+      emotionMap[e.label]!.push(e.confidence);
+    }
+    for (const s of u.sentiments) {
+      if (!sentimentMap[s.label]) sentimentMap[s.label] = [];
+      sentimentMap[s.label]!.push(s.confidence);
+    }
+  }
+
+  const avg = (arr: number[]) => arr.reduce((a, b) => a + b, 0) / arr.length;
+
+  const avgEmotions: Score[] = Object.entries(emotionMap).map(
+    ([label, vals]) => ({ label, confidence: avg(vals) }),
+  );
+  const avgSentiments: Score[] = Object.entries(sentimentMap).map(
+    ([label, vals]) => ({ label, confidence: avg(vals) }),
+  );
+
+  avgEmotions.sort((a, b) => b.confidence - a.confidence);
+  avgSentiments.sort((a, b) => b.confidence - a.confidence);
+
+  return {
+    avgEmotions,
+    avgSentiments,
+    topEmotion: avgEmotions[0]?.label ?? "neutral",
+    topSentiment: avgSentiments[0]?.label ?? "neutral",
+  };
+}
+
+const ENGAGEMENT_BASELINE = 60;
+const DISENGAGEMENT_NEUTRAL_RATIO = 0.85;
+const DISENGAGEMENT_VARIETY = 0.4;
+
+// Single source of truth for the engagement formula. generateSummary
+// delegates here so per-session and per-employee (meeting) scores stay
+// identical. Counting loop intentionally mirrors generateSummary exactly
+// (incl. its `else → negative` and undefined-in-variety-set behavior) so
+// existing scores do not shift.
+export function computeEngagementScore(
+  utterances: ScoredUtterance[],
+): number {
+  const total = utterances.length;
+  if (total === 0) return 0;
+
+  let positiveCount = 0;
+  let neutralCount = 0;
+  let negativeCount = 0;
+  for (const u of utterances) {
+    const topSentiment = [...u.sentiments].sort(
+      (a, b) => b.confidence - a.confidence,
+    )[0];
+    if (topSentiment) {
+      if (topSentiment.label === "positive") positiveCount++;
+      else if (topSentiment.label === "neutral") neutralCount++;
+      else negativeCount++;
+    }
+  }
+
+  const positiveRatio = positiveCount / total;
+  const neutralRatio = neutralCount / total;
+  const negativeRatio = negativeCount / total;
+
+  const uniqueEmotions = new Set(
+    utterances.map(
+      (u) =>
+        [...u.emotions].sort((a, b) => b.confidence - a.confidence)[0]?.label,
+    ),
+  );
+  const emotionVariety = Math.min(uniqueEmotions.size / 5, 1);
+  const hasDisengagement =
+    neutralRatio > DISENGAGEMENT_NEUTRAL_RATIO &&
+    emotionVariety < DISENGAGEMENT_VARIETY;
+
+  return Math.round(
+    Math.max(
+      0,
+      Math.min(
+        100,
+        ENGAGEMENT_BASELINE +
+          positiveRatio * 25 +
+          emotionVariety * 15 -
+          negativeRatio * 40 -
+          (hasDisengagement ? 20 : 0),
+      ),
+    ),
+  );
+}
+
+export interface EmployeeSessionMetrics {
+  avgEmotions: Score[];
+  avgSentiments: Score[];
+  topEmotion: string;
+  topSentiment: string;
+  engagementScore: number;
+  expressivenessPct: number;
+  topExpressiveEmotion: string;
+  expressiveEmotions: Score[];
+}
+
+// Recomputes the ParsedSession numeric subset from an arbitrary utterance
+// slice (a single meeting participant's mapped-speaker utterances).
+export function computeEmployeeSessionMetrics(
+  utterances: ScoredUtterance[],
+): EmployeeSessionMetrics {
+  const { avgEmotions, avgSentiments, topEmotion, topSentiment } =
+    computeAverages(utterances);
+  const expressive = computeExpressive(utterances);
+  return {
+    avgEmotions,
+    avgSentiments,
+    topEmotion,
+    topSentiment,
+    engagementScore: computeEngagementScore(utterances),
+    expressivenessPct: expressive.expressivenessPct,
+    topExpressiveEmotion: expressive.topExpressiveEmotion,
+    expressiveEmotions: expressive.expressiveEmotions,
   };
 }
 

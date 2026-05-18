@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
 import type {
   ExpressiveBreakdown,
   TopEmotionBreakdown,
@@ -39,9 +40,7 @@ export function ExpressiveToggle({
   );
 
   const heading =
-    size === "lg"
-      ? "text-2xl font-semibold"
-      : "text-sm font-medium";
+    size === "lg" ? "text-2xl font-semibold" : "text-sm font-medium";
   const subheading = "text-xs text-gray-500";
 
   return (
@@ -63,44 +62,91 @@ export function ExpressiveToggle({
         />
       </div>
 
-      {view === "expressive" ? (
-        expressive.expressivenessPct === 0 ? (
-          <div className="flex flex-col gap-0.5">
-            <div className={`${heading} text-gray-300`}>—</div>
-            <div className={subheading}>0% expressive overall</div>
-          </div>
-        ) : (
-          <div className="flex flex-col gap-0.5">
-            <div className={`${heading} flex items-center gap-2 capitalize`}>
-              <span>{EMOTION_EMOJI[expressive.topExpressiveEmotion] ?? ""}</span>
-              <span className={emotionColorClass(expressive.topExpressiveEmotion)}>
-                {expressive.topExpressiveEmotion} {topExprPct}%
-              </span>
-            </div>
-            <div className={subheading}>
-              {expressive.expressivenessPct}% expressive overall
-            </div>
-          </div>
-        )
-      ) : allEmotions.total === 0 ? (
-        <div className="flex flex-col gap-0.5">
-          <div className={`${heading} text-gray-300`}>—</div>
-          <div className={subheading}>0 {totalLabel}</div>
-        </div>
-      ) : (
-        <div className="flex flex-col gap-0.5">
-          <div className={`${heading} flex items-center gap-2 capitalize`}>
-            <span>{EMOTION_EMOJI[allEmotions.topEmotion] ?? ""}</span>
-            <span className={emotionColorClass(allEmotions.topEmotion)}>
-              {allEmotions.topEmotion} {allEmotions.topEmotionPct}%
-            </span>
-          </div>
-          <div className={subheading}>
-            {allEmotions.total} {totalLabel}
-          </div>
-        </div>
-      )}
+      <AnimatePresence mode="wait" initial={false}>
+        <motion.div
+          key={view}
+          initial={{ opacity: 0, y: 20, scale: 0.96 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={{ opacity: 0, y: -20, scale: 0.96 }}
+          transition={{ duration: 0.35, ease: "easeInOut" }}
+          className="flex flex-col gap-0.5"
+        >
+          <ViewContent
+            view={view}
+            expressive={expressive}
+            allEmotions={allEmotions}
+            topExprPct={topExprPct}
+            totalLabel={totalLabel}
+            heading={heading}
+            subheading={subheading}
+          />
+        </motion.div>
+      </AnimatePresence>
     </div>
+  );
+}
+
+function ViewContent({
+  view,
+  expressive,
+  allEmotions,
+  topExprPct,
+  totalLabel,
+  heading,
+  subheading,
+}: {
+  view: View;
+  expressive: ExpressiveBreakdown;
+  allEmotions: TopEmotionBreakdown;
+  topExprPct: number;
+  totalLabel: string;
+  heading: string;
+  subheading: string;
+}) {
+  if (view === "expressive") {
+    if (expressive.expressivenessPct === 0) {
+      return (
+        <>
+          <div className={`${heading} text-gray-300`}>—</div>
+          <div className={subheading}>0% expressive overall</div>
+        </>
+      );
+    }
+    return (
+      <>
+        <div className={`${heading} flex items-center gap-2 capitalize`}>
+          <span>{EMOTION_EMOJI[expressive.topExpressiveEmotion] ?? ""}</span>
+          <span className={emotionColorClass(expressive.topExpressiveEmotion)}>
+            {expressive.topExpressiveEmotion} {topExprPct}%
+          </span>
+        </div>
+        <div className={subheading}>
+          {expressive.expressivenessPct}% expressive overall
+        </div>
+      </>
+    );
+  }
+
+  if (allEmotions.total === 0) {
+    return (
+      <>
+        <div className={`${heading} text-gray-300`}>—</div>
+        <div className={subheading}>0 {totalLabel}</div>
+      </>
+    );
+  }
+  return (
+    <>
+      <div className={`${heading} flex items-center gap-2 capitalize`}>
+        <span>{EMOTION_EMOJI[allEmotions.topEmotion] ?? ""}</span>
+        <span className={emotionColorClass(allEmotions.topEmotion)}>
+          {allEmotions.topEmotion} {allEmotions.topEmotionPct}%
+        </span>
+      </div>
+      <div className={subheading}>
+        {allEmotions.total} {totalLabel}
+      </div>
+    </>
   );
 }
 
@@ -118,13 +164,18 @@ function ToggleButton({
       type="button"
       onClick={onClick}
       aria-pressed={active}
-      className={`rounded-md px-3 py-1 text-xs font-medium transition-colors ${
-        active
-          ? "bg-gray-900 text-white"
-          : "text-gray-600 hover:text-gray-900"
+      className={`relative rounded-md px-3 py-1 text-xs font-medium transition-colors ${
+        active ? "text-white" : "text-gray-600 hover:text-gray-900"
       }`}
     >
-      {label}
+      {active && (
+        <motion.span
+          layoutId="exprTogglePill"
+          className="absolute inset-0 rounded-md bg-gray-900"
+          transition={{ duration: 0.32, ease: "easeInOut" }}
+        />
+      )}
+      <span className="relative z-10">{label}</span>
     </button>
   );
 }

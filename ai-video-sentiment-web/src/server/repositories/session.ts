@@ -1,9 +1,12 @@
 import { db } from "~/server/db";
 import {
+  computeEmployeeSessionMetrics,
   computeExpressive,
   computeTopEmotion,
+  getSentimentBreakdown,
   type ExpressiveBreakdown,
   type Score,
+  type SentimentBreakdown,
   type TopEmotionBreakdown,
 } from "~/types/analysis";
 
@@ -49,11 +52,21 @@ export interface OnboardingCandidateRow {
   position: string | null;
   email: string | null;
   phone: string | null;
+  age: number | null;
+  gender: string | null;
+  promotedEmployeeId: string | null;
+}
+
+export interface SessionParticipantRow {
+  employeeId: string;
+  employeeName: string;
+  speakerLabel: string | null;
 }
 
 export interface ParsedSessionWithUtterances extends ParsedSession {
   utterances: ParsedUtterance[];
   onboardingCandidate: OnboardingCandidateRow | null;
+  participants: SessionParticipantRow[];
 }
 
 export interface SessionFilters {
@@ -160,24 +173,76 @@ export async function getSessionsByUser(
   userId: string | null,
   filters: SessionFilters = {},
 ): Promise<ParsedSession[]> {
-  const where: Record<string, unknown> = {};
-  if (userId) where.userId = userId;
-  if (filters.employeeId) where.employeeId = filters.employeeId;
-  if (filters.sessionType) where.sessionType = filters.sessionType;
+  const baseWhere: Record<string, unknown> = {};
+  if (userId) baseWhere.userId = userId;
+  if (filters.sessionType) baseWhere.sessionType = filters.sessionType;
   if (filters.from ?? filters.to) {
-    where.sessionDate = {
+    baseWhere.sessionDate = {
       ...(filters.from ? { gte: filters.from } : {}),
       ...(filters.to ? { lte: filters.to } : {}),
     };
   }
 
+  if (!filters.employeeId) {
+    const rows = await db.analysisSession.findMany({
+      where: baseWhere,
+      select: SESSION_SELECT,
+      orderBy: { sessionDate: "desc" },
+    });
+    return rows.map(parseSession);
+  }
+
+  // Employee-scoped: single-employee sessions (employeeId match) OR
+  // meeting sessions where the employee is a declared participant. For
+  // meetings, metrics are recomputed from only that employee's mapped
+  // speaker's utterances; an unbound participant has no attributable
+  // data and the meeting is omitted until bound.
+  const employeeId = filters.employeeId;
   const rows = await db.analysisSession.findMany({
-    where,
-    select: SESSION_SELECT,
+    where: {
+      ...baseWhere,
+      OR: [{ employeeId }, { participants: { some: { employeeId } } }],
+    },
+    select: {
+      ...SESSION_SELECT,
+      utterances: { select: { emotions: true, sentiments: true, speaker: true } },
+      participants: {
+        where: { employeeId },
+        select: { speakerLabel: true },
+      },
+    },
     orderBy: { sessionDate: "desc" },
   });
 
-  return rows.map(parseSession);
+  const result: ParsedSession[] = [];
+  for (const row of rows) {
+    if (row.sessionType !== "meeting") {
+      result.push(parseSession(row));
+      continue;
+    }
+    const speakerLabel = row.participants[0]?.speakerLabel ?? null;
+    if (speakerLabel === null) continue;
+    const slice = row.utterances
+      .filter((u) => u.speaker === speakerLabel)
+      .map((u) => ({
+        emotions: JSON.parse(u.emotions) as Score[],
+        sentiments: JSON.parse(u.sentiments) as Score[],
+      }));
+    const metrics = computeEmployeeSessionMetrics(slice);
+    result.push({
+      ...parseSession(row),
+      avgEmotions: metrics.avgEmotions,
+      avgSentiments: metrics.avgSentiments,
+      topEmotion: metrics.topEmotion,
+      topSentiment: metrics.topSentiment,
+      engagementScore: metrics.engagementScore,
+      expressivenessPct: metrics.expressivenessPct,
+      topExpressiveEmotion: metrics.topExpressiveEmotion,
+      expressiveEmotions: metrics.expressiveEmotions,
+      utteranceCount: slice.length,
+    });
+  }
+  return result;
 }
 
 export async function getSessionById(
@@ -201,7 +266,24 @@ export async function getSessionById(
         orderBy: { startTime: "asc" },
       },
       onboardingCandidate: {
-        select: { id: true, name: true, position: true, email: true, phone: true },
+        select: {
+          id: true,
+          name: true,
+          position: true,
+          email: true,
+          phone: true,
+          age: true,
+          gender: true,
+          promotedEmployeeId: true,
+        },
+      },
+      participants: {
+        select: {
+          employeeId: true,
+          speakerLabel: true,
+          employee: { select: { name: true } },
+        },
+        orderBy: { createdAt: "asc" },
       },
     },
   });
@@ -219,7 +301,18 @@ export async function getSessionById(
     sentiments: JSON.parse(u.sentiments) as Score[],
   }));
 
-  return { ...base, utterances, onboardingCandidate: row.onboardingCandidate ?? null };
+  const participants: SessionParticipantRow[] = row.participants.map((p) => ({
+    employeeId: p.employeeId,
+    employeeName: p.employee.name,
+    speakerLabel: p.speakerLabel,
+  }));
+
+  return {
+    ...base,
+    utterances,
+    onboardingCandidate: row.onboardingCandidate ?? null,
+    participants,
+  };
 }
 
 export async function getAggregateEmotionMetrics(
@@ -227,21 +320,44 @@ export async function getAggregateEmotionMetrics(
 ): Promise<{
   expressive: ExpressiveBreakdown;
   allEmotions: TopEmotionBreakdown;
+  sentiment: SentimentBreakdown;
 }> {
   const where: Record<string, unknown> = { status: "COMPLETED" };
   if (userId) where.userId = userId;
 
-  const rows = await db.utterance.findMany({
-    where: { session: where },
-    select: { emotions: true },
-  });
+  const [rows, sentimentRows] = await Promise.all([
+    db.utterance.findMany({
+      where: { session: where },
+      select: { emotions: true },
+    }),
+    db.analysisSession.findMany({
+      where,
+      select: { avgSentiments: true },
+    }),
+  ]);
 
   const utterances = rows.map((u) => ({
     emotions: JSON.parse(u.emotions) as Score[],
   }));
+
+  // Average each sentiment label's confidence across completed sessions,
+  // then normalize via the shared pure breakdown helper.
+  const sums: Record<string, number> = {};
+  for (const s of sentimentRows) {
+    for (const score of JSON.parse(s.avgSentiments) as Score[]) {
+      sums[score.label] = (sums[score.label] ?? 0) + score.confidence;
+    }
+  }
+  const n = sentimentRows.length;
+  const avgSentiment: Score[] = Object.entries(sums).map(([label, sum]) => ({
+    label,
+    confidence: n > 0 ? sum / n : 0,
+  }));
+
   return {
     expressive: computeExpressive(utterances),
     allEmotions: computeTopEmotion(utterances),
+    sentiment: getSentimentBreakdown(avgSentiment),
   };
 }
 
@@ -253,29 +369,84 @@ export async function getEmotionTrendsOverTime(
   const since = new Date();
   since.setDate(since.getDate() - days);
 
-  const where: Record<string, unknown> = {
+  const baseWhere: Record<string, unknown> = {
     status: "COMPLETED",
     sessionDate: { gte: since },
-    ...(employeeId ? { employeeId } : {}),
   };
-  if (userId) where.userId = userId;
+  if (userId) baseWhere.userId = userId;
 
-  const sessions = await db.analysisSession.findMany({
-    where,
-    select: {
-      sessionDate: true,
-      avgSentiments: true,
-      engagementScore: true,
-    },
-    orderBy: { sessionDate: "asc" },
-  });
+  interface TrendInput {
+    sessionDate: Date;
+    avgSentiments: Score[];
+    engagementScore: number;
+  }
+  let points: TrendInput[];
+
+  if (!employeeId) {
+    const sessions = await db.analysisSession.findMany({
+      where: baseWhere,
+      select: { sessionDate: true, avgSentiments: true, engagementScore: true },
+      orderBy: { sessionDate: "asc" },
+    });
+    points = sessions.map((s) => ({
+      sessionDate: s.sessionDate,
+      avgSentiments: JSON.parse(s.avgSentiments) as Score[],
+      engagementScore: s.engagementScore,
+    }));
+  } else {
+    // Same employee-scoping as getSessionsByUser: meetings contribute
+    // only the employee's mapped-speaker slice; unbound participant
+    // meetings are omitted.
+    const sessions = await db.analysisSession.findMany({
+      where: {
+        ...baseWhere,
+        OR: [{ employeeId }, { participants: { some: { employeeId } } }],
+      },
+      select: {
+        sessionDate: true,
+        avgSentiments: true,
+        engagementScore: true,
+        sessionType: true,
+        utterances: {
+          select: { emotions: true, sentiments: true, speaker: true },
+        },
+        participants: { where: { employeeId }, select: { speakerLabel: true } },
+      },
+      orderBy: { sessionDate: "asc" },
+    });
+    points = [];
+    for (const s of sessions) {
+      if (s.sessionType !== "meeting") {
+        points.push({
+          sessionDate: s.sessionDate,
+          avgSentiments: JSON.parse(s.avgSentiments) as Score[],
+          engagementScore: s.engagementScore,
+        });
+        continue;
+      }
+      const speakerLabel = s.participants[0]?.speakerLabel ?? null;
+      if (speakerLabel === null) continue;
+      const slice = s.utterances
+        .filter((u) => u.speaker === speakerLabel)
+        .map((u) => ({
+          emotions: JSON.parse(u.emotions) as Score[],
+          sentiments: JSON.parse(u.sentiments) as Score[],
+        }));
+      const metrics = computeEmployeeSessionMetrics(slice);
+      points.push({
+        sessionDate: s.sessionDate,
+        avgSentiments: metrics.avgSentiments,
+        engagementScore: metrics.engagementScore,
+      });
+    }
+  }
 
   const byDate = new Map<
     string,
     { positive: number[]; neutral: number[]; negative: number[]; engagement: number[] }
   >();
 
-  for (const s of sessions) {
+  for (const s of points) {
     const key = s.sessionDate.toISOString().slice(0, 10);
     if (!byDate.has(key)) {
       byDate.set(key, {
@@ -286,8 +457,7 @@ export async function getEmotionTrendsOverTime(
       });
     }
     const entry = byDate.get(key)!;
-    const scores = JSON.parse(s.avgSentiments) as Score[];
-    for (const score of scores) {
+    for (const score of s.avgSentiments) {
       if (score.label === "positive") entry.positive.push(score.confidence);
       else if (score.label === "neutral") entry.neutral.push(score.confidence);
       else if (score.label === "negative") entry.negative.push(score.confidence);
@@ -484,6 +654,23 @@ export async function updateSessionEmployee(
   });
 }
 
+// Records that this session's onboarding candidate has been promoted to an
+// Employee. Ownership is enforced via the parent session relation so a user
+// cannot mark a candidate they do not own.
+export async function markCandidatePromoted(
+  sessionId: string,
+  userId: string | null,
+  employeeId: string,
+): Promise<void> {
+  await db.onboardingCandidate.updateMany({
+    where: {
+      sessionId,
+      ...(userId ? { session: { userId } } : {}),
+    },
+    data: { promotedEmployeeId: employeeId },
+  });
+}
+
 export async function updateEmployeeSpeaker(
   sessionId: string,
   userId: string | null,
@@ -492,6 +679,35 @@ export async function updateEmployeeSpeaker(
   await db.analysisSession.update({
     where: userId ? { id: sessionId, userId } : { id: sessionId },
     data: { employeeSpeakerId },
+  });
+}
+
+// Binds one declared meeting participant to a detected speaker label (or
+// null to unbind). speakerLabel is unique per session, so a label is
+// first released from any other participant holding it.
+export async function setParticipantSpeaker(
+  sessionId: string,
+  userId: string | null,
+  employeeId: string,
+  speakerLabel: string | null,
+): Promise<void> {
+  const sessionRow = await db.analysisSession.findFirst({
+    where: userId ? { id: sessionId, userId } : { id: sessionId },
+    select: { id: true },
+  });
+  if (!sessionRow) throw new Error("Session not found");
+
+  await db.$transaction(async (tx) => {
+    if (speakerLabel !== null) {
+      await tx.sessionParticipant.updateMany({
+        where: { sessionId, speakerLabel, NOT: { employeeId } },
+        data: { speakerLabel: null },
+      });
+    }
+    await tx.sessionParticipant.update({
+      where: { sessionId_employeeId: { sessionId, employeeId } },
+      data: { speakerLabel },
+    });
   });
 }
 
@@ -518,10 +734,19 @@ export async function renameSpeaker(
   });
   if (!session) throw new Error("Session not found");
 
-  await db.utterance.updateMany({
-    where: { sessionId, speaker: oldName },
-    data: { speaker: newName },
-  });
+  // speakerLabel is the join key for meeting per-employee analytics, so a
+  // speaker rename must move the participant binding too or the meeting
+  // silently drops out of that employee's history.
+  await db.$transaction([
+    db.utterance.updateMany({
+      where: { sessionId, speaker: oldName },
+      data: { speaker: newName },
+    }),
+    db.sessionParticipant.updateMany({
+      where: { sessionId, speakerLabel: oldName },
+      data: { speakerLabel: newName },
+    }),
+  ]);
 }
 
 export async function getSessionTypeBreakdown(userId: string | null) {
