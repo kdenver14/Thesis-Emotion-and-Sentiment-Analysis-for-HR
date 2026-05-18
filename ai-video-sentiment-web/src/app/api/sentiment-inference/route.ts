@@ -6,52 +6,18 @@ import { randomUUID } from "crypto";
 import { auth } from "~/server/auth";
 import { env } from "~/env";
 import { db } from "~/server/db";
-import { sessionMetadataSchema, onboardingCandidateSchema } from "~/schemas/session";
+import {
+  sessionMetadataSchema,
+  onboardingCandidateSchema,
+  meetingParticipantsSchema,
+} from "~/schemas/session";
+import { inferenceResultSchema } from "~/schemas/inference";
 import { generateSummary } from "~/server/services/summary";
 import { updateSessionResult, updateSessionFailed } from "~/server/repositories/session";
-import type { InferenceResult, Score } from "~/types/analysis";
+import { computeAverages, type InferenceResult } from "~/types/analysis";
 
 const ALLOWED_EXTENSIONS = new Set([".mp4", ".mov", ".avi"]);
-
-function computeAverages(result: InferenceResult): {
-  avgEmotions: Score[];
-  avgSentiments: Score[];
-  topEmotion: string;
-  topSentiment: string;
-} {
-  const emotionMap: Record<string, number[]> = {};
-  const sentimentMap: Record<string, number[]> = {};
-
-  for (const u of result.utterances) {
-    for (const e of u.emotions) {
-      if (!emotionMap[e.label]) emotionMap[e.label] = [];
-      emotionMap[e.label]!.push(e.confidence);
-    }
-    for (const s of u.sentiments) {
-      if (!sentimentMap[s.label]) sentimentMap[s.label] = [];
-      sentimentMap[s.label]!.push(s.confidence);
-    }
-  }
-
-  const avg = (arr: number[]) => arr.reduce((a, b) => a + b, 0) / arr.length;
-
-  const avgEmotions: Score[] = Object.entries(emotionMap).map(
-    ([label, vals]) => ({ label, confidence: avg(vals) }),
-  );
-  const avgSentiments: Score[] = Object.entries(sentimentMap).map(
-    ([label, vals]) => ({ label, confidence: avg(vals) }),
-  );
-
-  avgEmotions.sort((a, b) => b.confidence - a.confidence);
-  avgSentiments.sort((a, b) => b.confidence - a.confidence);
-
-  return {
-    avgEmotions,
-    avgSentiments,
-    topEmotion: avgEmotions[0]?.label ?? "neutral",
-    topSentiment: avgSentiments[0]?.label ?? "neutral",
-  };
-}
+const MAX_UPLOAD_BYTES = 100 * 1024 * 1024; // 100 MB
 
 async function runInferenceBackground(
   sessionId: string,
@@ -80,9 +46,18 @@ async function runInferenceBackground(
       return;
     }
 
-    const analysis = (await inferRes.json()) as InferenceResult;
+    const parsed = inferenceResultSchema.safeParse(await inferRes.json());
+    if (!parsed.success) {
+      console.error("Invalid inference payload:", parsed.error.issues);
+      await updateSessionFailed(
+        sessionId,
+        "Inference server returned an invalid response",
+      );
+      return;
+    }
+    const analysis: InferenceResult = parsed.data;
     const { avgEmotions, avgSentiments, topEmotion, topSentiment } =
-      computeAverages(analysis);
+      computeAverages(analysis.utterances);
     const summaryResult = generateSummary(analysis.utterances);
     const durationSecs = analysis.utterances.at(-1)?.end_time ?? null;
 
@@ -133,6 +108,13 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "file field required" }, { status: 400 });
   }
 
+  if (file.size > MAX_UPLOAD_BYTES) {
+    return NextResponse.json(
+      { error: "File exceeds the 100 MB upload limit" },
+      { status: 413 },
+    );
+  }
+
   const ext = path.extname(file.name).toLowerCase();
   if (!ALLOWED_EXTENSIONS.has(ext)) {
     return NextResponse.json(
@@ -159,6 +141,49 @@ export async function POST(req: Request) {
   }
   const metadata = metadataParsed.data;
 
+  // Meeting: declared participants. Validated + ownership-scoped before
+  // any file work so an invalid request cannot leave an orphan session.
+  let participantEmployeeIds: string[] = [];
+  if (metadata.sessionType === "meeting") {
+    const raw = formData.get("participantEmployeeIds");
+    if (typeof raw !== "string") {
+      return NextResponse.json(
+        { error: "A meeting requires participants" },
+        { status: 400 },
+      );
+    }
+    let parsedIds: unknown;
+    try {
+      parsedIds = JSON.parse(raw);
+    } catch {
+      return NextResponse.json(
+        { error: "Invalid participant data" },
+        { status: 400 },
+      );
+    }
+    const result = meetingParticipantsSchema.safeParse(parsedIds);
+    if (!result.success) {
+      return NextResponse.json(
+        { error: result.error.issues[0]?.message ?? "Invalid participants" },
+        { status: 400 },
+      );
+    }
+    const ids = result.data;
+    // STAFF may only attach their own employees; MANAGER/DIRECTOR any.
+    const role = session.user.role ?? "STAFF";
+    const visible = await db.employee.findMany({
+      where: { id: { in: ids }, ...(role === "STAFF" ? { userId } : {}) },
+      select: { id: true },
+    });
+    if (visible.length !== ids.length) {
+      return NextResponse.json(
+        { error: "Unknown or unauthorized participant" },
+        { status: 400 },
+      );
+    }
+    participantEmployeeIds = ids;
+  }
+
   let buffer: Buffer;
   try {
     buffer = Buffer.from(await file.arrayBuffer());
@@ -177,7 +202,14 @@ export async function POST(req: Request) {
     );
   }
 
-  let candidateData: { name: string; position?: string; email?: string; phone?: string } | null = null;
+  let candidateData: {
+    name: string;
+    position?: string;
+    email?: string;
+    phone?: string;
+    age?: number;
+    gender?: string;
+  } | null = null;
   if (metadata.sessionType === "interview") {
     const raw = formData.get("onboardingCandidate");
     if (raw && typeof raw === "string") {
@@ -196,6 +228,8 @@ export async function POST(req: Request) {
         position: candidateParsed.data.position,
         email: candidateParsed.data.email || undefined,
         phone: candidateParsed.data.phone,
+        age: candidateParsed.data.age,
+        gender: candidateParsed.data.gender,
       };
     }
   }
@@ -218,6 +252,15 @@ export async function POST(req: Request) {
   if (candidateData) {
     await db.onboardingCandidate.create({
       data: { sessionId: analysisSession.id, ...candidateData },
+    });
+  }
+
+  if (participantEmployeeIds.length > 0) {
+    await db.sessionParticipant.createMany({
+      data: participantEmployeeIds.map((employeeId) => ({
+        sessionId: analysisSession.id,
+        employeeId,
+      })),
     });
   }
 

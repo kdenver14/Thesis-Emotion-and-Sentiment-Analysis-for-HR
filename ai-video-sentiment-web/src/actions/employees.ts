@@ -9,22 +9,20 @@ import {
   updateEmployeeDemographics,
   type EmployeeRow,
 } from "~/server/repositories/employee";
+import {
+  addEmployeeSchema,
+  employeeDemographicsSchema,
+} from "~/schemas/employee";
+import { getAccessScope, requireScopeUserId } from "~/server/auth/guards";
 
-async function getEffectiveEmployeeUserId(): Promise<string | null | undefined> {
-  const session = await auth();
-  if (!session?.user?.id) return undefined;
-  return session.user.role === "STAFF" ? session.user.id : null;
-}
+const MAX_EMPLOYEE_NAME = 200;
 
 export async function getEmployees(): Promise<EmployeeRow[]> {
-  const userId = await getEffectiveEmployeeUserId();
-  if (userId === undefined) return [];
+  const scope = await getAccessScope();
+  if (scope.kind === "unauthenticated") return [];
+  const userId = scope.kind === "own" ? scope.userId : null;
   return findEmployeesByUser(userId);
 }
-
-const MIN_EMPLOYEE_AGE = 18;
-const MAX_EMPLOYEE_AGE = 100;
-const VALID_GENDERS = ["Male", "Female", "Other", "Prefer not to say"] as const;
 
 export async function addEmployee(data: {
   name: string;
@@ -39,26 +37,20 @@ export async function addEmployee(data: {
   if (!session?.user?.id) return { error: "Unauthorized" };
   if (session.user.role === "DIRECTOR") return { error: "Directors cannot create employee records" };
 
-  if (!data.name.trim()) return { error: "Name is required" };
-
-  if (data.age !== undefined) {
-    if (!Number.isInteger(data.age)) return { error: "Age must be a whole number" };
-    if (data.age < MIN_EMPLOYEE_AGE) return { error: `Employee must be at least ${MIN_EMPLOYEE_AGE} years old` };
-    if (data.age > MAX_EMPLOYEE_AGE) return { error: `Age must be ${MAX_EMPLOYEE_AGE} or below` };
+  const parsed = addEmployeeSchema.safeParse(data);
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
   }
-
-  if (data.gender !== undefined && !VALID_GENDERS.includes(data.gender as (typeof VALID_GENDERS)[number])) {
-    return { error: "Invalid gender selection" };
-  }
+  const v = parsed.data;
 
   const employee = await createEmployee(session.user.id, {
-    name: data.name.trim(),
-    email: data.email?.trim() ?? undefined,
-    department: data.department?.trim() ?? undefined,
-    phone: data.phone?.trim() ?? undefined,
-    age: data.age,
-    gender: data.gender,
-    status: data.status ?? "Active",
+    name: v.name,
+    email: v.email,
+    department: v.department,
+    phone: v.phone,
+    age: v.age,
+    gender: v.gender,
+    status: v.status ?? "Active",
   });
 
   return { employee };
@@ -73,7 +65,11 @@ export async function renameEmployee(
   if (session.user.role === "DIRECTOR") throw new Error("Directors cannot edit employee records");
   const trimmed = name.trim();
   if (!trimmed) throw new Error("Employee name is required");
-  const userId = session.user.role === "STAFF" ? session.user.id : null;
+  if (trimmed.length > MAX_EMPLOYEE_NAME)
+    throw new Error(
+      `Employee name must be ${MAX_EMPLOYEE_NAME} characters or fewer`,
+    );
+  const userId = await requireScopeUserId();
   await updateEmployeeName(employeeId, userId, trimmed);
 }
 
@@ -86,26 +82,13 @@ export async function updateEmployeeDemographicsAction(
   if (session.user.role === "DIRECTOR")
     return { error: "Directors cannot edit employee records" };
 
-  let age: number | null = null;
-  if (data.age !== null) {
-    if (!Number.isInteger(data.age))
-      return { error: "Age must be a whole number" };
-    if (data.age < MIN_EMPLOYEE_AGE)
-      return { error: `Employee must be at least ${MIN_EMPLOYEE_AGE} years old` };
-    if (data.age > MAX_EMPLOYEE_AGE)
-      return { error: `Age must be ${MAX_EMPLOYEE_AGE} or below` };
-    age = data.age;
+  const parsed = employeeDemographicsSchema.safeParse(data);
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
   }
 
-  let gender: string | null = null;
-  if (data.gender !== null) {
-    if (!VALID_GENDERS.includes(data.gender as (typeof VALID_GENDERS)[number]))
-      return { error: "Invalid gender selection" };
-    gender = data.gender;
-  }
-
-  const userId = session.user.role === "STAFF" ? session.user.id : null;
-  await updateEmployeeDemographics(employeeId, userId, { age, gender });
+  const userId = await requireScopeUserId();
+  await updateEmployeeDemographics(employeeId, userId, parsed.data);
   return {};
 }
 
@@ -116,6 +99,7 @@ export async function removeEmployee(
   if (!session?.user?.id) return { error: "Unauthorized" };
   if (session.user.role === "DIRECTOR") return { error: "Directors cannot delete employee records" };
 
-  await deleteEmployee(employeeId, session.user.id);
+  const userId = await requireScopeUserId();
+  await deleteEmployee(employeeId, userId);
   return {};
 }

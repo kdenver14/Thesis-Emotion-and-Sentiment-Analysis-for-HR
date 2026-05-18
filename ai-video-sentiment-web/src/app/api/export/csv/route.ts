@@ -5,6 +5,31 @@ import {
   getSessionById,
   getSessionsByUser,
 } from "~/server/repositories/session";
+import { parseDateParam } from "~/lib/dates";
+
+// CSV formula injection: a cell whose first char is one of these is
+// executed as a formula by Excel/Sheets. Prefix with a single quote to
+// neutralize. Applied to every string cell, not a per-column whitelist.
+const CSV_INJECTION_CHARS = new Set(["=", "+", "-", "@", "\t", "\r", "\0"]);
+
+function sanitizeCsvValue(value: unknown): unknown {
+  if (
+    typeof value === "string" &&
+    value.length > 0 &&
+    CSV_INJECTION_CHARS.has(value[0]!)
+  ) {
+    return `'${value}`;
+  }
+  return value;
+}
+
+function sanitizeRow<T extends Record<string, unknown>>(row: T): T {
+  const out: Record<string, unknown> = {};
+  for (const [key, val] of Object.entries(row)) {
+    out[key] = sanitizeCsvValue(val);
+  }
+  return out as T;
+}
 
 export async function GET(req: Request) {
   const session = await auth();
@@ -47,15 +72,12 @@ export async function GET(req: Request) {
       top_expressive_pct: sessionTopExprPct,
     }));
 
-    csv = Papa.unparse(rows);
+    csv = Papa.unparse(rows.map(sanitizeRow));
     filename = `session-${sessionId.slice(0, 8)}.csv`;
   } else {
-    const from = searchParams.get("from");
-    const to = searchParams.get("to");
-
     const sessions = await getSessionsByUser(effectiveUserId, {
-      from: from ? new Date(from) : undefined,
-      to: to ? new Date(to) : undefined,
+      from: parseDateParam(searchParams.get("from")),
+      to: parseDateParam(searchParams.get("to")),
     });
 
     const rows = sessions.map((s) => ({
@@ -75,7 +97,7 @@ export async function GET(req: Request) {
       duration_secs: s.durationSecs ?? "",
     }));
 
-    csv = Papa.unparse(rows);
+    csv = Papa.unparse(rows.map(sanitizeRow));
     filename = "sessions-export.csv";
   }
 

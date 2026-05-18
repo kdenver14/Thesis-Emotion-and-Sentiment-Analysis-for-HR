@@ -5,6 +5,7 @@ import {
   getSessionsByUser,
   type ParsedSession,
 } from "~/server/repositories/session";
+import { parseDateParam } from "~/lib/dates";
 
 // jsPDF is browser-first but works in Node.js for basic usage
 import type { jsPDF as JsPDFType } from "jspdf";
@@ -373,10 +374,8 @@ export async function GET(req: Request) {
     buildSessionPdf(doc, data);
     filename = `session-${sessionId.slice(0, 8)}.pdf`;
   } else {
-    const from = searchParams.get("from");
-    const to = searchParams.get("to");
-    const fromDate = from ? new Date(from) : undefined;
-    const toDate = to ? new Date(to) : undefined;
+    const fromDate = parseDateParam(searchParams.get("from"));
+    const toDate = parseDateParam(searchParams.get("to"));
 
     const effectiveUserId = role === "STAFF" ? userId : null;
     const sessions = await getSessionsByUser(effectiveUserId, {
