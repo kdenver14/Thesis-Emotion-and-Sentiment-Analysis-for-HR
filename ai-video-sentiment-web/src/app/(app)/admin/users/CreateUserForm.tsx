@@ -85,6 +85,7 @@ export function CreateUserForm() {
   const [password, setPassword] = useState("");
   const [role, setRole] = useState<"STAFF" | "DIRECTOR">("STAFF");
   const [error, setError] = useState<string | null>(null);
+  const [warning, setWarning] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [created, setCreated] = useState<CreatedCredentials | null>(null);
 
@@ -99,6 +100,7 @@ export function CreateUserForm() {
       setError(result.error);
     } else {
       setCreated({ name, email, password, role });
+      setWarning(result.warning ?? null);
       setName("");
       setEmail("");
       setPassword("");
@@ -110,7 +112,20 @@ export function CreateUserForm() {
 
   return (
     <div className="flex flex-col gap-3">
-      {created && <CredentialsCard created={created} onDismiss={() => setCreated(null)} />}
+      {created && (
+        <CredentialsCard
+          created={created}
+          onDismiss={() => {
+            setCreated(null);
+            setWarning(null);
+          }}
+        />
+      )}
+      {warning && (
+        <p className="rounded-lg border border-gray-200 bg-gray-50 p-2 text-xs text-gray-600">
+          {warning}
+        </p>
+      )}
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-3">
         <div className="flex flex-col gap-1">
@@ -129,11 +144,14 @@ export function CreateUserForm() {
           <input
             type="email"
             required
-            placeholder="name@example.com"
+            placeholder="blastasia.hr.app+name@gmail.com"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             className={inputClass}
           />
+          <p className="text-xs text-gray-400">
+            Must be blastasia.hr.app+&lt;name&gt;@gmail.com (demo mailbox).
+          </p>
         </div>
         <div className="flex flex-col gap-1">
           <label className="text-xs text-gray-500">Password *</label>

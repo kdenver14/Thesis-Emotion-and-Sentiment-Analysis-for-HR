@@ -50,6 +50,9 @@ async function main() {
         password: passwordHash,
         role,
         createdAt: new Date(),
+        // Script-created admins are pre-verified: the login gate now blocks
+        // unverified accounts, and bootstrap admins have no inbox to confirm.
+        emailVerified: new Date(),
       },
       select: { id: true, email: true, name: true, role: true },
     });
