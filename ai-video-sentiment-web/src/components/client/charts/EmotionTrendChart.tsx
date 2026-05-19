@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
+import { motion } from "framer-motion";
 import {
   CartesianGrid,
   Line,
@@ -93,21 +94,36 @@ export function EmotionTrendChart({
           )}
         </div>
         {windows.length > 1 && (
-          <div className="flex overflow-hidden rounded-md border border-gray-200 text-xs">
-            {windows.map((w) => (
-              <button
-                key={w}
-                type="button"
-                onClick={() => selectWindow(w)}
-                className={`px-3 py-1 ${
-                  w === days
-                    ? "bg-gray-900 text-white"
-                    : "text-gray-500 hover:bg-gray-50"
-                }`}
-              >
-                {WINDOW_LABELS[w] ?? `${w}d`}
-              </button>
-            ))}
+          <div
+            role="group"
+            aria-label="Trend window"
+            className="inline-flex w-fit rounded-lg border border-gray-200 p-0.5"
+          >
+            {windows.map((w) => {
+              const active = w === days;
+              return (
+                <button
+                  key={w}
+                  type="button"
+                  onClick={() => selectWindow(w)}
+                  aria-pressed={active}
+                  className={`relative rounded-md px-3 py-1 text-xs font-medium transition-colors ${
+                    active ? "text-white" : "text-gray-600 hover:text-gray-900"
+                  }`}
+                >
+                  {active && (
+                    <motion.span
+                      layoutId="trendWindowPill"
+                      className="absolute inset-0 rounded-md bg-gray-900"
+                      transition={{ duration: 0.32, ease: "easeInOut" }}
+                    />
+                  )}
+                  <span className="relative z-10">
+                    {WINDOW_LABELS[w] ?? `${w}d`}
+                  </span>
+                </button>
+              );
+            })}
           </div>
         )}
       </div>
