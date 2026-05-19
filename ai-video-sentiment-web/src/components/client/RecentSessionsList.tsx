@@ -7,6 +7,7 @@ interface Props {
 }
 
 function statusLabel(status: string): string | null {
+  if (status === "UPLOADING") return "Uploading";
   if (status === "PROCESSING") return "Processing";
   if (status === "FAILED") return "Failed";
   return null;
