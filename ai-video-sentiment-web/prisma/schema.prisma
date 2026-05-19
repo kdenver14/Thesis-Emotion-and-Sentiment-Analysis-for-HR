@@ -47,14 +47,36 @@ model User {
     sessions         Session[]
     employees        Employee[]
     analysisSessions AnalysisSession[]
+    trustedDevices   TrustedDevice[]
 }
 
 model VerificationToken {
     identifier String
     token      String   @unique
     expires    DateTime
+    // Failed-attempt counter for short numeric step-up codes (pwchange).
+    // Link tokens (verify/reset) never read it. NextAuth PrismaAdapter only
+    // touches identifier/token/expires, so this additive column is inert there.
+    attempts   Int      @default(0)
 
     @@unique([identifier, token])
+}
+
+// "Remember me" devices that may skip the emailed login code. The cookie
+// holds only a random secret; its SHA-256 hash is stored here and bound to
+// userId + expiry so the cookie alone is not authoritative and a leaked DB
+// row is not a usable credential. Cascade-deleted with the user; bulk-revoked
+// on password change / reset.
+model TrustedDevice {
+    id         String   @id @default(cuid())
+    userId     String
+    tokenHash  String   @unique
+    expires    DateTime
+    createdAt  DateTime @default(now())
+    lastUsedAt DateTime @default(now())
+    user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+    @@index([userId])
 }
 
 model Employee {

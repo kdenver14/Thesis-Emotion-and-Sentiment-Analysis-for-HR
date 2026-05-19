@@ -2,27 +2,47 @@
 
 import { useState } from "react";
 import { FiLock, FiX } from "react-icons/fi";
-import { updateCurrentUserPassword } from "~/actions/users";
+import {
+  requestPasswordChangeCode,
+  updateCurrentUserPassword,
+} from "~/actions/users";
+
+type Step = "form" | "code";
 
 export function ChangePasswordModal() {
   const [open, setOpen] = useState(false);
+  const [step, setStep] = useState<Step>("form");
   const [current, setCurrent] = useState("");
   const [next, setNext] = useState("");
   const [confirm, setConfirm] = useState("");
+  const [code, setCode] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const close = () => {
     setOpen(false);
+    setStep("form");
     setCurrent("");
     setNext("");
     setConfirm("");
+    setCode("");
     setError(null);
+    setNotice(null);
     setSuccess(false);
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const requestCode = async (): Promise<boolean> => {
+    const result = await requestPasswordChangeCode(current);
+    if (result.error) {
+      setError(result.error);
+      return false;
+    }
+    return true;
+  };
+
+  const handleSendCode = async (e: React.FormEvent) => {
     e.preventDefault();
     if (next !== confirm) {
       setError("Passwords do not match");
@@ -30,7 +50,28 @@ export function ChangePasswordModal() {
     }
     setLoading(true);
     setError(null);
-    const result = await updateCurrentUserPassword(current, next);
+    const ok = await requestCode();
+    setLoading(false);
+    if (ok) {
+      setStep("code");
+      setNotice("We emailed a 6-digit code. It expires in 10 minutes.");
+    }
+  };
+
+  const handleResend = async () => {
+    setLoading(true);
+    setError(null);
+    setNotice(null);
+    const ok = await requestCode();
+    setLoading(false);
+    if (ok) setNotice("A new code is on its way.");
+  };
+
+  const handleConfirm = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+    const result = await updateCurrentUserPassword(current, next, code.trim());
     setLoading(false);
     if (result.error) {
       setError(result.error);
@@ -56,22 +97,33 @@ export function ChangePasswordModal() {
       {open && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/30"
-          onClick={(e) => { if (e.target === e.currentTarget) close(); }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) close();
+          }}
         >
           <div className="w-full max-w-sm rounded-xl border border-gray-200 bg-white p-5 shadow-lg">
             <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-sm font-medium text-gray-900">Change password</h2>
-              <button onClick={close} className="text-gray-400 hover:text-gray-700">
+              <h2 className="text-sm font-medium text-gray-900">
+                Change password
+              </h2>
+              <button
+                onClick={close}
+                className="text-gray-400 hover:text-gray-700"
+              >
                 <FiX className="h-4 w-4" />
               </button>
             </div>
 
             {success ? (
-              <p className="py-4 text-center text-sm text-gray-600">Password updated.</p>
-            ) : (
-              <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+              <p className="py-4 text-center text-sm text-gray-600">
+                Password updated.
+              </p>
+            ) : step === "form" ? (
+              <form onSubmit={handleSendCode} className="flex flex-col gap-3">
                 <div className="flex flex-col gap-1">
-                  <label className="text-xs text-gray-500">Current password</label>
+                  <label className="text-xs text-gray-500">
+                    Current password
+                  </label>
                   <input
                     type="password"
                     required
@@ -93,7 +145,9 @@ export function ChangePasswordModal() {
                   />
                 </div>
                 <div className="flex flex-col gap-1">
-                  <label className="text-xs text-gray-500">Confirm new password</label>
+                  <label className="text-xs text-gray-500">
+                    Confirm new password
+                  </label>
                   <input
                     type="password"
                     required
@@ -117,8 +171,59 @@ export function ChangePasswordModal() {
                     disabled={loading || !current || !next || !confirm}
                     className="rounded-md bg-gray-800 px-3 py-1.5 text-sm text-white hover:bg-gray-700 disabled:opacity-50"
                   >
-                    {loading ? "Saving…" : "Save"}
+                    {loading ? "Sending…" : "Send code"}
                   </button>
+                </div>
+              </form>
+            ) : (
+              <form onSubmit={handleConfirm} className="flex flex-col gap-3">
+                {notice && (
+                  <p className="text-xs text-gray-500">{notice}</p>
+                )}
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs text-gray-500">
+                    6-digit code
+                  </label>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    required
+                    maxLength={6}
+                    value={code}
+                    onChange={(e) =>
+                      setCode(e.target.value.replace(/\D/g, ""))
+                    }
+                    className={`${inputClass} tracking-[0.4em]`}
+                    placeholder="000000"
+                  />
+                </div>
+                {error && <p className="text-xs text-red-500">{error}</p>}
+                <div className="flex items-center justify-between pt-1">
+                  <button
+                    type="button"
+                    onClick={handleResend}
+                    disabled={loading}
+                    className="text-xs text-gray-500 hover:text-gray-800 disabled:opacity-50"
+                  >
+                    Resend code
+                  </button>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={close}
+                      className="rounded-md px-3 py-1.5 text-sm text-gray-500 hover:text-gray-800"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={loading || code.length !== 6}
+                      className="rounded-md bg-gray-800 px-3 py-1.5 text-sm text-white hover:bg-gray-700 disabled:opacity-50"
+                    >
+                      {loading ? "Saving…" : "Confirm change"}
+                    </button>
+                  </div>
                 </div>
               </form>
             )}

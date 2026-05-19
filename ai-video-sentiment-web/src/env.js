@@ -16,6 +16,16 @@ export const env = createEnv({
       .enum(["development", "test", "production"])
       .default("development"),
     LOCAL_INFERENCE_URL: z.string().url().default("http://localhost:8000"),
+    // SMTP is optional so dev/build does not require mail config. The mailer
+    // throws a clear error at send time if USER/PASS are missing.
+    SMTP_HOST: z.string().default("smtp.gmail.com"),
+    SMTP_PORT: z.coerce.number().int().positive().default(587),
+    SMTP_USER: z.string().optional(),
+    SMTP_PASS: z.string().optional(),
+    MAIL_FROM: z
+      .string()
+      .default('"Blastasia HR" <blastasia.hr.app@gmail.com>'),
+    APP_URL: z.string().url().default("http://localhost:3000"),
   },
 
   /**
@@ -36,6 +46,12 @@ export const env = createEnv({
     DATABASE_URL: process.env.DATABASE_URL,
     NODE_ENV: process.env.NODE_ENV,
     LOCAL_INFERENCE_URL: process.env.LOCAL_INFERENCE_URL,
+    SMTP_HOST: process.env.SMTP_HOST,
+    SMTP_PORT: process.env.SMTP_PORT,
+    SMTP_USER: process.env.SMTP_USER,
+    SMTP_PASS: process.env.SMTP_PASS,
+    MAIL_FROM: process.env.MAIL_FROM,
+    APP_URL: process.env.APP_URL,
   },
   /**
    * Run `build` or `dev` with `SKIP_ENV_VALIDATION` to skip env validation. This is especially
