@@ -16,6 +16,15 @@ export const env = createEnv({
       .enum(["development", "test", "production"])
       .default("development"),
     LOCAL_INFERENCE_URL: z.string().url().default("http://localhost:8000"),
+    // Modal/R2 inference path. All optional so the app still boots without
+    // them (the upload flow surfaces a clear error if exercised unconfigured).
+    R2_ACCOUNT_ID: z.string().optional(),
+    R2_ACCESS_KEY_ID: z.string().optional(),
+    R2_SECRET_ACCESS_KEY: z.string().optional(),
+    R2_BUCKET: z.string().optional(),
+    MODAL_TRIGGER_URL: z.string().url().optional(),
+    MODAL_TRIGGER_TOKEN: z.string().optional(),
+    INFERENCE_CALLBACK_SECRET: z.string().optional(),
     // SMTP is optional so dev/build does not require mail config. The mailer
     // throws a clear error at send time if USER/PASS are missing.
     SMTP_HOST: z.string().default("smtp.gmail.com"),
@@ -46,6 +55,13 @@ export const env = createEnv({
     DATABASE_URL: process.env.DATABASE_URL,
     NODE_ENV: process.env.NODE_ENV,
     LOCAL_INFERENCE_URL: process.env.LOCAL_INFERENCE_URL,
+    R2_ACCOUNT_ID: process.env.R2_ACCOUNT_ID,
+    R2_ACCESS_KEY_ID: process.env.R2_ACCESS_KEY_ID,
+    R2_SECRET_ACCESS_KEY: process.env.R2_SECRET_ACCESS_KEY,
+    R2_BUCKET: process.env.R2_BUCKET,
+    MODAL_TRIGGER_URL: process.env.MODAL_TRIGGER_URL,
+    MODAL_TRIGGER_TOKEN: process.env.MODAL_TRIGGER_TOKEN,
+    INFERENCE_CALLBACK_SECRET: process.env.INFERENCE_CALLBACK_SECRET,
     SMTP_HOST: process.env.SMTP_HOST,
     SMTP_PORT: process.env.SMTP_PORT,
     SMTP_USER: process.env.SMTP_USER,

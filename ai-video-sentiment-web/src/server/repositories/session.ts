@@ -612,6 +612,19 @@ export async function updateSessionFailed(
   });
 }
 
+// Upload state machine: createUpload writes UPLOADING; this flips to
+// PROCESSING only after the object is confirmed in storage, so a client
+// that dies mid-upload leaves an UPLOADING (abandonable) row, never a
+// PROCESSING spinner that never resolves.
+export async function markSessionProcessing(
+  sessionId: string,
+): Promise<void> {
+  await db.analysisSession.update({
+    where: { id: sessionId },
+    data: { status: "PROCESSING", errorMessage: null },
+  });
+}
+
 export async function getSessionStatus(
   sessionId: string,
   userId: string | null,
