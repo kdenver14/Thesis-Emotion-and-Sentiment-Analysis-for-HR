@@ -30,7 +30,6 @@ export interface ParsedSession {
   avgEmotions: Score[];
   avgSentiments: Score[];
   summary: string;
-  engagementScore: number;
   durationSecs: number | null;
   interviewerName: string | null;
   createdAt: Date;
@@ -81,7 +80,6 @@ export interface TrendPoint {
   positive: number;
   neutral: number;
   negative: number;
-  avgEngagement: number;
 }
 
 export interface EmotionTrendRow {
@@ -99,7 +97,6 @@ function parseSession(raw: {
   avgEmotions: string;
   avgSentiments: string;
   summary: string;
-  engagementScore: number;
   durationSecs: number | null;
   interviewerName: string | null;
   createdAt: Date;
@@ -125,7 +122,6 @@ function parseSession(raw: {
     avgEmotions: JSON.parse(raw.avgEmotions) as Score[],
     avgSentiments: JSON.parse(raw.avgSentiments) as Score[],
     summary: raw.summary,
-    engagementScore: raw.engagementScore,
     durationSecs: raw.durationSecs,
     interviewerName: raw.interviewerName,
     createdAt: raw.createdAt,
@@ -152,7 +148,6 @@ const SESSION_SELECT = {
   avgEmotions: true,
   avgSentiments: true,
   summary: true,
-  engagementScore: true,
   durationSecs: true,
   interviewerName: true,
   createdAt: true,
@@ -235,7 +230,6 @@ export async function getSessionsByUser(
       avgSentiments: metrics.avgSentiments,
       topEmotion: metrics.topEmotion,
       topSentiment: metrics.topSentiment,
-      engagementScore: metrics.engagementScore,
       expressivenessPct: metrics.expressivenessPct,
       topExpressiveEmotion: metrics.topExpressiveEmotion,
       expressiveEmotions: metrics.expressiveEmotions,
@@ -378,20 +372,18 @@ export async function getEmotionTrendsOverTime(
   interface TrendInput {
     sessionDate: Date;
     avgSentiments: Score[];
-    engagementScore: number;
   }
   let points: TrendInput[];
 
   if (!employeeId) {
     const sessions = await db.analysisSession.findMany({
       where: baseWhere,
-      select: { sessionDate: true, avgSentiments: true, engagementScore: true },
+      select: { sessionDate: true, avgSentiments: true },
       orderBy: { sessionDate: "asc" },
     });
     points = sessions.map((s) => ({
       sessionDate: s.sessionDate,
       avgSentiments: JSON.parse(s.avgSentiments) as Score[],
-      engagementScore: s.engagementScore,
     }));
   } else {
     // Same employee-scoping as getSessionsByUser: meetings contribute
@@ -405,7 +397,6 @@ export async function getEmotionTrendsOverTime(
       select: {
         sessionDate: true,
         avgSentiments: true,
-        engagementScore: true,
         sessionType: true,
         utterances: {
           select: { emotions: true, sentiments: true, speaker: true },
@@ -420,7 +411,6 @@ export async function getEmotionTrendsOverTime(
         points.push({
           sessionDate: s.sessionDate,
           avgSentiments: JSON.parse(s.avgSentiments) as Score[],
-          engagementScore: s.engagementScore,
         });
         continue;
       }
@@ -436,14 +426,13 @@ export async function getEmotionTrendsOverTime(
       points.push({
         sessionDate: s.sessionDate,
         avgSentiments: metrics.avgSentiments,
-        engagementScore: metrics.engagementScore,
       });
     }
   }
 
   const byDate = new Map<
     string,
-    { positive: number[]; neutral: number[]; negative: number[]; engagement: number[] }
+    { positive: number[]; neutral: number[]; negative: number[] }
   >();
 
   for (const s of points) {
@@ -453,7 +442,6 @@ export async function getEmotionTrendsOverTime(
         positive: [],
         neutral: [],
         negative: [],
-        engagement: [],
       });
     }
     const entry = byDate.get(key)!;
@@ -462,7 +450,6 @@ export async function getEmotionTrendsOverTime(
       else if (score.label === "neutral") entry.neutral.push(score.confidence);
       else if (score.label === "negative") entry.negative.push(score.confidence);
     }
-    entry.engagement.push(s.engagementScore);
   }
 
   const avg = (arr: number[]) =>
@@ -482,7 +469,6 @@ export async function getEmotionTrendsOverTime(
       positive: v ? parseFloat((avg(v.positive) * 100).toFixed(1)) : 0,
       neutral: v ? parseFloat((avg(v.neutral) * 100).toFixed(1)) : 0,
       negative: v ? parseFloat((avg(v.negative) * 100).toFixed(1)) : 0,
-      avgEngagement: v ? Math.round(avg(v.engagement)) : 0,
     });
     cursor.setDate(cursor.getDate() + 1);
   }
@@ -566,7 +552,6 @@ export async function updateSessionResult(
     topEmotion: string;
     topSentiment: string;
     summary: string;
-    engagementScore: number;
     durationSecs: number | null;
     utterances: Array<{
       startTime: number;
@@ -587,7 +572,6 @@ export async function updateSessionResult(
         topEmotion: data.topEmotion,
         topSentiment: data.topSentiment,
         summary: data.summary,
-        engagementScore: data.engagementScore,
         durationSecs: data.durationSecs,
         status: "COMPLETED",
         errorMessage: null,

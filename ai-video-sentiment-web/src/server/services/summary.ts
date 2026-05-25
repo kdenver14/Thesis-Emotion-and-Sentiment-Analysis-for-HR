@@ -1,8 +1,7 @@
-import { computeEngagementScore, type UtteranceData } from "~/types/analysis";
+import { type UtteranceData } from "~/types/analysis";
 
 export interface SummaryResult {
   text: string;
-  engagementScore: number;
   stressPeaks: number;
   hasDisengagement: boolean;
   hasPositiveMoments: boolean;
@@ -25,7 +24,6 @@ export function generateSummary(utterances: UtteranceData[]): SummaryResult {
   if (utterances.length === 0) {
     return {
       text: "No utterances detected in this session.",
-      engagementScore: 0,
       stressPeaks: 0,
       hasDisengagement: false,
       hasPositiveMoments: false,
@@ -77,8 +75,6 @@ export function generateSummary(utterances: UtteranceData[]): SummaryResult {
     neutralRatio > 0.85 && emotionVariety < 0.4;
   const hasPositiveMoments = positiveCount >= 2 && positiveRatio > 0.2;
 
-  const engagementScore = computeEngagementScore(utterances);
-
   const half = Math.floor(total / 2);
   const firstPos = positiveRatioOf(utterances.slice(0, half));
   const secondPos = positiveRatioOf(utterances.slice(half));
@@ -121,11 +117,9 @@ export function generateSummary(utterances: UtteranceData[]): SummaryResult {
   if (hasPositiveMoments) {
     parts.push("Notable positive moments present in the session.");
   }
-  parts.push(`Engagement score: ${engagementScore}/100.`);
 
   return {
     text: parts.join(" "),
-    engagementScore,
     stressPeaks,
     hasDisengagement,
     hasPositiveMoments,
