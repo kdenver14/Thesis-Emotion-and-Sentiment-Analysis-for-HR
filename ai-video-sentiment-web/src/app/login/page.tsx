@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import Link from "next/link";
+import { FiEye, FiEyeOff } from "react-icons/fi";
 import { loginSchema, type LoginSchema } from "~/schemas/auth";
 import { requestLoginCode, verifyLoginCode } from "~/actions/auth";
 
@@ -18,6 +19,7 @@ export default function LoginPage() {
   const [loading, setLoading] = useState<boolean>(false);
   const [step, setStep] = useState<Step>("credentials");
   const [remember, setRemember] = useState<boolean>(false);
+  const [showPassword, setShowPassword] = useState<boolean>(false);
   const [code, setCode] = useState<string>("");
   // Held after step 1 so step 2 / resend can replay the credentials without
   // re-prompting (kept in memory only, never persisted).
@@ -184,12 +186,23 @@ export default function LoginPage() {
                   <label className="text-sm font-medium text-gray-700">
                     Password
                   </label>
-                  <input
-                    {...form.register("password")}
-                    type="password"
-                    placeholder="********"
-                    className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm placeholder-gray-400 shadow-sm focus:border-gray-500 focus:outline-none"
-                  />
+                  <div className="relative">
+                    <input
+                      {...form.register("password")}
+                      type={showPassword ? "text" : "password"}
+                      placeholder="********"
+                      className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 pr-10 text-sm placeholder-gray-400 shadow-sm focus:border-gray-500 focus:outline-none"
+                    />
+                    <button
+                      type="button"
+                      tabIndex={-1}
+                      onClick={() => setShowPassword((v) => !v)}
+                      aria-label={showPassword ? "Hide password" : "Show password"}
+                      className="absolute inset-y-0 right-0 mt-1 flex items-center px-3 text-gray-500 hover:text-gray-800"
+                    >
+                      {showPassword ? <FiEyeOff size={16} /> : <FiEye size={16} />}
+                    </button>
+                  </div>
                   {form.formState.errors.password && (
                     <p className="mt-1 text-sm text-red-500">
                       {form.formState.errors.password.message}
@@ -240,7 +253,7 @@ export default function LoginPage() {
                   value={code}
                   onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
                   placeholder="000000"
-                  className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm tracking-[0.4em] placeholder-gray-400 shadow-sm focus:border-gray-500 focus:outline-none"
+                  className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-center text-sm tracking-[0.4em] placeholder-gray-400 shadow-sm focus:border-gray-500 focus:outline-none"
                 />
               </div>
 

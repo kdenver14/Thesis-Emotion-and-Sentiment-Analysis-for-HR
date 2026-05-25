@@ -104,7 +104,6 @@ export async function POST(req: Request) {
     topEmotion,
     topSentiment,
     summary: summary.text,
-    engagementScore: summary.engagementScore,
     durationSecs: analysis.utterances.at(-1)?.end_time ?? null,
     utterances: analysis.utterances.map((u) => ({
       startTime: u.start_time,
