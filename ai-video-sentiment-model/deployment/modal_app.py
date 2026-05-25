@@ -40,6 +40,7 @@ def _prefetch_models() -> None:
     re-download ~600 MB. Runs under the locked versions. pyannote is
     best-effort: a missing/unlicensed HF token must not fail the build
     (inference.py already degrades without diarization)."""
+    import cv2  # noqa: F401 - validates libGL.so.1 at BUILD, not runtime
     import whisper
     from transformers import AutoTokenizer
 
@@ -63,10 +64,27 @@ def _prefetch_models() -> None:
 # it cannot upgrade any pinned (accuracy-relevant) package.
 image = (
     modal.Image.debian_slim(python_version="3.12")
-    .apt_install("ffmpeg", "git")
+    # ffmpeg: inference.py shells out. libgl1 + libglib2.0-0: OpenCV (cv2)
+    # needs libGL.so.1 / libgthread; debian_slim ships neither -> import cv2
+    # crashes at runtime without these.
+    .apt_install("ffmpeg", "git", "libgl1", "libglib2.0-0")
     .add_local_file(REQ_LOCK, f"/tmp/{REQ_LOCK}", copy=True)
     .run_commands(
-        f"pip install --no-deps -r /tmp/{REQ_LOCK}",
+        # Py3.12 slim ships no setuptools/wheel. setuptools>=81 REMOVED
+        # pkg_resources, which sdist-only locked packages (openai-whisper
+        # 20240930, docopt, antlr4-runtime, ...) import in setup.py. Pin
+        # setuptools<81 and skip build isolation so that pinned setuptools
+        # is the one used to build. Build tooling only — does NOT alter the
+        # accuracy-pinned model libs (still --no-deps against the lock).
+        "pip install --upgrade pip 'setuptools<81' wheel",
+        # Pass 1: exact pinned set, zero resolver/build drift.
+        f"pip install --no-deps --no-build-isolation -r /tmp/{REQ_LOCK}",
+        # Pass 2: the lock was generated on macOS so it omits torch's Linux
+        # CUDA runtime (nvidia-cublas-cu12, ...). Re-run WITH deps but with
+        # the lock as a constraints file: every pinned version is frozen by
+        # -c (cannot move), pip only ADDS the missing platform wheels. All
+        # lock pkgs already satisfied -> nothing rebuilds. Accuracy intact.
+        f"pip install -c /tmp/{REQ_LOCK} -r /tmp/{REQ_LOCK}",
         f"pip install -c /tmp/{REQ_LOCK} modal",
     )
     .run_function(_prefetch_models, secrets=[hf_secret])
@@ -121,7 +139,7 @@ def _download(video_url: str, suffix: str) -> str:
     volumes={WEIGHTS_DIR: weights},
     secrets=[hf_secret, auth_secret],
     min_containers=0,
-    scaledown_window=300,
+    scaledown_window=1800,
     timeout=3600,
     max_containers=3,
     retries=1,
