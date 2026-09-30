@@ -1,13 +1,21 @@
 import "~/styles/globals.css";
 
 import { GeistSans } from "geist/font/sans";
-import { type Metadata } from "next";
+import { type Metadata, type Viewport } from "next";
 import { SessionProviderWrapper } from "~/components/client/SessionProviderWrapper";
 
 export const metadata: Metadata = {
   title: "HR Sentiment Analysis",
   description: "AI-powered video sentiment and emotion analysis",
   icons: [{ rel: "icon", url: "/favicon.ico" }],
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  viewportFit: "cover",
 };
 
 export default function RootLayout({
