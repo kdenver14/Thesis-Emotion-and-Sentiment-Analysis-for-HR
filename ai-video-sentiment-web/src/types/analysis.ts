@@ -199,71 +199,11 @@ export function computeAverages(utterances: ScoredUtterance[]): {
   };
 }
 
-const ENGAGEMENT_BASELINE = 60;
-const DISENGAGEMENT_NEUTRAL_RATIO = 0.85;
-const DISENGAGEMENT_VARIETY = 0.4;
-
-// Single source of truth for the engagement formula. generateSummary
-// delegates here so per-session and per-employee (meeting) scores stay
-// identical. Counting loop intentionally mirrors generateSummary exactly
-// (incl. its `else → negative` and undefined-in-variety-set behavior) so
-// existing scores do not shift.
-export function computeEngagementScore(
-  utterances: ScoredUtterance[],
-): number {
-  const total = utterances.length;
-  if (total === 0) return 0;
-
-  let positiveCount = 0;
-  let neutralCount = 0;
-  let negativeCount = 0;
-  for (const u of utterances) {
-    const topSentiment = [...u.sentiments].sort(
-      (a, b) => b.confidence - a.confidence,
-    )[0];
-    if (topSentiment) {
-      if (topSentiment.label === "positive") positiveCount++;
-      else if (topSentiment.label === "neutral") neutralCount++;
-      else negativeCount++;
-    }
-  }
-
-  const positiveRatio = positiveCount / total;
-  const neutralRatio = neutralCount / total;
-  const negativeRatio = negativeCount / total;
-
-  const uniqueEmotions = new Set(
-    utterances.map(
-      (u) =>
-        [...u.emotions].sort((a, b) => b.confidence - a.confidence)[0]?.label,
-    ),
-  );
-  const emotionVariety = Math.min(uniqueEmotions.size / 5, 1);
-  const hasDisengagement =
-    neutralRatio > DISENGAGEMENT_NEUTRAL_RATIO &&
-    emotionVariety < DISENGAGEMENT_VARIETY;
-
-  return Math.round(
-    Math.max(
-      0,
-      Math.min(
-        100,
-        ENGAGEMENT_BASELINE +
-          positiveRatio * 25 +
-          emotionVariety * 15 -
-          negativeRatio * 40 -
-          (hasDisengagement ? 20 : 0),
-      ),
-    ),
-  );
-}
-
 export interface EmployeeSessionMetrics {
   avgEmotions: Score[];
   avgSentiments: Score[];
   topEmotion: string;
   topSentiment: string;
-  engagementScore: number;
   expressivenessPct: number;
   topExpressiveEmotion: string;
   expressiveEmotions: Score[];
@@ -282,7 +222,6 @@ export function computeEmployeeSessionMetrics(
     avgSentiments,
     topEmotion,
     topSentiment,
-    engagementScore: computeEngagementScore(utterances),
     expressivenessPct: expressive.expressivenessPct,
     topExpressiveEmotion: expressive.topExpressiveEmotion,
     expressiveEmotions: expressive.expressiveEmotions,
