@@ -389,7 +389,11 @@ export function SessionTable({ sessions, seesAllUsers = false, canMutate = false
                     )}
                   </td>
                   <td className="px-4 py-3">
-                    {s.status === "PROCESSING" ? (
+                    {s.status === "UPLOADING" ? (
+                      <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-500">
+                        Uploading
+                      </span>
+                    ) : s.status === "PROCESSING" ? (
                       <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-500">
                         Processing
                       </span>
@@ -406,7 +410,9 @@ export function SessionTable({ sessions, seesAllUsers = false, canMutate = false
                     )}
                   </td>
                   <td className="px-4 py-3">
-                    {s.status === "PROCESSING" || s.status === "FAILED" ? (
+                    {s.status === "PROCESSING" ||
+                    s.status === "FAILED" ||
+                    s.status === "UPLOADING" ? (
                       <span className="text-xs text-gray-400">—</span>
                     ) : (
                       (() => {

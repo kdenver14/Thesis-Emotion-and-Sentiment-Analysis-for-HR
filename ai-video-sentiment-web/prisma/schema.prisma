@@ -114,7 +114,6 @@ model AnalysisSession {
     topEmotion           String                @default("")
     topSentiment         String                @default("")
     summary              String                @default("")
-    engagementScore      Int                   @default(0)
     durationSecs         Float?
     status               String                @default("PROCESSING")
     errorMessage         String?
