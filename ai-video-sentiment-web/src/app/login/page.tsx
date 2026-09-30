@@ -44,7 +44,7 @@ export default function LoginPage() {
       ...(proof ? { proof } : {}),
     });
     if (!result?.error) {
-      router.push("/");
+      router.push("/dashboard");
     } else {
       setError("Could not complete sign-in. Please try again.");
     }
@@ -217,7 +217,7 @@ export default function LoginPage() {
                     onChange={(e) => setRemember(e.target.checked)}
                     className="h-4 w-4 accent-gray-800"
                   />
-                  Remember this device for 30 days
+                  Remember this device
                 </label>
               </div>
 
