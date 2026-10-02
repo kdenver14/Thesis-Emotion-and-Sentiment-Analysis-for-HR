@@ -87,6 +87,21 @@ export interface EmotionTrendRow {
   emotions: Record<string, number>;
 }
 
+// Trend/heatmap buckets must agree with the client's calendar day so a
+// session uploaded "today" lands on today's row. Server may run in UTC;
+// client is Philippines-based (Arup HR). Format in Asia/Manila so both
+// the session key and the cursor key share the same TZ.
+const DASHBOARD_TZ = "Asia/Manila";
+const ymdFormatter = new Intl.DateTimeFormat("en-CA", {
+  timeZone: DASHBOARD_TZ,
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
+function ymdInDashboardTZ(d: Date): string {
+  return ymdFormatter.format(d);
+}
+
 function parseSession(raw: {
   id: string;
   title: string;
@@ -436,7 +451,7 @@ export async function getEmotionTrendsOverTime(
   >();
 
   for (const s of points) {
-    const key = s.sessionDate.toISOString().slice(0, 10);
+    const key = ymdInDashboardTZ(s.sessionDate);
     if (!byDate.has(key)) {
       byDate.set(key, {
         positive: [],
@@ -462,7 +477,7 @@ export async function getEmotionTrendsOverTime(
   today.setHours(0, 0, 0, 0);
 
   while (cursor <= today) {
-    const key = cursor.toISOString().slice(0, 10);
+    const key = ymdInDashboardTZ(cursor);
     const v = byDate.get(key);
     result.push({
       date: key,
@@ -498,7 +513,7 @@ export async function getEmotionHeatmap(
   const byDate = new Map<string, Record<string, number[]>>();
 
   for (const s of sessions) {
-    const key = s.sessionDate.toISOString().slice(0, 10);
+    const key = ymdInDashboardTZ(s.sessionDate);
     if (!byDate.has(key)) byDate.set(key, {});
     const entry = byDate.get(key)!;
     const emotions = JSON.parse(s.avgEmotions) as Score[];
@@ -522,7 +537,7 @@ export async function getEmotionHeatmap(
   today.setHours(0, 0, 0, 0);
 
   while (cursor <= today) {
-    const key = cursor.toISOString().slice(0, 10);
+    const key = ymdInDashboardTZ(cursor);
     const emotionMap = byDate.get(key);
     result.push({
       date: key,
