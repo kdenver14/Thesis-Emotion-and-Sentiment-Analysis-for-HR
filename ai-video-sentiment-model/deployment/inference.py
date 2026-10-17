@@ -1,10 +1,11 @@
 import argparse
 import os
+import subprocess
+from concurrent.futures import ThreadPoolExecutor
 from typing import Optional
 
 import cv2
 import numpy as np
-import subprocess
 import torch
 import torchaudio
 import whisper
@@ -223,30 +224,58 @@ def predict_fn(input_data, model_dict):
     utterance_processor = VideoUtteranceProcessor()
     predictions = []
 
-    for segment in result["segments"]:
+    # CPU-bound per-segment prep (ffmpeg subprocess + cv2 decode + torchaudio
+    # mel-spec + tokenizer) runs in a thread pool. ffmpeg releases the GIL
+    # inside subprocess.run, tokenizer (BertTokenizerFast) is thread-safe, and
+    # cv2/torchaudio work on isolated per-call paths and tensors. The model
+    # forward itself stays serial on the main thread: the GPU is shared with
+    # Whisper and pyannote and this pipeline is not thread-safe across them.
+    # Inputs reaching the model are byte-identical to the serial version
+    # (same ffmpeg command, same codecs, same resize/mel-spec params) so
+    # accuracy is unchanged.
+    def _prep_segment(segment):
         try:
             segment_path = utterance_processor.extract_segment(
-                video_path,
-                segment["start"],
-                segment["end"]
+                video_path, segment["start"], segment["end"]
             )
-
-            video_frames = utterance_processor.video_processor.process_video(
-                segment_path)
-            audio_features = utterance_processor.audio_processor.extract_features(
-                segment_path)
+        except Exception as e:
+            return {"segment": segment, "error": f"extract_segment: {e}", "segment_path": None}
+        try:
+            video_frames = utterance_processor.video_processor.process_video(segment_path)
+            audio_features = utterance_processor.audio_processor.extract_features(segment_path)
             text_inputs = tokenizer(
                 segment["text"],
                 padding="max_length",
                 truncation=True,
                 max_length=128,
-                return_tensors="pt"
+                return_tensors="pt",
             )
+            return {
+                "segment": segment,
+                "video_frames": video_frames,
+                "audio_features": audio_features,
+                "text_inputs": text_inputs,
+                "segment_path": segment_path,
+                "error": None,
+            }
+        except Exception as e:
+            return {"segment": segment, "error": f"prep: {e}", "segment_path": segment_path}
+
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        prepped = list(pool.map(_prep_segment, result["segments"]))
+
+    for item in prepped:
+        segment = item["segment"]
+        segment_path = item["segment_path"]
+        try:
+            if item["error"]:
+                print("Segment failed inference: " + item["error"])
+                continue
 
             # Move to device
-            text_inputs = {k: v.to(device) for k, v in text_inputs.items()}
-            video_frames = video_frames.unsqueeze(0).to(device)
-            audio_features = audio_features.unsqueeze(0).to(device)
+            text_inputs = {k: v.to(device) for k, v in item["text_inputs"].items()}
+            video_frames = item["video_frames"].unsqueeze(0).to(device)
+            audio_features = item["audio_features"].unsqueeze(0).to(device)
 
             # Get predictions
             with torch.inference_mode():
@@ -276,8 +305,7 @@ def predict_fn(input_data, model_dict):
             print("Segment failed inference: " + str(e))
 
         finally:
-            # Cleanup
-            if os.path.exists(segment_path):
+            if segment_path and os.path.exists(segment_path):
                 os.remove(segment_path)
 
     if diarization_audio_path and os.path.exists(diarization_audio_path):

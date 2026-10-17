@@ -205,28 +205,42 @@ export function Inference({ employees, interviewerName }: InferenceProps) {
                 />
               </div>
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                {participantIds.map((id, i) => (
-                  <div key={i} className="flex flex-col gap-1">
-                    <label className="text-xs text-gray-500">
-                      Participant {i + 1}
-                    </label>
-                    <select
-                      value={id}
-                      onChange={(e) =>
-                        handleParticipantChange(i, e.target.value)
-                      }
-                      className="rounded-md border border-gray-200 px-3 py-1.5 text-sm focus:border-gray-400 focus:outline-none"
-                    >
-                      <option value="">— select employee —</option>
-                      {employees.map((emp) => (
-                        <option key={emp.id} value={emp.id}>
-                          {emp.name}
-                          {emp.department ? ` (${emp.department})` : ""}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                ))}
+                {(() => {
+                  const pickedSet = new Set(
+                    participantIds.filter((v) => v !== ""),
+                  );
+                  return participantIds.map((id, i) => (
+                    <div key={i} className="flex flex-col gap-1">
+                      <label className="text-xs text-gray-500">
+                        Participant {i + 1}
+                      </label>
+                      <select
+                        value={id}
+                        onChange={(e) =>
+                          handleParticipantChange(i, e.target.value)
+                        }
+                        className="rounded-md border border-gray-200 px-3 py-1.5 text-sm focus:border-gray-400 focus:outline-none"
+                      >
+                        <option value="">— select employee —</option>
+                        {employees.map((emp) => {
+                          const taken =
+                            pickedSet.has(emp.id) && emp.id !== id;
+                          return (
+                            <option
+                              key={emp.id}
+                              value={emp.id}
+                              disabled={taken}
+                            >
+                              {emp.name}
+                              {emp.department ? ` (${emp.department})` : ""}
+                              {taken ? " — already selected" : ""}
+                            </option>
+                          );
+                        })}
+                      </select>
+                    </div>
+                  ));
+                })()}
               </div>
               {hasDuplicateParticipants && (
                 <p className="text-xs text-gray-400">
