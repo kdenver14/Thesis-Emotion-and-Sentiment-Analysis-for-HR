@@ -10,8 +10,23 @@ import { ExportButtons } from "~/components/client/ExportButtons";
 import { EmotionPanel } from "~/components/client/charts/EmotionPanel";
 import { allowedWindows, hasTrendAccess } from "~/lib/trend";
 import { auth } from "~/server/auth";
+import { SESSION_TYPES } from "~/types/analysis";
 
-export default async function DashboardPage() {
+// The `?type=` URL param lets the type filter in SessionTable drive the
+// emotion bars and trend chart too. The server validates it against the
+// allow-list; a garbage value is dropped and the dashboard renders as if
+// no filter were set (safeType stays undefined → unfiltered queries).
+function resolveTypeParam(raw: string | string[] | undefined): string | undefined {
+  const value = Array.isArray(raw) ? raw[0] : raw;
+  if (!value) return undefined;
+  return (SESSION_TYPES as readonly string[]).includes(value) ? value : undefined;
+}
+
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const session = await auth();
   const role = session?.user?.role ?? "STAFF";
   const seesAllUsers = role !== "STAFF";
@@ -21,10 +36,13 @@ export default async function DashboardPage() {
   const windows = allowedWindows(role);
   const trendDays = windows[0] ?? 30;
 
+  const params = await searchParams;
+  const typeFilter = resolveTypeParam(params.type);
+
   const [emotionMetrics, trend, sessions] = await Promise.all([
-    getDashboardEmotionMetrics(),
+    getDashboardEmotionMetrics(typeFilter),
     showTrend
-      ? getEmotionTrend(trendDays)
+      ? getEmotionTrend(trendDays, typeFilter)
       : Promise.resolve<EmotionTrendRow[]>([]),
     getSessions(),
   ]);
@@ -43,6 +61,7 @@ export default async function DashboardPage() {
         windows={windows}
         initialDays={trendDays}
         showTrend={showTrend}
+        sessionType={typeFilter}
         latestSession={
           sessions[0] ? <LatestSessionCard session={sessions[0]} /> : null
         }
@@ -60,7 +79,12 @@ export default async function DashboardPage() {
             )}
           </h2>
         </div>
-        <SessionTable sessions={sessions} seesAllUsers={seesAllUsers} canMutate={canMutate} />
+        <SessionTable
+          sessions={sessions}
+          seesAllUsers={seesAllUsers}
+          canMutate={canMutate}
+          initialTypeFilter={typeFilter ?? "all"}
+        />
       </div>
     </div>
   );

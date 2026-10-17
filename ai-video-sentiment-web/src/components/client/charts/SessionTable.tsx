@@ -2,7 +2,7 @@
 
 import { useState, useTransition, useRef, useEffect } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { FiArrowUp, FiArrowDown, FiTrash2, FiSearch, FiX } from "react-icons/fi";
 import type { ParsedSession } from "~/server/repositories/session";
 import { SESSION_TYPE_LABELS, getSentimentBreakdown } from "~/types/analysis";
@@ -42,6 +42,11 @@ interface SessionTableProps {
   sessions: ParsedSession[];
   seesAllUsers?: boolean;
   canMutate?: boolean;
+  // Initial value for the Type filter, resolved on the server from the
+  // ?type= search param so a shared URL deep-links to the same filter.
+  // "all" means no filter. The server has already validated the value
+  // against SESSION_TYPES before passing it in.
+  initialTypeFilter?: string;
 }
 
 function IndeterminateCheckbox({
@@ -71,16 +76,37 @@ function IndeterminateCheckbox({
   );
 }
 
-export function SessionTable({ sessions, seesAllUsers = false, canMutate = false }: SessionTableProps) {
+export function SessionTable({
+  sessions,
+  seesAllUsers = false,
+  canMutate = false,
+  initialTypeFilter = "all",
+}: SessionTableProps) {
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [sortKey, setSortKey] = useState<SortKey>("sessionDate");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const showHandledBy =
     seesAllUsers ||
     new Set(sessions.map((s) => s.handledBy?.id ?? "")).size > 1;
   const [search, setSearch] = useState("");
-  const [typeFilter, setTypeFilter] = useState<string>("all");
+  const [typeFilter, setTypeFilter] = useState<string>(initialTypeFilter);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+
+  // Sync the Type filter to the URL. The dashboard page reads ?type= on
+  // the server to filter the emotion bars and trend chart in the same
+  // request, so the panels update in step with the table. router.replace
+  // overwrites history (no back-button spam per filter click), and all
+  // other search params are preserved via URLSearchParams.
+  function onTypeFilterChange(value: string): void {
+    setTypeFilter(value);
+    const params = new URLSearchParams(searchParams?.toString() ?? "");
+    if (value === "all") params.delete("type");
+    else params.set("type", value);
+    const qs = params.toString();
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+  }
 
   const typeOptions = Array.from(
     new Set(sessions.map((s) => s.sessionType)),
@@ -218,7 +244,7 @@ export function SessionTable({ sessions, seesAllUsers = false, canMutate = false
           <select
             id="session-type-filter"
             value={typeFilter}
-            onChange={(e) => setTypeFilter(e.target.value)}
+            onChange={(e) => onTypeFilterChange(e.target.value)}
             className="rounded-lg border border-gray-200 bg-white py-2 pl-3 pr-8 text-sm text-gray-700 focus:border-gray-400 focus:outline-none"
           >
             <option value="all">All types</option>
