@@ -22,6 +22,11 @@ interface Props {
   windows: readonly number[];
   initialDays: number;
   showTrend: boolean;
+  // Active ?type= filter from the dashboard URL. Passed to the trend chart
+  // so the chart's own window-pill refetches stay type-scoped. The chart is
+  // keyed on this value so a type change remounts it with the fresh `trend`
+  // prop (initial state would otherwise stick to the old data).
+  sessionType?: string;
   latestSession?: ReactNode;
 }
 
@@ -31,6 +36,7 @@ export function EmotionPanel({
   windows,
   initialDays,
   showTrend,
+  sessionType,
   latestSession,
 }: Props) {
   const [view, setView] = useState<EmotionView>("expressive");
@@ -89,10 +95,12 @@ export function EmotionPanel({
 
         {showTrend && (
           <EmotionTrendChart
+            key={sessionType ?? "all"}
             data={trend}
             windows={windows}
             initialDays={initialDays}
             view={view}
+            sessionType={sessionType}
           />
         )}
       </div>
