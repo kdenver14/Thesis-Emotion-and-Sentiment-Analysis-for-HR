@@ -44,6 +44,10 @@ interface Props {
   windows: readonly number[];
   initialDays: number;
   view: EmotionView;
+  // Current ?type= filter from the dashboard URL. The parent remounts this
+  // chart on type change (via `key`) so `data` seeds correctly; the prop
+  // is used here only to carry the filter into window-pill refetches.
+  sessionType?: string;
 }
 
 export function EmotionTrendChart({
@@ -51,6 +55,7 @@ export function EmotionTrendChart({
   windows,
   initialDays,
   view,
+  sessionType,
 }: Props) {
   const [rows, setRows] = useState<EmotionTrendRow[]>(data);
   const [days, setDays] = useState<number>(initialDays);
@@ -69,7 +74,7 @@ export function EmotionTrendChart({
     if (d === days) return;
     setDays(d);
     startTransition(async () => {
-      setRows(await getEmotionTrend(d));
+      setRows(await getEmotionTrend(d, sessionType));
     });
   }
 

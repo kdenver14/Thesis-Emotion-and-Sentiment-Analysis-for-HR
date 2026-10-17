@@ -59,7 +59,7 @@ export async function getSession(
   return getSessionById(sessionId, userId);
 }
 
-export async function getDashboardEmotionMetrics() {
+export async function getDashboardEmotionMetrics(sessionType?: string) {
   const scope = await getAccessScope();
   if (scope.kind === "unauthenticated") {
     return {
@@ -78,13 +78,19 @@ export async function getDashboardEmotionMetrics() {
     };
   }
   const userId = scope.kind === "own" ? scope.userId : null;
-  return getAggregateEmotionMetrics(userId);
+  // Validate the untrusted sessionType the same way getSessions does:
+  // reuse the shared filters schema so a garbage value is dropped rather
+  // than reaching Prisma. Only { sessionType } is parsed here.
+  const parsed = sessionFiltersSchema.safeParse({ sessionType });
+  const safeType = parsed.success ? parsed.data.sessionType : undefined;
+  return getAggregateEmotionMetrics(userId, safeType);
 }
 
 // Role-gated emotion trend. `days` is client-supplied and untrusted —
 // resolveTrendDays clamps it per role (STAFF → no access → []).
 export async function getEmotionTrend(
   days: number,
+  sessionType?: string,
 ): Promise<EmotionTrendRow[]> {
   const user = await currentUser();
   if (!user) return [];
@@ -93,7 +99,9 @@ export async function getEmotionTrend(
   if (resolved === null) return [];
 
   const userId = user.role === "STAFF" ? user.id : null;
-  return getEmotionHeatmap(userId, resolved);
+  const parsed = sessionFiltersSchema.safeParse({ sessionType });
+  const safeType = parsed.success ? parsed.data.sessionType : undefined;
+  return getEmotionHeatmap(userId, resolved, safeType);
 }
 
 export async function fetchSessionStatus(
