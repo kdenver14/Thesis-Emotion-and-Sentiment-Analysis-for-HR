@@ -1,11 +1,6 @@
 "use client";
 
-import {
-  FiTrendingUp,
-  FiTrendingDown,
-  FiMinus,
-  FiActivity,
-} from "react-icons/fi";
+import { FiActivity } from "react-icons/fi";
 import { ExpressiveToggle } from "~/components/client/ExpressiveToggle";
 import {
   getSentimentBreakdown,
@@ -35,10 +30,6 @@ export function SessionSummary({
   allEmotions,
   topSentiment,
 }: SessionSummaryProps) {
-  const TrendIcon =
-    summary.includes("improved") ? FiTrendingUp
-    : summary.includes("declined") ? FiTrendingDown
-    : FiMinus;
   const breakdown = getSentimentBreakdown(avgSentiments);
 
   return (
@@ -53,7 +44,6 @@ export function SessionSummary({
 
       <div className="flex flex-wrap gap-3">
         <div className="flex items-center gap-2 rounded-lg bg-gray-50 px-3 py-2">
-          <TrendIcon className="h-4 w-4 text-gray-500" />
           <div>
             <div className="flex items-baseline gap-2 text-sm font-medium">
               <span className={POSITIVE_CLASS}>{breakdown.positive}% pos</span>

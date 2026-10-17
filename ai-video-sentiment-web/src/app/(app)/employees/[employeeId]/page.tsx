@@ -15,7 +15,6 @@ import {
   emotionColorClass,
 } from "~/lib/sentiment";
 import { DeleteEmployeeButton } from "./DeleteEmployeeButton";
-import { EditDemographics } from "./EditDemographics";
 
 interface PageProps {
   params: Promise<{ employeeId: string }>;
@@ -105,18 +104,6 @@ export default async function EmployeeDetailPage({ params }: PageProps) {
               {employee.department && <span>{employee.department}</span>}
               {employee.email && <span>{employee.email}</span>}
               {employee.phone && <span>{employee.phone}</span>}
-              {canMutate ? (
-                <EditDemographics
-                  employeeId={employeeId}
-                  age={employee.age}
-                  gender={employee.gender}
-                />
-              ) : (
-                <>
-                  {employee.age !== null && <span>{employee.age} yrs</span>}
-                  {employee.gender && <span>{employee.gender}</span>}
-                </>
-              )}
               <span>Added {employee.createdAt.toLocaleDateString("en-GB")}</span>
               {seesAllUsers && employee.addedBy && (
                 <span>Added by {employee.addedBy.name ?? "—"}</span>

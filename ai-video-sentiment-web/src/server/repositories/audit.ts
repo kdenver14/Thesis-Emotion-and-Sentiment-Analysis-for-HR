@@ -1,5 +1,7 @@
 import { db } from "~/server/db";
 
+export const AUDIT_PAGE_SIZE = 50;
+
 export interface AuditEntry {
   actorId: string;
   actorName: string;
@@ -7,6 +9,44 @@ export interface AuditEntry {
   targetType: string;
   targetId: string;
   targetName?: string | null;
+}
+
+export interface AuditLogRow {
+  id: string;
+  createdAt: Date;
+  actorId: string;
+  actorName: string;
+  action: string;
+  targetType: string;
+  targetId: string;
+  targetName: string | null;
+}
+
+const AUDIT_SELECT = {
+  id: true,
+  createdAt: true,
+  actorId: true,
+  actorName: true,
+  action: true,
+  targetType: true,
+  targetId: true,
+  targetName: true,
+} as const;
+
+// Paginated, newest first. Fetches one extra row to report hasMore without a
+// second count query.
+export async function getAuditLog(
+  page: number,
+): Promise<{ entries: AuditLogRow[]; hasMore: boolean }> {
+  const skip = (page - 1) * AUDIT_PAGE_SIZE;
+  const rows = await db.auditLog.findMany({
+    orderBy: { createdAt: "desc" },
+    skip,
+    take: AUDIT_PAGE_SIZE + 1,
+    select: AUDIT_SELECT,
+  });
+  const hasMore = rows.length > AUDIT_PAGE_SIZE;
+  return { entries: hasMore ? rows.slice(0, AUDIT_PAGE_SIZE) : rows, hasMore };
 }
 
 // Append-only. Called after the mutation commits and outside a
