@@ -51,9 +51,8 @@ export interface OnboardingCandidateRow {
   position: string | null;
   email: string | null;
   phone: string | null;
-  age: number | null;
-  gender: string | null;
   promotedEmployeeId: string | null;
+  rejectedAt: Date | null;
 }
 
 export interface SessionParticipantRow {
@@ -281,9 +280,8 @@ export async function getSessionById(
           position: true,
           email: true,
           phone: true,
-          age: true,
-          gender: true,
           promotedEmployeeId: true,
+          rejectedAt: true,
         },
       },
       participants: {
@@ -685,6 +683,61 @@ export async function markCandidatePromoted(
     },
     data: { promotedEmployeeId: employeeId },
   });
+}
+
+// Marks this session's onboarding candidate as rejected. The WHERE guards make
+// the precondition atomic: a candidate that is already promoted or already
+// rejected is left untouched (a stale tab cannot reset the retention clock).
+// Returns the number of rows updated so the caller can detect a no-op.
+export async function setCandidateRejected(
+  sessionId: string,
+  userId: string | null,
+  rejectedAt: Date,
+): Promise<number> {
+  const res = await db.onboardingCandidate.updateMany({
+    where: {
+      sessionId,
+      promotedEmployeeId: null,
+      rejectedAt: null,
+      ...(userId ? { session: { userId } } : {}),
+    },
+    data: { rejectedAt },
+  });
+  return res.count;
+}
+
+// Clears the rejection so HR can undo a mistake before the deletion date.
+export async function clearCandidateRejection(
+  sessionId: string,
+  userId: string | null,
+): Promise<void> {
+  await db.onboardingCandidate.updateMany({
+    where: {
+      sessionId,
+      ...(userId ? { session: { userId } } : {}),
+    },
+    data: { rejectedAt: null },
+  });
+}
+
+// Deletes every interview session whose candidate was rejected before the
+// cutoff and never promoted. Deleting the AnalysisSession cascades to its
+// utterances, participants, and the candidate. Returns the number deleted.
+export async function deleteExpiredRejectedCandidateSessions(
+  cutoff: Date,
+): Promise<number> {
+  const res = await db.analysisSession.deleteMany({
+    where: {
+      sessionType: "interview",
+      onboardingCandidate: {
+        is: {
+          rejectedAt: { lt: cutoff },
+          promotedEmployeeId: null,
+        },
+      },
+    },
+  });
+  return res.count;
 }
 
 export async function updateEmployeeSpeaker(

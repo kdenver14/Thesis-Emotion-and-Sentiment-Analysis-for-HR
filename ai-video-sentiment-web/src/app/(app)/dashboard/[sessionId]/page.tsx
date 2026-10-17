@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { FiArrowLeft, FiLoader } from "react-icons/fi";
@@ -8,6 +9,9 @@ import { AssignEmployee } from "~/components/client/AssignEmployee";
 import { InlineTitle } from "~/components/client/InlineTitle";
 import { SessionSummary } from "~/components/client/SessionSummary";
 import { PromoteCandidateButton } from "~/components/client/PromoteCandidateButton";
+import { RejectCandidateButton } from "~/components/client/RejectCandidateButton";
+import { UndoRejectionButton } from "~/components/client/UndoRejectionButton";
+import { candidateDeletionDate } from "~/lib/retention";
 import { EmotionBarChart } from "~/components/client/charts/EmotionBarChart";
 import { SpeakerTimeline } from "~/components/client/charts/SpeakerTimeline";
 import { MeetingSpeakerBinding } from "~/components/client/MeetingSpeakerBinding";
@@ -15,6 +19,16 @@ import { ExportButtons } from "~/components/client/ExportButtons";
 import { ProcessingPoller } from "~/components/client/ProcessingPoller";
 import { DeleteSessionButton } from "./DeleteSessionButton";
 import { SESSION_TYPE_LABELS, computeTopEmotion } from "~/types/analysis";
+
+// Retention dates are shown in the HR team's timezone so the deletion date on
+// screen matches the day the server-side purge actually acts.
+const RETENTION_TZ = "Asia/Manila";
+const retentionDateFormatter = new Intl.DateTimeFormat("en-GB", {
+  timeZone: RETENTION_TZ,
+  day: "2-digit",
+  month: "2-digit",
+  year: "numeric",
+});
 
 interface PageProps {
   params: Promise<{ sessionId: string }>;
@@ -126,20 +140,24 @@ export default async function SessionDetailPage({ params }: PageProps) {
                   <span>Interviewer: {session.interviewerName}</span>
                 </>
               )}
-              <span>·</span>
-              {session.sessionType === "meeting" ? (
-                <span>
-                  {session.participants.length} participant
-                  {session.participants.length !== 1 ? "s" : ""}
-                </span>
-              ) : canMutate ? (
-                <AssignEmployee
-                  sessionId={session.id}
-                  employees={employees}
-                  current={session.employee ?? null}
-                />
-              ) : (
-                <span>{session.employee?.name ?? "Unassigned"}</span>
+              {session.sessionType !== "interview" && (
+                <>
+                  <span>·</span>
+                  {session.sessionType === "meeting" ? (
+                    <span>
+                      {session.participants.length} participant
+                      {session.participants.length !== 1 ? "s" : ""}
+                    </span>
+                  ) : canMutate ? (
+                    <AssignEmployee
+                      sessionId={session.id}
+                      employees={employees}
+                      current={session.employee ?? null}
+                    />
+                  ) : (
+                    <span>{session.employee?.name ?? "Unassigned"}</span>
+                  )}
+                </>
               )}
               {session.durationSecs && (
                 <>
@@ -193,33 +211,57 @@ export default async function SessionDetailPage({ params }: PageProps) {
                 </dd>
               </div>
             )}
-            {session.onboardingCandidate.age !== null && (
-              <div>
-                <dt className="text-xs text-gray-500">Age</dt>
-                <dd className="font-medium text-gray-900">
-                  {session.onboardingCandidate.age}
-                </dd>
-              </div>
-            )}
-            {session.onboardingCandidate.gender && (
-              <div>
-                <dt className="text-xs text-gray-500">Gender</dt>
-                <dd className="font-medium text-gray-900">
-                  {session.onboardingCandidate.gender}
-                </dd>
-              </div>
-            )}
           </dl>
-          {canMutate && (
-            <div className="mt-4 border-t border-gray-100 pt-3">
-              <PromoteCandidateButton
-                sessionId={session.id}
-                promotedEmployeeId={
-                  session.onboardingCandidate.promotedEmployeeId
-                }
-              />
-            </div>
-          )}
+          {(() => {
+            const candidate = session.onboardingCandidate;
+            const { rejectedAt, promotedEmployeeId } = candidate;
+            const rejectedLabel = rejectedAt
+              ? retentionDateFormatter.format(rejectedAt)
+              : null;
+            const deletionLabel = rejectedAt
+              ? retentionDateFormatter.format(candidateDeletionDate(rejectedAt))
+              : null;
+
+            let body: ReactNode = null;
+            if (rejectedAt) {
+              body = canMutate ? (
+                <UndoRejectionButton
+                  sessionId={session.id}
+                  rejectedDateLabel={rejectedLabel!}
+                  deletionDateLabel={deletionLabel!}
+                />
+              ) : (
+                <p className="text-xs text-gray-600">
+                  Rejected on {rejectedLabel}. This session will be deleted on{" "}
+                  {deletionLabel}.
+                </p>
+              );
+            } else if (promotedEmployeeId) {
+              body = canMutate ? (
+                <PromoteCandidateButton
+                  sessionId={session.id}
+                  promotedEmployeeId={promotedEmployeeId}
+                />
+              ) : (
+                <p className="text-xs text-gray-500">Added as employee</p>
+              );
+            } else if (canMutate) {
+              body = (
+                <div className="flex flex-col gap-3">
+                  <PromoteCandidateButton
+                    sessionId={session.id}
+                    promotedEmployeeId={null}
+                  />
+                  <RejectCandidateButton sessionId={session.id} />
+                </div>
+              );
+            }
+
+            if (!body) return null;
+            return (
+              <div className="mt-4 border-t border-gray-100 pt-3">{body}</div>
+            );
+          })()}
         </div>
       )}
 

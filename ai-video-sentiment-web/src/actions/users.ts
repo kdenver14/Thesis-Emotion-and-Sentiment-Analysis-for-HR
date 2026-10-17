@@ -250,6 +250,14 @@ export async function updateCurrentUserName(
     where: { id: guard.user.id },
     data: { name: trimmed },
   });
+  await recordAudit({
+    actorId: guard.user.id,
+    actorName: await actorName(guard.user.id),
+    action: "user.rename",
+    targetType: "user",
+    targetId: guard.user.id,
+    targetName: trimmed,
+  });
   return {};
 }
 

@@ -6,22 +6,15 @@ import {
   getSessionById,
   updateSessionEmployee,
   markCandidatePromoted,
+  setCandidateRejected,
+  clearCandidateRejection,
 } from "~/server/repositories/session";
 import { createEmployee } from "~/server/repositories/employee";
-import { addEmployeeSchema } from "~/schemas/employee";
-
-const ageOnlySchema = addEmployeeSchema.pick({ age: true });
-const genderOnlySchema = addEmployeeSchema.pick({ gender: true });
 
 /**
  * Promotes an interview session's onboarding candidate to an Employee in one
  * step: creates the employee, auto-assigns this session to them, and records
  * the link so the action is idempotent across page reloads.
- *
- * Candidate demographics are free-form. Age / gender are only carried over
- * when each independently satisfies the employee constraints; invalid values
- * are dropped (HR fills them via the demographics editor) rather than failing
- * the whole promotion.
  */
 export async function promoteCandidateToEmployee(
   sessionId: string,
@@ -41,18 +34,14 @@ export async function promoteCandidateToEmployee(
     // of creating a duplicate employee.
     return { employeeId: candidate.promotedEmployeeId };
   }
-
-  const age = ageOnlySchema.safeParse({ age: candidate.age ?? undefined });
-  const gender = genderOnlySchema.safeParse({
-    gender: candidate.gender ?? undefined,
-  });
+  if (candidate.rejectedAt) {
+    return { error: "Undo the rejection first" };
+  }
 
   const employee = await createEmployee(actor.id, {
     name: candidate.name,
     email: candidate.email ?? undefined,
     phone: candidate.phone ?? undefined,
-    age: age.success ? age.data.age : undefined,
-    gender: gender.success ? gender.data.gender : undefined,
     status: "Active",
   });
 
@@ -61,4 +50,43 @@ export async function promoteCandidateToEmployee(
 
   revalidatePath(`/dashboard/${sessionId}`);
   return { employeeId: employee.id };
+}
+
+// Marks the interview candidate as rejected, starting the retention clock.
+// The session is auto-deleted by the retention service once the window
+// elapses. Fails if there is no candidate or it was already promoted.
+export async function rejectCandidate(
+  sessionId: string,
+): Promise<{ error?: string }> {
+  await requireMutator();
+  const scopeUserId = await requireScopeUserId();
+
+  const session = await getSessionById(sessionId, scopeUserId);
+  const candidate = session?.onboardingCandidate;
+  if (!session || !candidate) {
+    return { error: "This session has no interview candidate" };
+  }
+  if (candidate.promotedEmployeeId) {
+    return { error: "This candidate was already promoted to an employee" };
+  }
+  if (candidate.rejectedAt) {
+    // Already rejected (e.g. a stale tab). No-op rather than resetting the clock.
+    return {};
+  }
+
+  await setCandidateRejected(sessionId, scopeUserId, new Date());
+  revalidatePath(`/dashboard/${sessionId}`);
+  return {};
+}
+
+// Clears a rejection so HR can correct a mistake before the deletion date.
+export async function undoCandidateRejection(
+  sessionId: string,
+): Promise<{ error?: string }> {
+  await requireMutator();
+  const scopeUserId = await requireScopeUserId();
+
+  await clearCandidateRejection(sessionId, scopeUserId);
+  revalidatePath(`/dashboard/${sessionId}`);
+  return {};
 }

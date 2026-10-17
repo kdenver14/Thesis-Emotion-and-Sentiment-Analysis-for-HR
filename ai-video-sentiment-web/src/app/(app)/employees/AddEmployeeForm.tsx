@@ -23,11 +23,6 @@ const DEPARTMENTS = [
   "Other",
 ] as const;
 
-const GENDERS = ["Male", "Female", "Other", "Prefer not to say"] as const;
-
-const MIN_AGE = 18;
-const MAX_AGE = 100;
-
 export function AddEmployeeForm() {
   const router = useRouter();
   const [firstName, setFirstName] = useState("");
@@ -35,8 +30,6 @@ export function AddEmployeeForm() {
   const [email, setEmail] = useState("");
   const [department, setDepartment] = useState("");
   const [phone, setPhone] = useState("");
-  const [age, setAge] = useState("");
-  const [gender, setGender] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -46,24 +39,6 @@ export function AddEmployeeForm() {
     if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       setError("Invalid email format");
       return;
-    }
-
-    let ageValue: number | undefined;
-    if (age.trim()) {
-      const parsed = Number(age);
-      if (!Number.isInteger(parsed)) {
-        setError("Age must be a whole number");
-        return;
-      }
-      if (parsed < MIN_AGE) {
-        setError(`Employee must be at least ${MIN_AGE} years old`);
-        return;
-      }
-      if (parsed > MAX_AGE) {
-        setError(`Age must be ${MAX_AGE} or below`);
-        return;
-      }
-      ageValue = parsed;
     }
 
     if (phone && phone.length !== PHONE_DIGITS) {
@@ -79,8 +54,6 @@ export function AddEmployeeForm() {
       email: email || undefined,
       department: department || undefined,
       phone: toStoredPhone(phone),
-      age: ageValue,
-      gender: gender || undefined,
     });
 
     if (result.error) {
@@ -91,8 +64,6 @@ export function AddEmployeeForm() {
       setEmail("");
       setDepartment("");
       setPhone("");
-      setAge("");
-      setGender("");
       router.refresh();
     }
     setLoading(false);
@@ -172,45 +143,13 @@ export function AddEmployeeForm() {
           </div>
         </div>
       </div>
-      <div className="grid grid-cols-2 gap-2">
-        <div className="flex flex-col gap-1">
-          <label className="text-xs text-gray-500">Age</label>
-          <input
-            type="number"
-            inputMode="numeric"
-            min={MIN_AGE}
-            max={MAX_AGE}
-            step={1}
-            placeholder={`${MIN_AGE}+`}
-            value={age}
-            onChange={(e) => setAge(e.target.value)}
-            className={inputClass}
-          />
-        </div>
-        <div className="flex flex-col gap-1">
-          <label className="text-xs text-gray-500">Gender</label>
-          <select
-            value={gender}
-            onChange={(e) => setGender(e.target.value)}
-            className={selectClass}
-          >
-            <option value="">— Select —</option>
-            {GENDERS.map((g) => (
-              <option key={g} value={g}>
-                {g}
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
-
       {error && <p className="text-xs text-red-500">{error}</p>}
       <button
         type="submit"
         disabled={loading || !firstName.trim() || !lastName.trim()}
         className="rounded-md bg-gray-800 px-3 py-2 text-sm text-white disabled:opacity-50 hover:bg-gray-700"
       >
-        {loading ? "Adding..." : "Add employee"}
+        {loading ? "Adding..." : "Add current employee"}
       </button>
     </form>
   );
