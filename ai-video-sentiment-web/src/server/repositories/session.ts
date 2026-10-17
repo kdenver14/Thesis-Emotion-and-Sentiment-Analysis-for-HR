@@ -326,6 +326,7 @@ export async function getSessionById(
 
 export async function getAggregateEmotionMetrics(
   userId: string | null,
+  sessionType?: string,
 ): Promise<{
   expressive: ExpressiveBreakdown;
   allEmotions: TopEmotionBreakdown;
@@ -333,6 +334,7 @@ export async function getAggregateEmotionMetrics(
 }> {
   const where: Record<string, unknown> = { status: "COMPLETED" };
   if (userId) where.userId = userId;
+  if (sessionType) where.sessionType = sessionType;
 
   const [rows, sentimentRows] = await Promise.all([
     db.utterance.findMany({
@@ -494,6 +496,7 @@ export async function getEmotionTrendsOverTime(
 export async function getEmotionHeatmap(
   userId: string | null,
   days: number,
+  sessionType?: string,
 ): Promise<EmotionTrendRow[]> {
   const since = new Date();
   since.setDate(since.getDate() - days);
@@ -503,6 +506,7 @@ export async function getEmotionHeatmap(
     sessionDate: { gte: since },
   };
   if (userId) where.userId = userId;
+  if (sessionType) where.sessionType = sessionType;
 
   const sessions = await db.analysisSession.findMany({
     where,

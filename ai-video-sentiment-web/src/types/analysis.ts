@@ -228,6 +228,32 @@ export function computeEmployeeSessionMetrics(
   };
 }
 
+// Hamilton largest-remainder: given shares that are intended to sum to a
+// known total (default 100), returns integers that sum to exactly that total.
+// Rounding each share independently can drift by +/- 1 per bucket; this keeps
+// the sum stable for display (e.g. percentage bars that must add to 100).
+export function distributePercents(
+  shares: number[],
+  total = 100,
+): number[] {
+  if (shares.length === 0) return [];
+  const sum = shares.reduce((a, b) => a + b, 0);
+  if (sum === 0) return shares.map(() => 0);
+  const scaled = shares.map((s) => (s / sum) * total);
+  const floors = scaled.map((v) => Math.floor(v));
+  const used = floors.reduce((a, b) => a + b, 0);
+  let shortfall = total - used;
+  const order = scaled
+    .map((v, i) => ({ i, rem: v - Math.floor(v) }))
+    .sort((a, b) => b.rem - a.rem);
+  for (const { i } of order) {
+    if (shortfall <= 0) break;
+    floors[i]! += 1;
+    shortfall -= 1;
+  }
+  return floors;
+}
+
 export function getSentimentBreakdown(scores: Score[]): SentimentBreakdown {
   let pos = 0;
   let neu = 0;
@@ -237,11 +263,7 @@ export function getSentimentBreakdown(scores: Score[]): SentimentBreakdown {
     else if (s.label === "neutral") neu = s.confidence;
     else if (s.label === "negative") neg = s.confidence;
   }
-  const total = pos + neu + neg;
-  if (total === 0) return { positive: 0, neutral: 0, negative: 0 };
-  return {
-    positive: Math.round((pos / total) * 100),
-    neutral: Math.round((neu / total) * 100),
-    negative: Math.round((neg / total) * 100),
-  };
+  if (pos + neu + neg === 0) return { positive: 0, neutral: 0, negative: 0 };
+  const [p, n, g] = distributePercents([pos, neu, neg]);
+  return { positive: p!, neutral: n!, negative: g! };
 }
