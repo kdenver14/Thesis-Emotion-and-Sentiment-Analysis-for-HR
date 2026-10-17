@@ -55,8 +55,6 @@ export interface OnboardingCandidateInput {
   position?: string;
   email?: string;
   phone?: string;
-  age?: number;
-  gender?: string;
 }
 
 export interface SessionMetadataInput {

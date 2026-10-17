@@ -6,8 +6,6 @@ export interface EmployeeRow {
   email: string | null;
   department: string | null;
   phone: string | null;
-  age: number | null;
-  gender: string | null;
   status: string;
   createdAt: Date;
   addedBy: { id: string; name: string | null } | null;
@@ -19,8 +17,6 @@ const EMPLOYEE_SELECT = {
   email: true,
   department: true,
   phone: true,
-  age: true,
-  gender: true,
   status: true,
   createdAt: true,
   user: { select: { id: true, name: true } },
@@ -32,8 +28,6 @@ type RawEmployee = {
   email: string | null;
   department: string | null;
   phone: string | null;
-  age: number | null;
-  gender: string | null;
   status: string;
   createdAt: Date;
   user: { id: string; name: string | null } | null;
@@ -70,7 +64,7 @@ export async function findEmployeeById(
 
 export async function createEmployee(
   userId: string,
-  data: { name: string; email?: string; department?: string; role?: string; phone?: string; age?: number; gender?: string; status?: string },
+  data: { name: string; email?: string; department?: string; role?: string; phone?: string; status?: string },
 ): Promise<EmployeeRow> {
   const row = await db.employee.create({
     data: { userId, ...data },
@@ -87,17 +81,6 @@ export async function updateEmployeeName(
   await db.employee.updateMany({
     where: userId ? { id: employeeId, userId } : { id: employeeId },
     data: { name },
-  });
-}
-
-export async function updateEmployeeDemographics(
-  employeeId: string,
-  userId: string | null,
-  data: { age: number | null; gender: string | null },
-): Promise<void> {
-  await db.employee.updateMany({
-    where: userId ? { id: employeeId, userId } : { id: employeeId },
-    data,
   });
 }
 

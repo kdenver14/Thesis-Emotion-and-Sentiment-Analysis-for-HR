@@ -11,11 +11,6 @@ import {
   normalizePhone,
   toStoredPhone,
 } from "~/lib/phone";
-import {
-  EMPLOYEE_GENDERS,
-  MAX_EMPLOYEE_AGE,
-  MIN_EMPLOYEE_AGE,
-} from "~/schemas/employee";
 
 const MIN_MEETING_PARTICIPANTS = 2;
 const MAX_MEETING_PARTICIPANTS = 20;
@@ -66,8 +61,6 @@ export function Inference({ employees, interviewerName }: InferenceProps) {
   const [candidatePosition, setCandidatePosition] = useState("");
   const [candidateEmail, setCandidateEmail] = useState("");
   const [candidatePhone, setCandidatePhone] = useState("");
-  const [candidateAge, setCandidateAge] = useState("");
-  const [candidateGender, setCandidateGender] = useState("");
 
   // Validation touch state
   const [nameTouched, setNameTouched] = useState(false);
@@ -119,8 +112,6 @@ export function Inference({ employees, interviewerName }: InferenceProps) {
             position: candidatePosition || undefined,
             email: candidateEmail || undefined,
             phone: toStoredPhone(candidatePhone),
-            age: candidateAge ? Number(candidateAge) : undefined,
-            gender: candidateGender || undefined,
           }
         : undefined,
   };
@@ -322,33 +313,6 @@ export function Inference({ employees, interviewerName }: InferenceProps) {
               {phoneError && (
                 <p className="text-xs text-red-500">{phoneError}</p>
               )}
-            </div>
-            <div className="flex flex-col gap-1">
-              <label className="text-xs text-gray-500">Age</label>
-              <input
-                type="number"
-                min={MIN_EMPLOYEE_AGE}
-                max={MAX_EMPLOYEE_AGE}
-                placeholder="e.g. 28"
-                value={candidateAge}
-                onChange={(e) => setCandidateAge(e.target.value)}
-                className="rounded-md border border-gray-200 px-3 py-1.5 text-sm focus:border-gray-400 focus:outline-none"
-              />
-            </div>
-            <div className="flex flex-col gap-1">
-              <label className="text-xs text-gray-500">Gender</label>
-              <select
-                value={candidateGender}
-                onChange={(e) => setCandidateGender(e.target.value)}
-                className="rounded-md border border-gray-200 px-3 py-1.5 text-sm focus:border-gray-400 focus:outline-none"
-              >
-                <option value="">— select —</option>
-                {EMPLOYEE_GENDERS.map((g) => (
-                  <option key={g} value={g}>
-                    {g}
-                  </option>
-                ))}
-              </select>
             </div>
             <div className="flex flex-col gap-1 sm:col-span-2">
               <label className="text-xs text-gray-500">Email</label>

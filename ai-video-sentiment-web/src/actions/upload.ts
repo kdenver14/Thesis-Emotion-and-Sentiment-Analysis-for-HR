@@ -2,8 +2,8 @@
 
 import { randomUUID } from "crypto";
 import path from "path";
-import { auth } from "~/server/auth";
 import { db } from "~/server/db";
+import { getMutatorOrError } from "~/server/auth/guards";
 import { env } from "~/env";
 import {
   sessionMetadataSchema,
@@ -32,8 +32,6 @@ type CandidateData = {
   position?: string;
   email?: string;
   phone?: string;
-  age?: number;
-  gender?: string;
 };
 
 // Server actions are public RPC: every field is re-validated here, not
@@ -92,8 +90,6 @@ function resolveCandidate(
       // blank candidate email is not stored as an empty string.
       email: parsed.data.email ? parsed.data.email : undefined,
       phone: parsed.data.phone,
-      age: parsed.data.age,
-      gender: parsed.data.gender,
     },
   };
 }
@@ -102,9 +98,9 @@ export async function createUpload(
   metadata: SessionMetadataInput,
   file: FileMeta,
 ): Promise<{ sessionId: string; uploadUrl: string } | { error: string }> {
-  const session = await auth();
-  if (!session?.user?.id) return { error: "Unauthorized" };
-  const userId = session.user.id;
+  const guard = await getMutatorOrError();
+  if (!guard.ok) return { error: guard.error };
+  const userId = guard.user.id;
   if (!r2Configured() || !env.MODAL_TRIGGER_URL) {
     return { error: "Inference service is not configured" };
   }
@@ -124,7 +120,7 @@ export async function createUpload(
     const r = await resolveParticipants(
       metadata,
       userId,
-      session.user.role ?? "STAFF",
+      guard.user.role,
     );
     if ("error" in r) return { error: r.error };
     participantEmployeeIds = r.ids;
@@ -179,9 +175,9 @@ export async function createUpload(
 export async function triggerInference(
   sessionId: string,
 ): Promise<{ ok: true } | { error: string }> {
-  const session = await auth();
-  if (!session?.user?.id) return { error: "Unauthorized" };
-  const userId = session.user.id;
+  const guard = await getMutatorOrError();
+  if (!guard.ok) return { error: guard.error };
+  const userId = guard.user.id;
 
   const triggerUrl = env.MODAL_TRIGGER_URL;
   if (!triggerUrl) return { error: "Inference service is not configured" };

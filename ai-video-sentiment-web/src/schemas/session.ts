@@ -1,10 +1,5 @@
 import { z } from "zod";
 import { SESSION_TYPES } from "~/types/analysis";
-import {
-  EMPLOYEE_GENDERS,
-  MAX_EMPLOYEE_AGE,
-  MIN_EMPLOYEE_AGE,
-} from "~/schemas/employee";
 
 export const sessionMetadataSchema = z.object({
   title: z.string().min(1, "Title is required").max(200),
@@ -58,17 +53,6 @@ export const onboardingCandidateSchema = z.object({
   position: z.string().max(200).optional(),
   email: z.string().email().optional().or(z.literal("")),
   phone: z.string().max(50).optional(),
-  age: z
-    .number()
-    .int()
-    .min(MIN_EMPLOYEE_AGE, `Candidate must be at least ${MIN_EMPLOYEE_AGE}`)
-    .max(MAX_EMPLOYEE_AGE, `Age must be ${MAX_EMPLOYEE_AGE} or below`)
-    .optional(),
-  gender: z
-    .enum(EMPLOYEE_GENDERS, {
-      errorMap: () => ({ message: "Invalid gender selection" }),
-    })
-    .optional(),
 });
 
 export type SessionMetadataSchema = z.infer<typeof sessionMetadataSchema>;

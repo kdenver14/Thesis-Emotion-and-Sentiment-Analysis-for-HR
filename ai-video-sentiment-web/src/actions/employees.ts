@@ -6,13 +6,9 @@ import {
   deleteEmployee,
   findEmployeesByUser,
   updateEmployeeName,
-  updateEmployeeDemographics,
   type EmployeeRow,
 } from "~/server/repositories/employee";
-import {
-  addEmployeeSchema,
-  employeeDemographicsSchema,
-} from "~/schemas/employee";
+import { addEmployeeSchema } from "~/schemas/employee";
 import { getAccessScope, requireScopeUserId } from "~/server/auth/guards";
 
 const MAX_EMPLOYEE_NAME = 200;
@@ -29,8 +25,6 @@ export async function addEmployee(data: {
   email?: string;
   department?: string;
   phone?: string;
-  age?: number;
-  gender?: string;
   status?: string;
 }): Promise<{ employee?: EmployeeRow; error?: string }> {
   const session = await auth();
@@ -48,8 +42,6 @@ export async function addEmployee(data: {
     email: v.email,
     department: v.department,
     phone: v.phone,
-    age: v.age,
-    gender: v.gender,
     status: v.status ?? "Active",
   });
 
@@ -71,25 +63,6 @@ export async function renameEmployee(
     );
   const userId = await requireScopeUserId();
   await updateEmployeeName(employeeId, userId, trimmed);
-}
-
-export async function updateEmployeeDemographicsAction(
-  employeeId: string,
-  data: { age: number | null; gender: string | null },
-): Promise<{ error?: string }> {
-  const session = await auth();
-  if (!session?.user?.id) return { error: "Unauthorized" };
-  if (session.user.role === "DIRECTOR")
-    return { error: "Directors cannot edit employee records" };
-
-  const parsed = employeeDemographicsSchema.safeParse(data);
-  if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
-  }
-
-  const userId = await requireScopeUserId();
-  await updateEmployeeDemographics(employeeId, userId, parsed.data);
-  return {};
 }
 
 export async function removeEmployee(

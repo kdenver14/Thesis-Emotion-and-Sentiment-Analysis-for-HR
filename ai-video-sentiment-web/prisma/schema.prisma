@@ -86,8 +86,6 @@ model Employee {
     department       String?
     role             String?
     phone            String?
-    age              Int?
-    gender           String?
     status           String            @default("Active")
     userId              String
     user                User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -149,12 +147,13 @@ model OnboardingCandidate {
     position  String?
     email     String?
     phone     String?
-    age       Int?
-    gender    String?
     // Set once the candidate is promoted to an Employee from the session
     // page. Bare id (no FK relation), mirroring AnalysisSession.employeeSpeakerId;
     // employees soft-delete so this never dangles in practice.
     promotedEmployeeId String?
+    // Set when HR marks the candidate as rejected. The interview session is
+    // auto-deleted REJECTED_CANDIDATE_RETENTION_MONTHS after this timestamp.
+    rejectedAt DateTime?
     createdAt DateTime        @default(now())
 }
 

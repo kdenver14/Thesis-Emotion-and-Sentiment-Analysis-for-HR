@@ -64,3 +64,15 @@ export async function getManagerOrError(): Promise<
   if (user.role !== "MANAGER") return { ok: false, error: "Unauthorized" };
   return { ok: true, user };
 }
+
+// Result-union counterpart of requireMutator(), for form-bound actions that
+// render the error inline. DIRECTOR is view-only.
+export async function getMutatorOrError(): Promise<
+  { ok: true; user: AuthedUser } | { ok: false; error: string }
+> {
+  const user = await currentUser();
+  if (!user) return { ok: false, error: "Unauthorized" };
+  if (user.role === "DIRECTOR")
+    return { ok: false, error: "Directors have view-only access" };
+  return { ok: true, user };
+}

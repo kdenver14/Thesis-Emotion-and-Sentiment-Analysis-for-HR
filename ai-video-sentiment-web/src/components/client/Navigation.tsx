@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { FiUpload, FiGrid, FiUsers, FiSettings } from "react-icons/fi";
+import { FiUpload, FiGrid, FiUsers, FiSettings, FiFileText } from "react-icons/fi";
 import { SignOutButton } from "./signout";
 import { EditableName } from "./EditableName";
 import { ChangePasswordModal } from "./ChangePasswordModal";
@@ -26,7 +26,12 @@ export default function Navigation({
   const navItems: NavItem[] = [
     ...(userRole !== "DIRECTOR" ? [{ href: "/", label: "Upload", icon: FiUpload }] : []),
     ...BASE_NAV,
-    ...(userRole === "MANAGER" || userRole === "DIRECTOR" ? [{ href: "/admin/users", label: "Users", icon: FiSettings }] : []),
+    ...(userRole === "MANAGER" || userRole === "DIRECTOR"
+      ? [
+          { href: "/admin/users", label: "Users", icon: FiSettings },
+          { href: "/admin/audit", label: "Audit Log", icon: FiFileText },
+        ]
+      : []),
   ];
 
   return (
