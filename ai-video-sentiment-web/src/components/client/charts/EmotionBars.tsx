@@ -1,10 +1,11 @@
 "use client";
 
-import type {
-  ExpressiveBreakdown,
-  Score,
-  SentimentBreakdown,
-  TopEmotionBreakdown,
+import {
+  distributePercents,
+  type ExpressiveBreakdown,
+  type Score,
+  type SentimentBreakdown,
+  type TopEmotionBreakdown,
 } from "~/types/analysis";
 import {
   emotionColorClass,
@@ -55,9 +56,12 @@ export function EmotionBars({
   }
 
   const sorted = [...bars].sort((a, b) => b.confidence - a.confidence);
+  // Per-bar integer percentages that always sum to 100 (Hamilton); indexed
+  // positionally to the sorted bars.
+  const barPcts = distributePercents(sorted.map((s) => s.confidence));
 
   const top = sorted[0];
-  const topPct = top ? Math.round(top.confidence * 100) : 0;
+  const topPct = barPcts[0] ?? 0;
 
   const sentTotal =
     sentiment.positive + sentiment.neutral + sentiment.negative;
@@ -75,9 +79,9 @@ export function EmotionBars({
   return (
     <div className="flex flex-col gap-3">
       <div className="flex flex-col gap-2">
-        {sorted.map((s) => {
+        {sorted.map((s, i) => {
           const colors = emotionHex(s.label);
-          const pct = Math.round(s.confidence * 100);
+          const pct = barPcts[i] ?? 0;
           return (
             <div key={s.label} className="flex items-center gap-2">
               <span
