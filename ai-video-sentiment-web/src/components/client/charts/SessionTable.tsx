@@ -2,16 +2,11 @@
 
 import { useState, useTransition, useRef, useEffect } from "react";
 import Link from "next/link";
-import { useRouter, usePathname, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { FiArrowUp, FiArrowDown, FiTrash2, FiSearch, FiX } from "react-icons/fi";
 import type { ParsedSession } from "~/server/repositories/session";
-import { SESSION_TYPE_LABELS, getSentimentBreakdown } from "~/types/analysis";
-import {
-  NEGATIVE_CLASS,
-  NEUTRAL_CLASS,
-  POSITIVE_CLASS,
-  emotionColorClass,
-} from "~/lib/sentiment";
+import { SESSION_TYPE_LABELS } from "~/types/analysis";
+import { emotionColorClass } from "~/lib/sentiment";
 import { removeSessionsBulk } from "~/actions/sessions";
 
 type SortKey =
@@ -28,25 +23,16 @@ const SENTIMENT_BADGE: Record<string, string> = {
   negative: "bg-red-100 text-red-700",
 };
 
-const EMOTION_EMOJI: Record<string, string> = {
-  anger: "😡",
-  disgust: "🤢",
-  fear: "😨",
-  joy: "😄",
-  neutral: "😐",
-  sadness: "😢",
-  surprise: "😲",
-};
-
 interface SessionTableProps {
   sessions: ParsedSession[];
   seesAllUsers?: boolean;
   canMutate?: boolean;
-  // Initial value for the Type filter, resolved on the server from the
-  // ?type= search param so a shared URL deep-links to the same filter.
-  // "all" means no filter. The server has already validated the value
-  // against SESSION_TYPES before passing it in.
-  initialTypeFilter?: string;
+  // Active session-type scope, resolved on the server from the ?type= search
+  // param so a shared URL deep-links to the same filter. "all" means no
+  // filter. The server has already validated the value against SESSION_TYPES.
+  // The control itself lives in the dashboard toolbar (SessionTypeFilter),
+  // because it also scopes the emotion donut and the trend chart.
+  typeFilter?: string;
 }
 
 function IndeterminateCheckbox({
@@ -80,37 +66,17 @@ export function SessionTable({
   sessions,
   seesAllUsers = false,
   canMutate = false,
-  initialTypeFilter = "all",
+  typeFilter = "all",
 }: SessionTableProps) {
   const router = useRouter();
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
   const [sortKey, setSortKey] = useState<SortKey>("sessionDate");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const showHandledBy =
     seesAllUsers ||
     new Set(sessions.map((s) => s.handledBy?.id ?? "")).size > 1;
   const [search, setSearch] = useState("");
-  const [typeFilter, setTypeFilter] = useState<string>(initialTypeFilter);
   const [selected, setSelected] = useState<Set<string>>(new Set());
 
-  // Sync the Type filter to the URL. The dashboard page reads ?type= on
-  // the server to filter the emotion bars and trend chart in the same
-  // request, so the panels update in step with the table. router.replace
-  // overwrites history (no back-button spam per filter click), and all
-  // other search params are preserved via URLSearchParams.
-  function onTypeFilterChange(value: string): void {
-    setTypeFilter(value);
-    const params = new URLSearchParams(searchParams?.toString() ?? "");
-    if (value === "all") params.delete("type");
-    else params.set("type", value);
-    const qs = params.toString();
-    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
-  }
-
-  const typeOptions = Array.from(
-    new Set(sessions.map((s) => s.sessionType)),
-  ).sort();
   const [isBulkDeleting, startBulkTransition] = useTransition();
 
   const SORT_OPTIONS: { value: SortKey; label: string }[] = [
@@ -209,8 +175,7 @@ export function SessionTable({
     });
   };
 
-  const th =
-    "px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide";
+  const th = "px-4 py-3 text-left text-xs font-medium text-gray-500";
 
   return (
     <div className="flex flex-col gap-3">
@@ -234,41 +199,20 @@ export function SessionTable({
             </button>
           )}
         </div>
+        {/* The select states its own meaning ("Sort: Date"), so no floating
+            uppercase label is needed beside it. The session-type filter is a
+            page-level control and lives in the dashboard toolbar instead. */}
         <div className="flex flex-wrap items-center gap-2">
-          <label
-            htmlFor="session-type-filter"
-            className="text-xs uppercase tracking-wide text-gray-500"
-          >
-            Type
-          </label>
-          <select
-            id="session-type-filter"
-            value={typeFilter}
-            onChange={(e) => onTypeFilterChange(e.target.value)}
-            className="rounded-lg border border-gray-200 bg-white py-2 pl-3 pr-8 text-sm text-gray-700 focus:border-gray-400 focus:outline-none"
-          >
-            <option value="all">All types</option>
-            {typeOptions.map((t) => (
-              <option key={t} value={t}>
-                {SESSION_TYPE_LABELS[t as keyof typeof SESSION_TYPE_LABELS] ?? t}
-              </option>
-            ))}
-          </select>
-          <label
-            htmlFor="session-sort-key"
-            className="text-xs uppercase tracking-wide text-gray-500"
-          >
-            Sort by
-          </label>
           <select
             id="session-sort-key"
+            aria-label="Sort by"
             value={sortKey}
             onChange={(e) => setSortKey(e.target.value as SortKey)}
             className="rounded-lg border border-gray-200 bg-white py-2 pl-3 pr-8 text-sm text-gray-700 focus:border-gray-400 focus:outline-none"
           >
             {SORT_OPTIONS.map((o) => (
               <option key={o.value} value={o.value}>
-                {o.label}
+                Sort: {o.label}
               </option>
             ))}
           </select>
@@ -276,16 +220,14 @@ export function SessionTable({
             type="button"
             onClick={() => setSortDir((d) => (d === "asc" ? "desc" : "asc"))}
             aria-label={`Sort direction: ${sortDir === "asc" ? "ascending" : "descending"}`}
-            className="flex items-center gap-1 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
+            title={sortDir === "asc" ? "Ascending" : "Descending"}
+            className="rounded-lg border border-gray-200 bg-white p-2 text-gray-600 hover:bg-gray-50"
           >
             {sortDir === "asc" ? (
               <FiArrowUp className="h-3.5 w-3.5" />
             ) : (
               <FiArrowDown className="h-3.5 w-3.5" />
             )}
-            <span className="text-xs uppercase tracking-wide text-gray-500">
-              {sortDir === "asc" ? "Asc" : "Desc"}
-            </span>
           </button>
         </div>
       </div>
@@ -321,20 +263,19 @@ export function SessionTable({
                   />
                 </th>
               )}
-              <th className={th}>Date</th>
-              {showHandledBy && <th className={th}>Handled by</th>}
               <th className={th}>Title</th>
+              <th className={th}>Date</th>
               <th className={th}>Type</th>
               <th className={th}>Employee</th>
               <th className={th}>Emotion</th>
               <th className={th}>Sentiment</th>
-              <th className={th}>Sentiment %</th>
+              {showHandledBy && <th className={th}>Handled by</th>}
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
             {sorted.length === 0 ? (
               <tr>
-                <td colSpan={7 + (canMutate ? 1 : 0) + (showHandledBy ? 1 : 0)} className="px-4 py-8 text-center text-gray-400">
+                <td colSpan={6 + (canMutate ? 1 : 0) + (showHandledBy ? 1 : 0)} className="px-4 py-8 text-center text-gray-400">
                   {search || typeFilter !== "all"
                     ? "No sessions match your filters"
                     : "No sessions yet"}
@@ -356,23 +297,13 @@ export function SessionTable({
                       />
                     </td>
                   )}
-                  <td className="px-4 py-3 text-gray-600">
-                    <div className="flex flex-col">
-                      <span>{s.sessionDate.toLocaleDateString("en-GB")}</span>
-                      <span className="text-xs text-gray-400">Uploaded {s.createdAt.toLocaleDateString("en-GB")}</span>
-                    </div>
-                  </td>
-                  {showHandledBy && (
-                    <td className="px-4 py-3">
-                      <span className="rounded-full border border-gray-200 px-2 py-0.5 text-xs text-gray-500">
-                        {s.handledBy?.name ?? "—"}
-                      </span>
-                    </td>
-                  )}
-                  <td className="px-4 py-3 font-medium">
-                    <Link href={`/dashboard/${s.id}`} className="hover:text-gray-600 hover:underline">
+                  <td className="px-4 py-3 font-medium text-gray-900">
+                    <Link href={`/dashboard/${s.id}`} className="hover:underline">
                       {s.title}
                     </Link>
+                  </td>
+                  <td className="px-4 py-3 whitespace-nowrap text-gray-600">
+                    {s.sessionDate.toLocaleDateString("en-GB")}
                   </td>
                   <td className="px-4 py-3 text-gray-500">
                     {SESSION_TYPE_LABELS[
@@ -393,25 +324,17 @@ export function SessionTable({
                     ) : s.expressivenessPct === 0 ? (
                       <span className="text-xs text-gray-500">mostly neutral</span>
                     ) : (
-                      <div className="flex flex-col">
-                        <span className="capitalize">
-                          {EMOTION_EMOJI[s.topExpressiveEmotion] ?? ""}{" "}
-                          <span
-                            className={emotionColorClass(
-                              s.topExpressiveEmotion,
-                            )}
-                          >
-                            {s.topExpressiveEmotion}{" "}
-                            {Math.round(
-                              (s.expressiveEmotions[0]?.confidence ?? 0) * 100,
-                            )}
-                            %
-                          </span>
-                        </span>
-                        <span className="text-xs text-gray-400">
-                          {s.expressivenessPct}% expressive
-                        </span>
-                      </div>
+                      <span
+                        className={`whitespace-nowrap capitalize ${emotionColorClass(
+                          s.topExpressiveEmotion,
+                        )}`}
+                      >
+                        {s.topExpressiveEmotion}{" "}
+                        {Math.round(
+                          (s.expressiveEmotions[0]?.confidence ?? 0) * 100,
+                        )}
+                        %
+                      </span>
                     )}
                   </td>
                   <td className="px-4 py-3">
@@ -435,32 +358,11 @@ export function SessionTable({
                       </span>
                     )}
                   </td>
-                  <td className="px-4 py-3">
-                    {s.status === "PROCESSING" ||
-                    s.status === "FAILED" ||
-                    s.status === "UPLOADING" ? (
-                      <span className="text-xs text-gray-400">—</span>
-                    ) : (
-                      (() => {
-                        const b = getSentimentBreakdown(s.avgSentiments);
-                        return (
-                          <span className="whitespace-nowrap text-xs">
-                            <span className={POSITIVE_CLASS}>
-                              {b.positive}% pos
-                            </span>
-                            <span className="mx-1 text-gray-300">·</span>
-                            <span className={NEUTRAL_CLASS}>
-                              {b.neutral}% neu
-                            </span>
-                            <span className="mx-1 text-gray-300">·</span>
-                            <span className={NEGATIVE_CLASS}>
-                              {b.negative}% neg
-                            </span>
-                          </span>
-                        );
-                      })()
-                    )}
-                  </td>
+                  {showHandledBy && (
+                    <td className="px-4 py-3 whitespace-nowrap text-gray-500">
+                      {s.handledBy?.name ?? "—"}
+                    </td>
+                  )}
                 </tr>
               ))
             )}
