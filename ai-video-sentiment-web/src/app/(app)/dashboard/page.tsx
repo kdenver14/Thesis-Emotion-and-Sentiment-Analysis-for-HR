@@ -1,3 +1,5 @@
+import Link from "next/link";
+import { FiUpload } from "react-icons/fi";
 import {
   getDashboardEmotionMetrics,
   getEmotionTrend,
@@ -5,7 +7,7 @@ import {
 } from "~/actions/sessions";
 import type { EmotionTrendRow } from "~/server/repositories/session";
 import { SessionTable } from "~/components/client/charts/SessionTable";
-import { LatestSessionCard } from "~/components/client/LatestSessionCard";
+import { SessionTypeFilter } from "~/components/client/charts/SessionTypeFilter";
 import { ExportButtons } from "~/components/client/ExportButtons";
 import { EmotionPanel } from "~/components/client/charts/EmotionPanel";
 import { allowedWindows, hasTrendAccess } from "~/lib/trend";
@@ -47,14 +49,38 @@ export default async function DashboardPage({
     getSessions(),
   ]);
 
+  const total = sessions.length;
+  // Only offer types that actually exist in the visible sessions.
+  const typeOptions = [...new Set(sessions.map((s) => s.sessionType))].sort();
+
+  if (total === 0) {
+    return (
+      <div className="flex flex-col gap-6 p-4 sm:p-8">
+        <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-gray-200 py-20 text-center">
+          <p className="text-sm font-medium text-gray-600">No sessions yet</p>
+          <p className="max-w-sm text-xs text-gray-400">
+            {canMutate
+              ? "Upload a video to run your first sentiment analysis."
+              : "Analyzed sessions will appear here once they are uploaded."}
+          </p>
+          {canMutate && (
+            <Link
+              href="/upload"
+              className="mt-1 inline-flex items-center gap-1.5 rounded-md bg-gray-800 px-3 py-2 text-sm text-white hover:bg-gray-700"
+            >
+              <FiUpload className="h-4 w-4" />
+              Upload a video
+            </Link>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col gap-6 p-4 sm:p-8">
-      <div className="flex items-center justify-end">
-        <ExportButtons aggregateParams={{}} label="Export all" userRole={role} />
-      </div>
-
-      {/* Emotion bars + emotion trend, driven by shared switch; latest
-          session fills the left column under the bars card */}
+      {/* Emotion overview. Its toolbar also carries the export actions, so the
+          page shows one control row instead of a title bar plus a second row. */}
       <EmotionPanel
         metrics={emotionMetrics}
         trend={trend}
@@ -62,28 +88,32 @@ export default async function DashboardPage({
         initialDays={trendDays}
         showTrend={showTrend}
         sessionType={typeFilter}
-        latestSession={
-          sessions[0] ? <LatestSessionCard session={sessions[0]} /> : null
+        actions={
+          <>
+            <SessionTypeFilter
+              value={typeFilter ?? "all"}
+              options={typeOptions}
+            />
+            <ExportButtons
+              aggregateParams={{}}
+              label="Export all"
+              userRole={role}
+            />
+          </>
         }
       />
 
       {/* Sessions table */}
       <div className="flex flex-col gap-3">
-        <div className="flex items-center justify-between">
-          <h2 className="text-sm font-medium text-gray-700">
-            Recent sessions
-            {sessions.length > 0 && (
-              <span className="ml-2 font-normal text-gray-400">
-                · {sessions.length}
-              </span>
-            )}
-          </h2>
-        </div>
+        <h2 className="text-sm font-medium text-gray-700">
+          Recent sessions
+          <span className="ml-2 font-normal text-gray-400">· {total}</span>
+        </h2>
         <SessionTable
           sessions={sessions}
           seesAllUsers={seesAllUsers}
           canMutate={canMutate}
-          initialTypeFilter={typeFilter ?? "all"}
+          typeFilter={typeFilter ?? "all"}
         />
       </div>
     </div>

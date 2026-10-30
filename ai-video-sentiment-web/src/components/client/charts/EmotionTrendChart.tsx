@@ -88,7 +88,7 @@ export function EmotionTrendChart({
   }
 
   return (
-    <div className="flex flex-col gap-4 rounded-xl border border-gray-200 p-4">
+    <div className="flex h-full flex-col gap-4 rounded-xl border border-gray-200 p-4">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2 text-gray-400">
           <span className="text-xs uppercase tracking-wide">

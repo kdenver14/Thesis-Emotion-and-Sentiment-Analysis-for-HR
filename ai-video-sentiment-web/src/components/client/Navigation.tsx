@@ -24,7 +24,7 @@ export default function Navigation({
   const pathname = usePathname();
 
   const navItems: NavItem[] = [
-    ...(userRole !== "DIRECTOR" ? [{ href: "/", label: "Upload", icon: FiUpload }] : []),
+    ...(userRole !== "DIRECTOR" ? [{ href: "/upload", label: "Upload", icon: FiUpload }] : []),
     ...BASE_NAV,
     ...(userRole === "MANAGER" || userRole === "DIRECTOR"
       ? [
@@ -39,10 +39,7 @@ export default function Navigation({
       <div className="flex items-center gap-6">
         <div className="flex items-center gap-1">
           {navItems.map(({ href, label, icon: Icon }) => {
-            const isActive =
-              href === "/"
-                ? pathname === "/"
-                : pathname.startsWith(href);
+            const isActive = pathname.startsWith(href);
             return (
               <Link
                 key={href}
