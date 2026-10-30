@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { FiChevronDown, FiChevronUp, FiCopy, FiCheck, FiTrash2, FiEdit2, FiX } from "react-icons/fi";
 import { removeUser, updateUserName } from "~/actions/users";
@@ -206,11 +206,24 @@ function UserRow({ user, readOnly }: { user: UserRow; readOnly?: boolean }) {
   );
 }
 
-export function UserList({ users, readOnly }: { users: UserRow[]; readOnly?: boolean }) {
+export function UserList({
+  users,
+  readOnly,
+  actions,
+}: {
+  users: UserRow[];
+  readOnly?: boolean;
+  // Page-level action (the create-account button). It sits on the first role
+  // section's header row so it does not cost a separate, mostly empty row.
+  actions?: ReactNode;
+}) {
   if (users.length === 0) {
     return (
-      <div className="flex h-40 items-center justify-center rounded-xl border border-dashed border-gray-200 text-sm text-gray-400">
-        No users yet.
+      <div className="flex flex-col gap-3">
+        {actions && <div className="flex justify-end">{actions}</div>}
+        <div className="flex h-40 items-center justify-center rounded-xl border border-dashed border-gray-200 text-sm text-gray-400">
+          No users yet.
+        </div>
       </div>
     );
   }
@@ -229,6 +242,8 @@ export function UserList({ users, readOnly }: { users: UserRow[]; readOnly?: boo
     }
   }
 
+  const firstRole = ROLE_ORDER.find((r) => grouped[r].length > 0);
+
   return (
     <div className="flex flex-col gap-6">
       {ROLE_ORDER.map((role) => {
@@ -236,11 +251,11 @@ export function UserList({ users, readOnly }: { users: UserRow[]; readOnly?: boo
         if (list.length === 0) return null;
         return (
           <section key={role} className="flex flex-col gap-2">
-            <div className="flex items-center justify-between px-1">
+            <div className="flex items-center justify-between gap-3 px-1">
               <h2 className="text-xs font-medium uppercase tracking-wide text-gray-500">
                 {SECTION_LABEL[role]}
               </h2>
-              <span className="text-xs text-gray-400">{list.length}</span>
+              {role === firstRole && actions}
             </div>
             <div className="flex flex-col gap-2">
               {list.map((u) => (
@@ -252,11 +267,10 @@ export function UserList({ users, readOnly }: { users: UserRow[]; readOnly?: boo
       })}
       {other.length > 0 && (
         <section className="flex flex-col gap-2">
-          <div className="flex items-center justify-between px-1">
+          <div className="px-1">
             <h2 className="text-xs font-medium uppercase tracking-wide text-gray-500">
               Other
             </h2>
-            <span className="text-xs text-gray-400">{other.length}</span>
           </div>
           <div className="flex flex-col gap-2">
             {other.map((u) => (
