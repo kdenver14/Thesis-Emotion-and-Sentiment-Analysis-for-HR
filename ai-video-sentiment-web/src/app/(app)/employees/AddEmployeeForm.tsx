@@ -23,7 +23,7 @@ const DEPARTMENTS = [
   "Other",
 ] as const;
 
-export function AddEmployeeForm() {
+export function AddEmployeeForm({ onSuccess }: { onSuccess?: () => void } = {}) {
   const router = useRouter();
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -65,6 +65,7 @@ export function AddEmployeeForm() {
       setDepartment("");
       setPhone("");
       router.refresh();
+      onSuccess?.();
     }
     setLoading(false);
   };

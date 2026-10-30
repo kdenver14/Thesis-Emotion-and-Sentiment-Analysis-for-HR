@@ -12,13 +12,14 @@ import { PromoteCandidateButton } from "~/components/client/PromoteCandidateButt
 import { RejectCandidateButton } from "~/components/client/RejectCandidateButton";
 import { UndoRejectionButton } from "~/components/client/UndoRejectionButton";
 import { candidateDeletionDate } from "~/lib/retention";
-import { EmotionBarChart } from "~/components/client/charts/EmotionBarChart";
+import { EmotionBarChartLazy } from "~/components/client/charts/EmotionBarChartLazy";
 import { SpeakerTimeline } from "~/components/client/charts/SpeakerTimeline";
 import { MeetingSpeakerBinding } from "~/components/client/MeetingSpeakerBinding";
+import { SessionDetailTabs } from "~/components/client/SessionDetailTabs";
 import { ExportButtons } from "~/components/client/ExportButtons";
 import { ProcessingPoller } from "~/components/client/ProcessingPoller";
 import { DeleteSessionButton } from "./DeleteSessionButton";
-import { SESSION_TYPE_LABELS, computeTopEmotion } from "~/types/analysis";
+import { SESSION_TYPE_LABELS } from "~/types/analysis";
 
 // Retention dates are shown in the HR team's timezone so the deletion date on
 // screen matches the day the server-side purge actually acts.
@@ -71,7 +72,7 @@ export default async function SessionDetailPage({ params }: PageProps) {
           <FiLoader className="h-8 w-8 animate-spin text-gray-400" />
           <p className="text-sm font-medium text-gray-600">Analysing video...</p>
           <p className="text-xs text-gray-400">
-            You can navigate away — this will keep running in the background.
+            You can navigate away. This keeps running in the background.
           </p>
         </div>
       </div>
@@ -132,8 +133,6 @@ export default async function SessionDetailPage({ params }: PageProps) {
               <span>{session.sessionDate.toLocaleDateString("en-GB")}</span>
               <span>·</span>
               <span>{sessionTypeLabel}</span>
-              <span>·</span>
-              <span>Uploaded {session.createdAt.toLocaleDateString("en-GB")}</span>
               {session.interviewerName && (
                 <>
                   <span>·</span>
@@ -157,12 +156,6 @@ export default async function SessionDetailPage({ params }: PageProps) {
                   ) : (
                     <span>{session.employee?.name ?? "Unassigned"}</span>
                   )}
-                </>
-              )}
-              {session.durationSecs && (
-                <>
-                  <span>·</span>
-                  <span>{session.durationSecs.toFixed(0)}s</span>
                 </>
               )}
             </div>
@@ -265,28 +258,11 @@ export default async function SessionDetailPage({ params }: PageProps) {
         </div>
       )}
 
-      {/* Summary */}
-      <SessionSummary
-        summary={session.summary}
-        avgSentiments={session.avgSentiments}
-        expressive={{
-          expressivenessPct: session.expressivenessPct,
-          topExpressiveEmotion: session.topExpressiveEmotion,
-          expressiveEmotions: session.expressiveEmotions,
-        }}
-        allEmotions={computeTopEmotion(session.utterances)}
-        topSentiment={session.topSentiment}
-      />
+      {/* Summary — the hero. Detail lives in the tabs below. */}
+      <SessionSummary summary={session.summary} />
 
-      {/* Emotion distribution */}
-      <div className="rounded-xl border border-gray-200 p-4">
-        <h2 className="mb-4 text-sm font-medium text-gray-700">
-          Emotion distribution
-        </h2>
-        <EmotionBarChart data={session.avgEmotions} height={200} />
-      </div>
-
-      {/* Meeting participant ↔ speaker binding */}
+      {/* Meeting participant/speaker binding stays visible: speakerLabel is
+          the per-employee analytics join key, so it must never be buried. */}
       {session.sessionType === "meeting" && (
         <MeetingSpeakerBinding
           sessionId={session.id}
@@ -296,19 +272,35 @@ export default async function SessionDetailPage({ params }: PageProps) {
         />
       )}
 
-      {/* Utterance timeline */}
-      <div className="rounded-xl border border-gray-200 p-4">
-        <h2 className="mb-4 text-sm font-medium text-gray-700">
-          Utterance timeline
-        </h2>
-        <SpeakerTimeline
-          sessionId={session.id}
-          utterances={session.utterances}
-          speakers={speakers}
-          employeeSpeakerId={session.employeeSpeakerId}
-          canMutate={canMutate}
-        />
-      </div>
+      {/* Emotion distribution and transcript, one at a time */}
+      <SessionDetailTabs
+        tabs={[
+          {
+            id: "distribution",
+            label: "Emotion distribution",
+            content: (
+              <div className="rounded-xl border border-gray-200 p-4">
+                <EmotionBarChartLazy data={session.avgEmotions} height={200} />
+              </div>
+            ),
+          },
+          {
+            id: "transcript",
+            label: "Transcript",
+            content: (
+              <div className="rounded-xl border border-gray-200 p-4">
+                <SpeakerTimeline
+                  sessionId={session.id}
+                  utterances={session.utterances}
+                  speakers={speakers}
+                  employeeSpeakerId={session.employeeSpeakerId}
+                  canMutate={canMutate}
+                />
+              </div>
+            ),
+          },
+        ]}
+      />
     </div>
   );
 }

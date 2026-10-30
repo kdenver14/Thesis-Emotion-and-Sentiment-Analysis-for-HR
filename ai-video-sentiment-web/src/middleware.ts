@@ -8,10 +8,10 @@ export default auth((req) => {
     return Response.redirect(newUrl);
   }
 
-  // Redirect DIRECTOR away from upload home page
+  // Redirect DIRECTOR away from the upload page (view-only role)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const role = (req.auth?.user as any)?.role ?? "STAFF";
-  if (role === "DIRECTOR" && req.nextUrl.pathname === "/") {
+  if (role === "DIRECTOR" && req.nextUrl.pathname === "/upload") {
     return Response.redirect(new URL("/dashboard", req.nextUrl.origin));
   }
 
@@ -22,5 +22,11 @@ export default auth((req) => {
 });
 
 export const config = {
-  matcher: ["/", "/dashboard/:path*", "/employees/:path*", "/admin/:path*"],
+  matcher: [
+    "/",
+    "/upload",
+    "/dashboard/:path*",
+    "/employees/:path*",
+    "/admin/:path*",
+  ],
 };
