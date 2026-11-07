@@ -113,6 +113,12 @@ model AnalysisSession {
     topSentiment         String                @default("")
     summary              String                @default("")
     durationSecs         Float?
+    // Dominant-emotion tally (JSON, first-seen order) and utterance count,
+    // written with the result so lists and dashboard totals never re-read
+    // every utterance. Anything that adds or removes utterances must refresh
+    // both (scripts/backfill-emotion-counts.ts recomputes them).
+    emotionCounts        String                @default("{}")
+    utteranceCount       Int                   @default(0)
     status               String                @default("PROCESSING")
     errorMessage         String?
     createdAt            DateTime              @default(now())
@@ -167,6 +173,9 @@ model Utterance {
     speaker    String?
     emotions   String
     sentiments String
+
+    // Every read is per session; without this each one scans all utterances.
+    @@index([sessionId])
 }
 
 // Append-only admin action trail. No FK relations: actor and target are
@@ -178,6 +187,8 @@ model AuditLog {
     id         String   @id @default(cuid())
     actorId    String
     actorName  String
+    // Role snapshot at the time of the action (STAFF/MANAGER/DIRECTOR).
+    actorRole  String?
     action     String
     targetType String
     targetId   String

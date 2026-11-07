@@ -9,10 +9,11 @@ export default async function AppLayout({
   const session = await auth();
   const userName = session?.user?.name ?? undefined;
   const userRole = session?.user?.role ?? "STAFF";
+  const userEmail = session?.user?.email ?? undefined;
 
   return (
     <div className="min-h-screen bg-white">
-      <Navigation userName={userName} userRole={userRole} />
+      <Navigation userName={userName} userRole={userRole} userEmail={userEmail} />
       <main>{children}</main>
     </div>
   );

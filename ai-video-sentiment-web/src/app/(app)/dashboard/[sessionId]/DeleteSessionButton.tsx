@@ -6,9 +6,12 @@ import { removeSession } from "~/actions/sessions";
 
 interface DeleteSessionButtonProps {
   sessionId: string;
+  // Quiet trash icon for the session header, where delete is the rarest
+  // action. The failed-session view keeps the labeled button.
+  iconOnly?: boolean;
 }
 
-export function DeleteSessionButton({ sessionId }: DeleteSessionButtonProps) {
+export function DeleteSessionButton({ sessionId, iconOnly = false }: DeleteSessionButtonProps) {
   const router = useRouter();
 
   const handleDelete = async () => {
@@ -16,6 +19,20 @@ export function DeleteSessionButton({ sessionId }: DeleteSessionButtonProps) {
     await removeSession(sessionId);
     router.push("/dashboard");
   };
+
+  if (iconOnly) {
+    return (
+      <button
+        type="button"
+        onClick={handleDelete}
+        aria-label="Delete session"
+        title="Delete session"
+        className="rounded-md p-2 text-gray-400 hover:bg-red-50 hover:text-red-600"
+      >
+        <FiTrash2 className="h-4 w-4" aria-hidden />
+      </button>
+    );
+  }
 
   return (
     <button

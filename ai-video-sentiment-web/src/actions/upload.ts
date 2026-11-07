@@ -18,6 +18,8 @@ import {
   r2Configured,
 } from "~/server/storage/r2";
 import {
+  deleteUnfinishedSession,
+  failUploadingSession,
   markSessionProcessing,
   updateSessionFailed,
 } from "~/server/repositories/session";
@@ -25,6 +27,9 @@ import type { SessionMetadataInput } from "~/types/analysis";
 
 const ALLOWED_EXT = new Set([".mp4", ".mov", ".avi"]);
 const MAX_VIDEO_BYTES = 3 * 1024 * 1024 * 1024; // 3 GB (plan-locked cap)
+const CANCEL_TIMEOUT_MS = 5000;
+const UPLOAD_FAILED_MESSAGE =
+  "The video upload failed. Check your connection and upload it again.";
 
 type FileMeta = { name: string; type: string; size: number };
 type CandidateData = {
@@ -51,8 +56,6 @@ function parseMetadata(metadata: SessionMetadataInput) {
 
 async function resolveParticipants(
   metadata: SessionMetadataInput,
-  userId: string,
-  role: string,
 ): Promise<{ ids: string[] } | { error: string }> {
   const parsed = meetingParticipantsSchema.safeParse(
     metadata.participantEmployeeIds ?? [],
@@ -61,9 +64,9 @@ async function resolveParticipants(
     return { error: parsed.error.issues[0]?.message ?? "Invalid participants" };
   }
   const ids = parsed.data;
-  // STAFF may only attach their own employees; MANAGER/DIRECTOR any.
+  // Employees are shared across roles, so any existing employee may attend.
   const visible = await db.employee.findMany({
-    where: { id: { in: ids }, ...(role === "STAFF" ? { userId } : {}) },
+    where: { id: { in: ids } },
     select: { id: true },
   });
   if (visible.length !== ids.length) {
@@ -117,11 +120,7 @@ export async function createUpload(
 
   let participantEmployeeIds: string[] = [];
   if (meta.sessionType === "meeting") {
-    const r = await resolveParticipants(
-      metadata,
-      userId,
-      guard.user.role,
-    );
+    const r = await resolveParticipants(metadata);
     if ("error" in r) return { error: r.error };
     participantEmployeeIds = r.ids;
   }
@@ -224,6 +223,62 @@ export async function triggerInference(
   } catch {
     await updateSessionFailed(sessionId, "Could not reach inference service");
     return { error: "Could not reach inference service" };
+  }
+  return { ok: true };
+}
+
+// The upload runs in the browser after the user has left the upload page, so
+// the browser reports a failure here. The message is fixed server-side; the
+// client never supplies text that gets stored.
+export async function reportUploadFailed(sessionId: string): Promise<void> {
+  const guard = await getMutatorOrError();
+  if (!guard.ok) return;
+  await failUploadingSession(sessionId, guard.user.id, UPLOAD_FAILED_MESSAGE);
+}
+
+// Best-effort: ask the analysis server to drop or stop the job. The local
+// server exposes /cancel next to /trigger. Modal has no such route, so there
+// the job runs to the end and its callback 404s because the session is gone.
+async function requestInferenceCancel(sessionId: string): Promise<void> {
+  if (!env.MODAL_TRIGGER_URL) return;
+  try {
+    const res = await fetch(new URL("cancel", env.MODAL_TRIGGER_URL), {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${env.MODAL_TRIGGER_TOKEN ?? ""}`,
+      },
+      body: JSON.stringify({ sessionId }),
+      signal: AbortSignal.timeout(CANCEL_TIMEOUT_MS),
+    });
+    if (!res.ok) {
+      console.warn(`cancelSession: inference service answered HTTP ${res.status} for ${sessionId}`);
+    }
+  } catch (err) {
+    console.warn(`cancelSession: inference service unreachable for ${sessionId}`, err);
+  }
+}
+
+// Cancels an upload or a running analysis: deletes the session (only while
+// unfinished), stops the job, then purges the video. Session first, so a
+// result that lands mid-cancel finds no session and is dropped.
+export async function cancelSession(
+  sessionId: string,
+): Promise<{ ok: true } | { error: string }> {
+  const guard = await getMutatorOrError();
+  if (!guard.ok) return { error: guard.error };
+  const userId = guard.user.role === "STAFF" ? guard.user.id : null;
+
+  const cancelled = await deleteUnfinishedSession(sessionId, userId);
+  if (!cancelled) {
+    return { error: "This analysis already finished or was removed" };
+  }
+  await requestInferenceCancel(sessionId);
+  try {
+    await deleteObject(cancelled.videoKey);
+  } catch (err) {
+    // An orphaned object is harmless to users; the cancel itself succeeded.
+    console.warn(`cancelSession: could not delete video for ${sessionId}`, err);
   }
   return { ok: true };
 }

@@ -1,9 +1,12 @@
 import { db } from "~/server/db";
 import {
   computeEmployeeSessionMetrics,
-  computeExpressive,
-  computeTopEmotion,
+  countTopEmotions,
+  expressiveFromCounts,
   getSentimentBreakdown,
+  mergeEmotionCounts,
+  topEmotionFromCounts,
+  type EmotionCounts,
   type ExpressiveBreakdown,
   type Score,
   type SentimentBreakdown,
@@ -36,6 +39,9 @@ export interface ParsedSession {
   employeeId: string | null;
   employeeSpeakerId: string | null;
   employee: { id: string; name: string; department: string | null; status: string } | null;
+  // Meeting participants' names, in the order they were added. Meetings use
+  // these instead of `employee`.
+  attendeeNames: string[];
   handledBy: { id: string; name: string | null } | null;
   status: string;
   errorMessage: string | null;
@@ -118,14 +124,16 @@ function parseSession(raw: {
   employeeSpeakerId: string | null;
   employee: { id: string; name: string; department: string | null; status: string } | null;
   user: { id: string; name: string | null } | null;
+  participants: { employee: { name: string } }[];
   status: string;
   errorMessage: string | null;
-  utterances: { emotions: string }[];
+  emotionCounts: string;
+  utteranceCount: number;
 }): ParsedSession {
-  const utteranceEmotions = raw.utterances.map((u) => ({
-    emotions: JSON.parse(u.emotions) as Score[],
-  }));
-  const expressive = computeExpressive(utteranceEmotions);
+  const expressive = expressiveFromCounts(
+    JSON.parse(raw.emotionCounts) as EmotionCounts,
+    raw.utteranceCount,
+  );
   return {
     id: raw.id,
     title: raw.title,
@@ -142,10 +150,11 @@ function parseSession(raw: {
     employeeId: raw.employeeId,
     employeeSpeakerId: raw.employeeSpeakerId,
     employee: raw.employee,
+    attendeeNames: raw.participants.map((p) => p.employee.name),
     handledBy: raw.user,
     status: raw.status,
     errorMessage: raw.errorMessage,
-    utteranceCount: raw.utterances.length,
+    utteranceCount: raw.utteranceCount,
     expressivenessPct: expressive.expressivenessPct,
     topExpressiveEmotion: expressive.topExpressiveEmotion,
     expressiveEmotions: expressive.expressiveEmotions,
@@ -175,7 +184,17 @@ const SESSION_SELECT = {
   user: {
     select: { id: true, name: true },
   },
-  utterances: { select: { emotions: true } },
+  participants: {
+    select: {
+      employeeId: true,
+      speakerLabel: true,
+      employee: { select: { name: true } },
+    },
+    orderBy: { createdAt: "asc" },
+  },
+  // Stored tally, not the utterances: a list never loads utterance rows.
+  emotionCounts: true,
+  utteranceCount: true,
 } as const;
 
 export async function getSessionsByUser(
@@ -215,10 +234,6 @@ export async function getSessionsByUser(
     select: {
       ...SESSION_SELECT,
       utterances: { select: { emotions: true, sentiments: true, speaker: true } },
-      participants: {
-        where: { employeeId },
-        select: { speakerLabel: true },
-      },
     },
     orderBy: { sessionDate: "desc" },
   });
@@ -229,7 +244,8 @@ export async function getSessionsByUser(
       result.push(parseSession(row));
       continue;
     }
-    const speakerLabel = row.participants[0]?.speakerLabel ?? null;
+    const speakerLabel =
+      row.participants.find((p) => p.employeeId === employeeId)?.speakerLabel ?? null;
     if (speakerLabel === null) continue;
     const slice = row.utterances
       .filter((u) => u.speaker === speakerLabel)
@@ -334,20 +350,20 @@ export async function getAggregateEmotionMetrics(
   if (userId) where.userId = userId;
   if (sessionType) where.sessionType = sessionType;
 
-  const [rows, sentimentRows] = await Promise.all([
-    db.utterance.findMany({
-      where: { session: where },
-      select: { emotions: true },
-    }),
-    db.analysisSession.findMany({
-      where,
-      select: { avgSentiments: true },
-    }),
-  ]);
+  // One row per session: its stored emotion tally replaces loading every
+  // utterance of every completed session.
+  const sentimentRows = await db.analysisSession.findMany({
+    where,
+    select: { avgSentiments: true, emotionCounts: true, utteranceCount: true },
+  });
 
-  const utterances = rows.map((u) => ({
-    emotions: JSON.parse(u.emotions) as Score[],
-  }));
+  const counts = mergeEmotionCounts(
+    sentimentRows.map((s) => JSON.parse(s.emotionCounts) as EmotionCounts),
+  );
+  const totalUtterances = sentimentRows.reduce(
+    (sum, s) => sum + s.utteranceCount,
+    0,
+  );
 
   // Average each sentiment label's confidence across completed sessions,
   // then normalize via the shared pure breakdown helper.
@@ -364,8 +380,8 @@ export async function getAggregateEmotionMetrics(
   }));
 
   return {
-    expressive: computeExpressive(utterances),
-    allEmotions: computeTopEmotion(utterances),
+    expressive: expressiveFromCounts(counts, totalUtterances),
+    allEmotions: topEmotionFromCounts(counts, totalUtterances),
     sentiment: getSentimentBreakdown(avgSentiment),
   };
 }
@@ -561,6 +577,36 @@ export async function getEmotionHeatmap(
   return result;
 }
 
+// Fills the stored tally for completed sessions that have utterances but no
+// tally (results saved by a build from before the tally existed). Runs at
+// server start, so nobody has to run the backfill script by hand. Returns how
+// many sessions it fixed; normally 0, and the query finds nothing.
+export async function fillMissingEmotionCounts(): Promise<number> {
+  const stale = await db.analysisSession.findMany({
+    where: { status: "COMPLETED", utteranceCount: 0, utterances: { some: {} } },
+    // No orderBy: same first-seen order as every other tally.
+    select: { id: true, utterances: { select: { emotions: true } } },
+  });
+  await db.$transaction(
+    stale.map((s) =>
+      db.analysisSession.update({
+        where: { id: s.id },
+        data: {
+          emotionCounts: JSON.stringify(
+            countTopEmotions(
+              s.utterances.map((u) => ({
+                emotions: JSON.parse(u.emotions) as Score[],
+              })),
+            ),
+          ),
+          utteranceCount: s.utterances.length,
+        },
+      }),
+    ),
+  );
+  return stale.length;
+}
+
 export async function updateSessionResult(
   sessionId: string,
   data: {
@@ -570,6 +616,8 @@ export async function updateSessionResult(
     topSentiment: string;
     summary: string;
     durationSecs: number | null;
+    // countTopEmotions() of these same utterances, as JSON.
+    emotionCounts: string;
     utterances: Array<{
       startTime: number;
       endTime: number;
@@ -590,6 +638,8 @@ export async function updateSessionResult(
         topSentiment: data.topSentiment,
         summary: data.summary,
         durationSecs: data.durationSecs,
+        emotionCounts: data.emotionCounts,
+        utteranceCount: data.utterances.length,
         status: "COMPLETED",
         errorMessage: null,
       },
@@ -626,6 +676,19 @@ export async function markSessionProcessing(
   });
 }
 
+// The browser reports its own failed upload. Only an UPLOADING row owned by
+// the uploader flips, so a late report never overwrites a real result.
+export async function failUploadingSession(
+  sessionId: string,
+  userId: string,
+  errorMessage: string,
+): Promise<void> {
+  await db.analysisSession.updateMany({
+    where: { id: sessionId, userId, status: "UPLOADING" },
+    data: { status: "FAILED", errorMessage },
+  });
+}
+
 export async function getSessionStatus(
   sessionId: string,
   userId: string | null,
@@ -644,6 +707,28 @@ export async function deleteSession(
   await db.analysisSession.delete({
     where: userId ? { id: sessionId, userId } : { id: sessionId },
   });
+}
+
+const UNFINISHED_STATUSES = ["UPLOADING", "PROCESSING"];
+
+// Cancel = delete, but only while the analysis is unfinished, so a cancel
+// that races the result callback never wipes a completed session. Returns the
+// R2 key to purge, or null when nothing was cancelled.
+export async function deleteUnfinishedSession(
+  sessionId: string,
+  userId: string | null,
+): Promise<{ videoKey: string } | null> {
+  const where = {
+    ...(userId ? { id: sessionId, userId } : { id: sessionId }),
+    status: { in: UNFINISHED_STATUSES },
+  };
+  const row = await db.analysisSession.findFirst({
+    where,
+    select: { videoKey: true },
+  });
+  if (!row) return null;
+  const { count } = await db.analysisSession.deleteMany({ where });
+  return count > 0 ? row : null;
 }
 
 export async function deleteSessionsBulk(

@@ -5,6 +5,10 @@
 import "./src/env.js";
 
 /** @type {import("next").NextConfig} */
-const config = {};
+const config = {
+  // The project sits in iCloud-synced Desktop; iCloud skips names ending in
+  // .nosync, so build output (rewritten on every compile) is not uploaded.
+  distDir: ".next.nosync",
+};
 
 export default config;

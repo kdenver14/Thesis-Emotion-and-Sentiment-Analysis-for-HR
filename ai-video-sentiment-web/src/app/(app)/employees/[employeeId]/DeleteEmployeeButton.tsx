@@ -1,29 +1,41 @@
 "use client";
 
+import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { FiTrash2 } from "react-icons/fi";
 import { removeEmployee } from "~/actions/employees";
+import { InlineConfirm } from "~/components/client/InlineConfirm";
 
 interface DeleteEmployeeButtonProps {
   employeeId: string;
 }
 
-export function DeleteEmployeeButton({ employeeId }: DeleteEmployeeButtonProps) {
+export function DeleteEmployeeButton({
+  employeeId,
+}: DeleteEmployeeButtonProps) {
   const router = useRouter();
+  const [error, setError] = useState<string | null>(null);
 
   const handleDelete = async () => {
-    if (!confirm("Delete this employee? Their sessions will be kept but unlinked.")) return;
-    await removeEmployee(employeeId);
+    const result = await removeEmployee(employeeId);
+    if (result.error) {
+      setError(result.error);
+      return;
+    }
     router.push("/employees");
   };
 
   return (
-    <button
-      onClick={handleDelete}
-      className="flex items-center gap-1.5 rounded-md border border-red-200 px-3 py-1.5 text-sm text-red-600 hover:bg-red-50"
-    >
-      <FiTrash2 className="h-3.5 w-3.5" />
-      Delete
-    </button>
+    <div className="flex flex-col items-end gap-1">
+      <InlineConfirm
+        label="Delete"
+        question="Delete this employee? Their sessions will be kept but unlinked."
+        confirmLabel="Yes, delete"
+        keepLabel="Keep"
+        busyLabel="Deleting..."
+        onConfirm={handleDelete}
+        iconOnly
+      />
+      {error && <p className="text-xs text-red-500">{error}</p>}
+    </div>
   );
 }
