@@ -55,24 +55,28 @@ export function AssignEmployee({
     );
   }
 
+  // Name and "Change" are separate controls: a link nested in a button gave
+  // one click two meanings and is not valid for assistive tech.
   return (
-    <button
-      onClick={() => setEditing(true)}
-      disabled={isPending}
-      className="rounded px-1 text-sm text-gray-500 hover:bg-gray-100 hover:text-gray-800 disabled:opacity-50"
-      title="Assign employee"
-    >
+    <span className="inline-flex items-baseline gap-2">
       {assigned ? (
         <Link
           href={`/employees/${assigned.id}`}
-          onClick={(e) => e.stopPropagation()}
-          className="hover:underline"
+          className="text-gray-900 underline-offset-2 hover:underline"
         >
           {assigned.name}
         </Link>
       ) : (
-        <span className="italic">Assign employee…</span>
+        <span className="text-gray-500">Unassigned</span>
       )}
-    </button>
+      <button
+        type="button"
+        onClick={() => setEditing(true)}
+        disabled={isPending}
+        className="text-xs text-gray-500 underline-offset-2 hover:text-gray-900 hover:underline disabled:opacity-50"
+      >
+        {assigned ? "Change" : "Assign"}
+      </button>
+    </span>
   );
 }

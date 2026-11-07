@@ -1,25 +1,38 @@
 import type { ReactNode } from "react";
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { FiArrowLeft, FiLoader } from "react-icons/fi";
+import {
+  FiArrowLeft,
+  FiCalendar,
+  FiLoader,
+  FiMic,
+  FiTag,
+  FiUser,
+  FiUsers,
+} from "react-icons/fi";
 import { getSession, renameSession } from "~/actions/sessions";
 import { auth } from "~/server/auth";
 import { getEmployees } from "~/actions/employees";
 import { AssignEmployee } from "~/components/client/AssignEmployee";
 import { InlineTitle } from "~/components/client/InlineTitle";
 import { SessionSummary } from "~/components/client/SessionSummary";
+import { Fact } from "~/components/Fact";
 import { PromoteCandidateButton } from "~/components/client/PromoteCandidateButton";
 import { RejectCandidateButton } from "~/components/client/RejectCandidateButton";
 import { UndoRejectionButton } from "~/components/client/UndoRejectionButton";
 import { candidateDeletionDate } from "~/lib/retention";
-import { EmotionBarChartLazy } from "~/components/client/charts/EmotionBarChartLazy";
 import { SpeakerTimeline } from "~/components/client/charts/SpeakerTimeline";
 import { MeetingSpeakerBinding } from "~/components/client/MeetingSpeakerBinding";
-import { SessionDetailTabs } from "~/components/client/SessionDetailTabs";
 import { ExportButtons } from "~/components/client/ExportButtons";
 import { ProcessingPoller } from "~/components/client/ProcessingPoller";
 import { DeleteSessionButton } from "./DeleteSessionButton";
-import { SESSION_TYPE_LABELS } from "~/types/analysis";
+import { CancelAnalysisButton } from "./CancelAnalysisButton";
+import { generateSummary } from "~/server/services/summary";
+import {
+  SESSION_TYPE_LABELS,
+  computeExpressive,
+  toPercentSlices,
+} from "~/types/analysis";
 
 // Retention dates are shown in the HR team's timezone so the deletion date on
 // screen matches the day the server-side purge actually acts.
@@ -52,10 +65,13 @@ export default async function SessionDetailPage({ params }: PageProps) {
       session.sessionType as keyof typeof SESSION_TYPE_LABELS
     ] ?? session.sessionType;
 
-  if (session.status === "PROCESSING") {
+  // UPLOADING is reached when the user leaves the upload page mid-upload:
+  // same loading view, so Cancel is always one click from the dashboard.
+  if (session.status === "PROCESSING" || session.status === "UPLOADING") {
+    const uploading = session.status === "UPLOADING";
     return (
       <div className="flex flex-col gap-6 p-4 sm:p-8">
-        <ProcessingPoller sessionId={sessionId} />
+        <ProcessingPoller sessionId={sessionId} status={session.status} />
         <div className="flex flex-col gap-2">
           <Link
             href="/dashboard"
@@ -70,10 +86,15 @@ export default async function SessionDetailPage({ params }: PageProps) {
         </div>
         <div className="flex flex-col items-center justify-center gap-4 rounded-xl border border-dashed border-gray-200 py-20">
           <FiLoader className="h-8 w-8 animate-spin text-gray-400" />
-          <p className="text-sm font-medium text-gray-600">Analysing video...</p>
-          <p className="text-xs text-gray-400">
-            You can navigate away. This keeps running in the background.
+          <p className="text-sm font-medium text-gray-600">
+            {uploading ? "Uploading video..." : "Analysing video..."}
           </p>
+          <p className="max-w-md text-center text-xs text-gray-400">
+            {uploading
+              ? "Keep this tab open until the upload finishes. Analysis starts on its own after that. If the page was reloaded or closed, the upload stopped: cancel and upload again."
+              : "You can navigate away. This keeps running in the background."}
+          </p>
+          {canMutate && <CancelAnalysisButton sessionId={session.id} />}
         </div>
       </div>
     );
@@ -105,19 +126,29 @@ export default async function SessionDetailPage({ params }: PageProps) {
   const speakers = [
     ...new Set(session.utterances.map((u) => u.speaker).filter((s): s is string => s !== null)),
   ];
+  // Same pure function that wrote the stored summary text, so the visual
+  // summary and the text always agree.
+  const summary = generateSummary(
+    session.utterances.map((u) => ({
+      start_time: u.startTime,
+      emotions: u.emotions,
+      sentiments: u.sentiments,
+    })),
+  );
+  const expressive = computeExpressive(session.utterances);
 
   return (
     <div className="flex flex-col gap-6 p-4 sm:p-8">
       {/* Header */}
-      <div className="flex flex-col gap-2">
+      <div className="flex flex-col gap-3">
         <Link
           href="/dashboard"
-          className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-800"
+          className="flex w-fit items-center gap-1 text-xs text-gray-500 hover:text-gray-800"
         >
           <FiArrowLeft className="h-3 w-3" /> Back to Dashboard
         </Link>
-        <div className="flex items-start justify-between gap-4">
-          <div>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-6">
+          <div className="min-w-0">
             {canMutate ? (
               <InlineTitle
                 initialValue={session.title}
@@ -129,42 +160,54 @@ export default async function SessionDetailPage({ params }: PageProps) {
                 {session.title}
               </h1>
             )}
-            <div className="mt-1 flex flex-wrap items-center gap-3 text-sm text-gray-500">
-              <span>{session.sessionDate.toLocaleDateString("en-GB")}</span>
-              <span>·</span>
-              <span>{sessionTypeLabel}</span>
-              {session.interviewerName && (
-                <>
-                  <span>·</span>
-                  <span>Interviewer: {session.interviewerName}</span>
-                </>
-              )}
-              {session.sessionType !== "interview" && (
-                <>
-                  <span>·</span>
-                  {session.sessionType === "meeting" ? (
-                    <span>
-                      {session.participants.length} participant
-                      {session.participants.length !== 1 ? "s" : ""}
-                    </span>
-                  ) : canMutate ? (
-                    <AssignEmployee
-                      sessionId={session.id}
-                      employees={employees}
-                      current={session.employee ?? null}
-                    />
-                  ) : (
-                    <span>{session.employee?.name ?? "Unassigned"}</span>
-                  )}
-                </>
-              )}
-            </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-shrink-0 items-center gap-1">
             <ExportButtons sessionId={session.id} userRole={role} />
-            {canMutate && <DeleteSessionButton sessionId={session.id} />}
+            {canMutate && <DeleteSessionButton sessionId={session.id} iconOnly />}
           </div>
         </div>
+        {/* Icons stand in for word labels to keep the row light; each icon
+            still names its value for hover and screen readers. */}
+        <dl className="flex flex-wrap gap-x-5 gap-y-1.5 text-sm">
+          <Fact icon={FiCalendar} label="Date">
+            {session.sessionDate.toLocaleDateString("en-GB")}
+          </Fact>
+          <Fact icon={FiTag} label="Type">
+            {sessionTypeLabel}
+          </Fact>
+          {session.sessionType === "meeting" ? (
+            <Fact icon={FiUsers} label="Participants">
+              {session.participants.length} participant
+              {session.participants.length !== 1 ? "s" : ""}
+            </Fact>
+          ) : (
+            session.sessionType !== "interview" && (
+              <Fact icon={FiUser} label="Employee">
+                {canMutate ? (
+                  <AssignEmployee
+                    sessionId={session.id}
+                    employees={employees}
+                    current={session.employee ?? null}
+                  />
+                ) : session.employee ? (
+                  <Link
+                    href={`/employees/${session.employee.id}`}
+                    className="underline-offset-2 hover:underline"
+                  >
+                    {session.employee.name}
+                  </Link>
+                ) : (
+                  "Unassigned"
+                )}
+              </Fact>
+            )
+          )}
+          {session.interviewerName && (
+            <Fact icon={FiMic} label="Interviewer">
+              {session.interviewerName}
+            </Fact>
+          )}
+        </dl>
       </div>
 
       {/* Interview candidate */}
@@ -258,8 +301,14 @@ export default async function SessionDetailPage({ params }: PageProps) {
         </div>
       )}
 
-      {/* Summary — the hero. Detail lives in the tabs below. */}
-      <SessionSummary summary={session.summary} />
+      <SessionSummary
+        sentiment={summary.sentiment}
+        sentimentDescription={`Tone across all ${summary.total} utterance${summary.total !== 1 ? "s" : ""}`}
+        emotionSlices={toPercentSlices(expressive.expressiveEmotions)}
+        emotionsDescription={`Among the ${expressive.expressivenessPct}% of utterances that were not neutral`}
+        peakCount={summary.peakCount}
+        peakTimes={summary.peakTimes}
+      />
 
       {/* Meeting participant/speaker binding stays visible: speakerLabel is
           the per-employee analytics join key, so it must never be buried. */}
@@ -272,35 +321,16 @@ export default async function SessionDetailPage({ params }: PageProps) {
         />
       )}
 
-      {/* Emotion distribution and transcript, one at a time */}
-      <SessionDetailTabs
-        tabs={[
-          {
-            id: "distribution",
-            label: "Emotion distribution",
-            content: (
-              <div className="rounded-xl border border-gray-200 p-4">
-                <EmotionBarChartLazy data={session.avgEmotions} height={200} />
-              </div>
-            ),
-          },
-          {
-            id: "transcript",
-            label: "Transcript",
-            content: (
-              <div className="rounded-xl border border-gray-200 p-4">
-                <SpeakerTimeline
-                  sessionId={session.id}
-                  utterances={session.utterances}
-                  speakers={speakers}
-                  employeeSpeakerId={session.employeeSpeakerId}
-                  canMutate={canMutate}
-                />
-              </div>
-            ),
-          },
-        ]}
-      />
+      <section className="flex flex-col gap-3 rounded-xl border border-gray-200 p-4">
+        <h3 className="text-sm font-medium text-gray-800">Transcript</h3>
+        <SpeakerTimeline
+          sessionId={session.id}
+          utterances={session.utterances}
+          speakers={speakers}
+          employeeSpeakerId={session.employeeSpeakerId}
+          canMutate={canMutate}
+        />
+      </section>
     </div>
   );
 }

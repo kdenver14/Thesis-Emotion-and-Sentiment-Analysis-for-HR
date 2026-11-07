@@ -8,16 +8,18 @@ import {
   updateEmployeeName,
   type EmployeeRow,
 } from "~/server/repositories/employee";
+import { getActorName, recordAudit } from "~/server/repositories/audit";
 import { addEmployeeSchema } from "~/schemas/employee";
-import { getAccessScope, requireScopeUserId } from "~/server/auth/guards";
+import { getAccessScope } from "~/server/auth/guards";
 
 const MAX_EMPLOYEE_NAME = 200;
 
+// Employees are one shared directory: every role sees, and every non-Director
+// edits, all of them (user decision 2026-11-07). Sessions stay owner-scoped.
 export async function getEmployees(): Promise<EmployeeRow[]> {
   const scope = await getAccessScope();
   if (scope.kind === "unauthenticated") return [];
-  const userId = scope.kind === "own" ? scope.userId : null;
-  return findEmployeesByUser(userId);
+  return findEmployeesByUser(null);
 }
 
 export async function addEmployee(data: {
@@ -61,8 +63,7 @@ export async function renameEmployee(
     throw new Error(
       `Employee name must be ${MAX_EMPLOYEE_NAME} characters or fewer`,
     );
-  const userId = await requireScopeUserId();
-  await updateEmployeeName(employeeId, userId, trimmed);
+  await updateEmployeeName(employeeId, null, trimmed);
 }
 
 export async function removeEmployee(
@@ -72,7 +73,15 @@ export async function removeEmployee(
   if (!session?.user?.id) return { error: "Unauthorized" };
   if (session.user.role === "DIRECTOR") return { error: "Directors cannot delete employee records" };
 
-  const userId = await requireScopeUserId();
-  await deleteEmployee(employeeId, userId);
+  const deletedName = await deleteEmployee(employeeId, null);
+  if (deletedName === null) return { error: "Employee not found or already deleted" };
+  await recordAudit({
+    actorId: session.user.id,
+    actorName: await getActorName(session.user.id),
+    action: "employee.delete",
+    targetType: "employee",
+    targetId: employeeId,
+    targetName: deletedName,
+  });
   return {};
 }

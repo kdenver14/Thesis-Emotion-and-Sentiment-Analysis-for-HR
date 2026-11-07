@@ -1,6 +1,5 @@
 "use client";
 
-import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 import {
   distributePercents,
   type ExpressiveBreakdown,
@@ -10,20 +9,23 @@ import {
 } from "~/types/analysis";
 import {
   emotionColorClass,
-  emotionHex,
   sentimentToneClass,
   type EmotionView,
 } from "~/lib/sentiment";
+import { BreakdownDonut } from "./BreakdownDonut";
 
 interface Props {
   expressive: ExpressiveBreakdown;
   allEmotions: TopEmotionBreakdown;
   sentiment: SentimentBreakdown;
   view: EmotionView;
-  // True when nothing sits beside this card (no trend chart), so the caption
-  // and summary move into the free column instead of stacking underneath.
-  wide?: boolean;
 }
+
+// Container query on the card's own width (not the screen's): at 40rem and
+// up the caption and summary sit beside the donut in what was empty space;
+// narrower cards stack them underneath.
+const SIDE_WHEN_WIDE = "hidden [@container(min-width:40rem)]:flex";
+const BELOW_WHEN_NARROW = "flex [@container(min-width:40rem)]:hidden";
 
 const SENTIMENT_WORD: Record<string, string> = {
   positive: "positive",
@@ -36,7 +38,6 @@ export function EmotionBars({
   allEmotions,
   sentiment,
   view,
-  wide = false,
 }: Props) {
   const bars: Score[] =
     view === "expressive"
@@ -112,73 +113,22 @@ export function EmotionBars({
   ) : null;
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-3 [container-type:inline-size]">
       <div className="flex flex-col items-center gap-6 sm:flex-row sm:items-center">
-        <div className="relative h-40 w-40 flex-shrink-0">
-          <ResponsiveContainer width="100%" height="100%">
-            <PieChart>
-              <Pie
-                data={pieData}
-                dataKey="value"
-                nameKey="label"
-                cx="50%"
-                cy="50%"
-                innerRadius={48}
-                outerRadius={72}
-                paddingAngle={1}
-                stroke="none"
-                isAnimationActive={false}
-              >
-                {pieData.map((d) => (
-                  <Cell key={d.label} fill={emotionHex(d.label).bg} />
-                ))}
-              </Pie>
-              <Tooltip
-                formatter={(value, name) => [`${String(value)}%`, String(name)]}
-              />
-            </PieChart>
-          </ResponsiveContainer>
-          {top && (
-            <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-              <span className="text-lg font-semibold text-gray-900">
-                {topPct}%
-              </span>
-              <span
-                className="text-xs font-medium capitalize"
-                style={{ color: emotionHex(top.label).text }}
-              >
-                {top.label}
-              </span>
-            </div>
-          )}
+        <BreakdownDonut slices={pieData} palette="emotion" />
+        <div
+          className={`${SIDE_WHEN_WIDE} min-w-0 flex-1 flex-col gap-2 border-l border-gray-100 pl-6`}
+        >
+          {captionNode}
+          {summaryNode}
         </div>
-        <ul className="flex w-44 flex-shrink-0 flex-col gap-1.5">
-          {pieData.map((d) => (
-            <li key={d.label} className="flex items-center gap-2 text-xs">
-              <span
-                className="h-2.5 w-2.5 flex-shrink-0 rounded-full"
-                style={{ backgroundColor: emotionHex(d.label).bg }}
-              />
-              <span className="flex-1 capitalize text-gray-600">{d.label}</span>
-              <span className="tabular-nums text-gray-400">{d.value}%</span>
-            </li>
-          ))}
-        </ul>
-        {wide && (
-          <div className="flex min-w-0 flex-1 flex-col gap-2 border-gray-100 sm:border-l sm:pl-6">
-            {captionNode}
-            {summaryNode}
-          </div>
+      </div>
+      <div className={`${BELOW_WHEN_NARROW} flex-col gap-3`}>
+        {captionNode}
+        {summaryNode && (
+          <div className="border-t border-gray-100 pt-3">{summaryNode}</div>
         )}
       </div>
-      {!wide && (
-        <>
-          {captionNode}
-          {summaryNode && (
-            <div className="border-t border-gray-100 pt-3">{summaryNode}</div>
-          )}
-        </>
-      )}
     </div>
   );
 }

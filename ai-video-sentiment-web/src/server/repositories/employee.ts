@@ -84,12 +84,21 @@ export async function updateEmployeeName(
   });
 }
 
+// Soft delete. Returns the employee's name for the audit log, or null when
+// nothing changed (not found, not in scope, or already deleted).
 export async function deleteEmployee(
   employeeId: string,
   userId: string | null,
-): Promise<void> {
-  await db.employee.updateMany({
-    where: userId ? { id: employeeId, userId } : { id: employeeId },
+): Promise<string | null> {
+  const where = {
+    ...(userId ? { id: employeeId, userId } : { id: employeeId }),
+    status: { not: "Deleted" },
+  };
+  const row = await db.employee.findFirst({ where, select: { name: true } });
+  if (!row) return null;
+  const { count } = await db.employee.updateMany({
+    where,
     data: { status: "Deleted" },
   });
+  return count > 0 ? row.name : null;
 }

@@ -3,7 +3,13 @@
 import { useState, useTransition, useRef, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { FiArrowUp, FiArrowDown, FiTrash2, FiSearch, FiX } from "react-icons/fi";
+import {
+  FiArrowUp,
+  FiArrowDown,
+  FiTrash2,
+  FiSearch,
+  FiX,
+} from "react-icons/fi";
 import type { ParsedSession } from "~/server/repositories/session";
 import { SESSION_TYPE_LABELS } from "~/types/analysis";
 import { emotionColorClass } from "~/lib/sentiment";
@@ -16,6 +22,14 @@ type SortKey =
   | "employee"
   | "sessionType";
 type SortDir = "asc" | "desc";
+
+// Meetings list their participants; past this many the cell says "+N more".
+const MAX_ATTENDEES_SHOWN = 2;
+
+// The Employee column's text: the one employee, or a meeting's participants.
+function employeeLabel(s: ParsedSession): string {
+  return s.employee?.name ?? s.attendeeNames.join(", ");
+}
 
 const SENTIMENT_BADGE: Record<string, string> = {
   positive: "bg-green-100 text-green-700",
@@ -33,6 +47,8 @@ interface SessionTableProps {
   // The control itself lives in the dashboard toolbar (SessionTypeFilter),
   // because it also scopes the emotion donut and the trend chart.
   typeFilter?: string;
+  // Employee page: every row is that employee, so the column is redundant.
+  hideEmployee?: boolean;
 }
 
 function IndeterminateCheckbox({
@@ -67,6 +83,7 @@ export function SessionTable({
   seesAllUsers = false,
   canMutate = false,
   typeFilter = "all",
+  hideEmployee = false,
 }: SessionTableProps) {
   const router = useRouter();
   const [sortKey, setSortKey] = useState<SortKey>("sessionDate");
@@ -83,7 +100,9 @@ export function SessionTable({
     { value: "sessionDate", label: "Date" },
     { value: "title", label: "Title" },
     { value: "sessionType", label: "Type" },
-    { value: "employee", label: "Employee" },
+    ...(hideEmployee
+      ? []
+      : [{ value: "employee" as const, label: "Employee" }]),
     { value: "topSentiment", label: "Sentiment" },
   ];
 
@@ -105,7 +124,7 @@ export function SessionTable({
           s.handledBy?.name ?? "",
           s.sessionType,
           typeLabel,
-          s.employee?.name ?? "",
+          employeeLabel(s),
           s.topExpressiveEmotion,
           s.topSentiment,
         ]
@@ -124,7 +143,7 @@ export function SessionTable({
     } else if (sortKey === "topSentiment") {
       cmp = a.topSentiment.localeCompare(b.topSentiment);
     } else if (sortKey === "employee") {
-      cmp = (a.employee?.name ?? "").localeCompare(b.employee?.name ?? "");
+      cmp = employeeLabel(a).localeCompare(employeeLabel(b));
     } else if (sortKey === "sessionType") {
       const al =
         SESSION_TYPE_LABELS[
@@ -141,7 +160,8 @@ export function SessionTable({
 
   const sortedIds = sorted.map((s) => s.id);
   const selectedInView = sortedIds.filter((id) => selected.has(id));
-  const allChecked = sortedIds.length > 0 && selectedInView.length === sortedIds.length;
+  const allChecked =
+    sortedIds.length > 0 && selectedInView.length === sortedIds.length;
   const someChecked = selectedInView.length > 0 && !allChecked;
 
   const toggleAll = (checked: boolean) => {
@@ -167,7 +187,12 @@ export function SessionTable({
 
   const handleBulkDelete = () => {
     const ids = [...selected];
-    if (!confirm(`Delete ${ids.length} session${ids.length > 1 ? "s" : ""}? This cannot be undone.`)) return;
+    if (
+      !confirm(
+        `Delete ${ids.length} session${ids.length > 1 ? "s" : ""}? This cannot be undone.`,
+      )
+    )
+      return;
     startBulkTransition(async () => {
       await removeSessionsBulk(ids);
       setSelected(new Set());
@@ -187,7 +212,11 @@ export function SessionTable({
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by session name or employee…"
+            placeholder={
+              hideEmployee
+                ? "Search sessions…"
+                : "Search by session name or employee…"
+            }
             className="w-full rounded-lg border border-gray-200 py-2 pl-9 pr-8 text-sm text-gray-700 placeholder-gray-400 focus:border-gray-400 focus:outline-none"
           />
           {search && (
@@ -266,7 +295,7 @@ export function SessionTable({
               <th className={th}>Title</th>
               <th className={th}>Date</th>
               <th className={th}>Type</th>
-              <th className={th}>Employee</th>
+              {!hideEmployee && <th className={th}>Employee</th>}
               <th className={th}>Emotion</th>
               <th className={th}>Sentiment</th>
               {showHandledBy && <th className={th}>Handled by</th>}
@@ -275,7 +304,14 @@ export function SessionTable({
           <tbody className="divide-y divide-gray-100">
             {sorted.length === 0 ? (
               <tr>
-                <td colSpan={6 + (canMutate ? 1 : 0) + (showHandledBy ? 1 : 0)} className="px-4 py-8 text-center text-gray-400">
+                <td
+                  colSpan={
+                    (hideEmployee ? 5 : 6) +
+                    (canMutate ? 1 : 0) +
+                    (showHandledBy ? 1 : 0)
+                  }
+                  className="px-4 py-8 text-center text-gray-400"
+                >
                   {search || typeFilter !== "all"
                     ? "No sessions match your filters"
                     : "No sessions yet"}
@@ -298,11 +334,14 @@ export function SessionTable({
                     </td>
                   )}
                   <td className="px-4 py-3 font-medium text-gray-900">
-                    <Link href={`/dashboard/${s.id}`} className="hover:underline">
+                    <Link
+                      href={`/dashboard/${s.id}`}
+                      className="hover:underline"
+                    >
                       {s.title}
                     </Link>
                   </td>
-                  <td className="px-4 py-3 whitespace-nowrap text-gray-600">
+                  <td className="whitespace-nowrap px-4 py-3 text-gray-600">
                     {s.sessionDate.toLocaleDateString("en-GB")}
                   </td>
                   <td className="px-4 py-3 text-gray-500">
@@ -310,19 +349,42 @@ export function SessionTable({
                       s.sessionType as keyof typeof SESSION_TYPE_LABELS
                     ] ?? s.sessionType}
                   </td>
-                  <td className="px-4 py-3">
-                    <span className="text-gray-500">
-                      {s.employee?.name ?? "—"}
-                      {s.employee?.status === "Deleted" && (
-                        <span className="ml-1 text-xs text-gray-400">(deleted)</span>
+                  {!hideEmployee && (
+                    <td className="px-4 py-3">
+                      {!s.employee && s.attendeeNames.length > 0 ? (
+                        <span
+                          className="text-gray-500"
+                          title={employeeLabel(s)}
+                        >
+                          {s.attendeeNames
+                            .slice(0, MAX_ATTENDEES_SHOWN)
+                            .join(", ")}
+                          {s.attendeeNames.length > MAX_ATTENDEES_SHOWN && (
+                            <span className="ml-1 text-xs text-gray-400">
+                              +{s.attendeeNames.length - MAX_ATTENDEES_SHOWN}{" "}
+                              more
+                            </span>
+                          )}
+                        </span>
+                      ) : (
+                        <span className="text-gray-500">
+                          {s.employee?.name ?? "—"}
+                          {s.employee?.status === "Deleted" && (
+                            <span className="ml-1 text-xs text-gray-400">
+                              (deleted)
+                            </span>
+                          )}
+                        </span>
                       )}
-                    </span>
-                  </td>
+                    </td>
+                  )}
                   <td className="px-4 py-3">
                     {s.status !== "COMPLETED" ? (
                       <span className="text-xs text-gray-400">—</span>
                     ) : s.expressivenessPct === 0 ? (
-                      <span className="text-xs text-gray-500">mostly neutral</span>
+                      <span className="text-xs text-gray-500">
+                        mostly neutral
+                      </span>
                     ) : (
                       <span
                         className={`whitespace-nowrap capitalize ${emotionColorClass(
@@ -359,7 +421,7 @@ export function SessionTable({
                     )}
                   </td>
                   {showHandledBy && (
-                    <td className="px-4 py-3 whitespace-nowrap text-gray-500">
+                    <td className="whitespace-nowrap px-4 py-3 text-gray-500">
                       {s.handledBy?.name ?? "—"}
                     </td>
                   )}

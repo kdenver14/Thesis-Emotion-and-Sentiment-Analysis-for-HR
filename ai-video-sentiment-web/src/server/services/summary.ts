@@ -2,12 +2,24 @@ import {
   computeAverages,
   getSentimentBreakdown,
   type Score,
+  type SentimentBreakdown,
   type UtteranceData,
 } from "~/types/analysis";
 
+// `text` is what gets stored; the other fields are the same facts for the
+// session page's visual summary, so both always agree.
 export interface SummaryResult {
   text: string;
+  total: number;
+  sentiment: SentimentBreakdown;
+  // Most frequent dominant emotion, neutral excluded; null when none.
+  mostFrequentEmotion: string | null;
+  peakCount: number;
+  // Start times (mm:ss) of the first few high-emotion moments.
+  peakTimes: string[];
 }
+
+type SummaryInput = Pick<UtteranceData, "start_time" | "emotions" | "sentiments">;
 
 // A stress peak is an utterance whose dominant emotion is a strong negative
 // one. HR reads these to decide if a moment matters, so the summary lists the
@@ -27,10 +39,17 @@ function formatTimestamp(seconds: number): string {
   return `${String(mm).padStart(2, "0")}:${String(ss).padStart(2, "0")}`;
 }
 
-export function generateSummary(utterances: UtteranceData[]): SummaryResult {
+export function generateSummary(utterances: SummaryInput[]): SummaryResult {
   const total = utterances.length;
   if (total === 0) {
-    return { text: "No utterances detected in this session." };
+    return {
+      text: "No utterances detected in this session.",
+      total: 0,
+      sentiment: { positive: 0, neutral: 0, negative: 0 },
+      mostFrequentEmotion: null,
+      peakCount: 0,
+      peakTimes: [],
+    };
   }
 
   // Sentiment % on the same averages the session stores, so the summary
@@ -66,15 +85,19 @@ export function generateSummary(utterances: UtteranceData[]): SummaryResult {
   } else {
     parts.push("The session was mostly neutral.");
   }
+  const listedPeaks = peakTimes.slice(0, MAX_LISTED_PEAKS).map(formatTimestamp);
   if (peakTimes.length > 0) {
-    const listed = peakTimes
-      .slice(0, MAX_LISTED_PEAKS)
-      .map(formatTimestamp)
-      .join(", ");
     parts.push(
-      `${peakTimes.length} high-emotion moment${peakTimes.length !== 1 ? "s" : ""} (strong negative emotion) at ${listed}.`,
+      `${peakTimes.length} high-emotion moment${peakTimes.length !== 1 ? "s" : ""} (strong negative emotion) at ${listedPeaks.join(", ")}.`,
     );
   }
 
-  return { text: parts.join(" ") };
+  return {
+    text: parts.join(" "),
+    total,
+    sentiment,
+    mostFrequentEmotion: mostFrequentEmotion ?? null,
+    peakCount: peakTimes.length,
+    peakTimes: listedPeaks,
+  };
 }

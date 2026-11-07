@@ -1,3 +1,7 @@
+# iCloud skips names ending in .nosync: Next's build output (distDir) and the
+# Python venv (venv is a symlink to venv.nosync, so no trailing slash there).
+*.nosync
+
 # Dependencies
 node_modules/
 
@@ -9,7 +13,7 @@ out/
 __pycache__/
 *.pyc
 *.pyo
-venv/
+venv
 .venv/
 
 # Environment variables
@@ -32,3 +36,6 @@ Thumbs.db
 
 .claude/
 CLAUDE.md
+
+# Local inference job queue (downloaded videos)
+ai-video-sentiment-model/deployment/jobs/

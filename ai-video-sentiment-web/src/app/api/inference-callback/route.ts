@@ -9,7 +9,7 @@ import {
   updateSessionFailed,
 } from "~/server/repositories/session";
 import { deleteObject } from "~/server/storage/r2";
-import { computeAverages } from "~/types/analysis";
+import { computeAverages, countTopEmotions } from "~/types/analysis";
 
 export const runtime = "nodejs"; // HMAC (node:crypto), not edge
 
@@ -85,6 +85,13 @@ export async function POST(req: Request) {
 
   const parsed = inferenceResultSchema.safeParse(payload.result);
   if (!parsed.success) {
+    // Paths and messages only, never the payload (it holds transcript text).
+    console.error(
+      `inference-callback: result rejected for ${sessionId}`,
+      parsed.error.issues
+        .slice(0, 5)
+        .map((i) => `${i.path.join(".")}: ${i.message}`),
+    );
     await updateSessionFailed(
       sessionId,
       "Inference returned an invalid response",
@@ -105,6 +112,7 @@ export async function POST(req: Request) {
     topSentiment,
     summary: summary.text,
     durationSecs: analysis.utterances.at(-1)?.end_time ?? null,
+    emotionCounts: JSON.stringify(countTopEmotions(analysis.utterances)),
     utterances: analysis.utterances.map((u) => ({
       startTime: u.start_time,
       endTime: u.end_time,
