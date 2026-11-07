@@ -22,8 +22,19 @@ const EXPRESSIVE_KEYS = EMOTION_KEYS.filter((k) => k !== NEUTRAL_KEY);
 
 type ChartRow = { date: string; [emotion: string]: string | number };
 
+function hasSessions(row: EmotionTrendRow): boolean {
+  return Object.values(row.emotions).some((v) => v > 0);
+}
+
+// A day without sessions carries no values, so its point is left out (the
+// lines bridge it) instead of being drawn as a false 0%. The chart starts at
+// the first day with a session rather than at weeks of empty days.
 function flatten(rows: EmotionTrendRow[]): ChartRow[] {
-  return rows.map((r) => ({ date: r.date, ...r.emotions }));
+  const first = rows.findIndex(hasSessions);
+  if (first === -1) return [];
+  return rows
+    .slice(first)
+    .map((r) => (hasSessions(r) ? { date: r.date, ...r.emotions } : { date: r.date }));
 }
 
 function isEmpty(rows: EmotionTrendRow[]): boolean {
@@ -173,12 +184,17 @@ export function EmotionTrendChart({
                 {visibleKeys.map((e) => (
                   <Line
                     key={e}
-                    type="monotone"
+                    // Straight segments: curve smoothing invents bumps between
+                    // a few daily points.
+                    type="linear"
                     dataKey={e}
                     name={e}
                     stroke={EMOTION_HEX[e]?.bg ?? "#6b7280"}
                     strokeWidth={2}
-                    dot={false}
+                    // A dot marks each day that had sessions.
+                    dot={{ r: 3, strokeWidth: 0, fill: EMOTION_HEX[e]?.bg ?? "#6b7280" }}
+                    activeDot={{ r: 4 }}
+                    connectNulls
                     hide={hidden.has(e)}
                     isAnimationActive={false}
                   />

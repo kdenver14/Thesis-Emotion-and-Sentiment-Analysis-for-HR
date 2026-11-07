@@ -98,6 +98,9 @@ export function EmotionPanel({
           <AnimatePresence mode="wait" initial={false}>
             <motion.div
               key={view}
+              // Centered in the card's height, which the taller trend chart
+              // beside it sets, so spare space is not all at the bottom.
+              className="flex flex-1 flex-col justify-center"
               initial={{ opacity: 0, y: 20, scale: 0.96 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: -20, scale: 0.96 }}
@@ -108,7 +111,6 @@ export function EmotionPanel({
                 allEmotions={metrics.allEmotions}
                 sentiment={metrics.sentiment}
                 view={view}
-                wide={!showTrend}
               />
             </motion.div>
           </AnimatePresence>

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import UploadVideo from "./UploadVideo";
+import { useDraft } from "./uploadDraft";
 import type { EmployeeRow } from "~/server/repositories/employee";
 import type { SessionType } from "~/types/analysis";
 import { SESSION_TYPES, SESSION_TYPE_LABELS } from "~/types/analysis";
@@ -25,15 +26,18 @@ interface InferenceProps {
 }
 
 export function Inference({ employees, interviewerName }: InferenceProps) {
-  const [title, setTitle] = useState("");
-  const [sessionType, setSessionType] = useState<SessionType>("interview");
-  const [employeeId, setEmployeeId] = useState("");
-  const [sessionDate, setSessionDate] = useState(
+  // Form fields are drafts: they survive a visit to another tab.
+  const [title, setTitle] = useDraft("upload.title", "");
+  const [sessionType, setSessionType] = useDraft<SessionType>("upload.sessionType", "interview");
+  const [employeeId, setEmployeeId] = useDraft("upload.employeeId", "");
+  const [sessionDate, setSessionDate] = useDraft(
+    "upload.sessionDate",
     new Date().toISOString().slice(0, 10),
   );
 
   // Meeting participants (declared at upload; bound to speakers later)
-  const [participantIds, setParticipantIds] = useState<string[]>(() =>
+  const [participantIds, setParticipantIds] = useDraft<string[]>(
+    "upload.participantIds",
     Array<string>(MIN_MEETING_PARTICIPANTS).fill(""),
   );
 
@@ -56,11 +60,11 @@ export function Inference({ employees, interviewerName }: InferenceProps) {
   }
 
   // Onboarding candidate fields
-  const [candidateFirstName, setCandidateFirstName] = useState("");
-  const [candidateLastName, setCandidateLastName] = useState("");
-  const [candidatePosition, setCandidatePosition] = useState("");
-  const [candidateEmail, setCandidateEmail] = useState("");
-  const [candidatePhone, setCandidatePhone] = useState("");
+  const [candidateFirstName, setCandidateFirstName] = useDraft("upload.candidateFirstName", "");
+  const [candidateLastName, setCandidateLastName] = useDraft("upload.candidateLastName", "");
+  const [candidatePosition, setCandidatePosition] = useDraft("upload.candidatePosition", "");
+  const [candidateEmail, setCandidateEmail] = useDraft("upload.candidateEmail", "");
+  const [candidatePhone, setCandidatePhone] = useDraft("upload.candidatePhone", "");
 
   // Validation touch state
   const [nameTouched, setNameTouched] = useState(false);

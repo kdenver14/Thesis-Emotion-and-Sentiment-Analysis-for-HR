@@ -67,6 +67,8 @@ export type UserRow = {
   email: string | null;
   role: Role;
   createdAt: Date | null;
+  // Sessions this user uploaded, any status: the dashboard's "Handled by".
+  sessionsHandled: number;
 };
 
 export async function getUsers(): Promise<UserRow[]> {
@@ -74,10 +76,21 @@ export async function getUsers(): Promise<UserRow[]> {
   const role = session?.user?.role;
   if (role !== "MANAGER" && role !== "DIRECTOR") return [];
   const rows = await db.user.findMany({
-    select: { id: true, name: true, email: true, role: true, createdAt: true },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      role: true,
+      createdAt: true,
+      _count: { select: { analysisSessions: true } },
+    },
     orderBy: { name: "asc" },
   });
-  return rows.map((r) => ({ ...r, role: r.role as Role }));
+  return rows.map(({ _count, ...r }) => ({
+    ...r,
+    role: r.role as Role,
+    sessionsHandled: _count.analysisSessions,
+  }));
 }
 
 export async function createUser(data: {
@@ -136,7 +149,9 @@ export async function removeUser(userId: string): Promise<{ error?: string }> {
     select: {
       role: true,
       name: true,
-      _count: { select: { employees: true } },
+      _count: {
+        select: { employees: { where: { status: { not: "Deleted" } } } },
+      },
     },
   });
   if (!target) return { error: "User not found" };
@@ -147,15 +162,24 @@ export async function removeUser(userId: string): Promise<{ error?: string }> {
     return { error: "Cannot delete an admin account" };
   }
   // Employee.user is onDelete: Cascade, so deleting an owner
-  // cascade-destroys their HR records (including soft-deleted ones).
-  // Force explicit reassignment instead of silent data loss.
+  // cascade-destroys their HR records. Active ones block the delete:
+  // force explicit reassignment instead of silent data loss.
   if (target._count.employees > 0) {
     return {
       error: "Reassign this user's employee records before deleting the account",
     };
   }
 
-  await db.user.delete({ where: { id: userId } });
+  // Soft-deleted employees move to the acting manager instead of cascading:
+  // the cascade would unlink their old sessions ("(deleted)" becomes
+  // "Unassigned") and fail on SessionParticipant's RESTRICT foreign key.
+  await db.$transaction([
+    db.employee.updateMany({
+      where: { userId, status: "Deleted" },
+      data: { userId: guard.user.id },
+    }),
+    db.user.delete({ where: { id: userId } }),
+  ]);
   await recordAudit({
     actorId: guard.user.id,
     actorName: await actorName(guard.user.id),

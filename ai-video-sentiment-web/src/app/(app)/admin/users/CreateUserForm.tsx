@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { FiCopy, FiCheck } from "react-icons/fi";
 import { createUser } from "~/actions/users";
+import { completeDemoEmail } from "~/lib/demoEmail";
 
 const inputClass =
   "w-full rounded-md border border-gray-200 px-3 py-1.5 text-sm focus:border-gray-400 focus:outline-none";
@@ -147,10 +148,20 @@ export function CreateUserForm() {
             placeholder="blastasia.hr.app+name@gmail.com"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
+            onKeyDown={(e) => {
+              // First Tab completes the address; the next Tab moves on as usual.
+              if (e.key !== "Tab" || e.shiftKey) return;
+              const completed = completeDemoEmail(email, name);
+              if (completed) {
+                e.preventDefault();
+                setEmail(completed);
+              }
+            }}
             className={inputClass}
           />
           <p className="text-xs text-gray-400">
-            Must be blastasia.hr.app+&lt;name&gt;@gmail.com (demo mailbox).
+            Must be blastasia.hr.app+&lt;name&gt;@gmail.com (demo mailbox). Press
+            Tab to fill it in from the name.
           </p>
         </div>
         <div className="flex flex-col gap-1">

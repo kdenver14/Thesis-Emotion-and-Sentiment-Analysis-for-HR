@@ -16,7 +16,14 @@ const utteranceSchema = z.object({
   start_time: z.number().finite().nonnegative(),
   end_time: z.number().finite().nonnegative(),
   text: z.string().max(MAX_UTTERANCE_TEXT),
-  speaker: z.string().max(200).optional(),
+  // Python sends null when a segment overlaps no diarized speech (pauses,
+  // noise) or diarization is off; the route stores it as an unassigned line.
+  // Normalized to undefined so the domain type (`speaker?: string`) holds.
+  speaker: z
+    .string()
+    .max(200)
+    .nullish()
+    .transform((v) => v ?? undefined),
   emotions: z.array(scoreSchema),
   sentiments: z.array(scoreSchema),
 });

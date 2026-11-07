@@ -24,11 +24,28 @@ async function runPurge(): Promise<void> {
   }
 }
 
+// Sessions saved by an older build lack the stored emotion tally; fill it so
+// lists and dashboard totals stay right with no manual backfill.
+async function fillEmotionCounts(): Promise<void> {
+  try {
+    const { fillMissingEmotionCounts } = await import(
+      "~/server/repositories/session"
+    );
+    const fixed = await fillMissingEmotionCounts();
+    if (fixed > 0) {
+      console.log(`[emotion-counts] filled ${fixed} session(s)`);
+    }
+  } catch (err) {
+    console.error("[emotion-counts] fill failed", err);
+  }
+}
+
 export async function register(): Promise<void> {
   if (process.env.NEXT_RUNTIME !== "nodejs") return;
   // Do not run (or start a timer) during the production build step.
   if (process.env.NEXT_PHASE === "phase-production-build") return;
 
+  await fillEmotionCounts();
   await runPurge();
 
   if (!globalForPurge.__rejectedCandidatePurgeTimer) {

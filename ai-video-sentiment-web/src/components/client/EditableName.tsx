@@ -77,7 +77,7 @@ export function EditableName({ initialName }: { initialName: string }) {
     <button
       onClick={startEdit}
       title="Click to edit name"
-      className="truncate text-xs text-gray-500 hover:text-gray-800 hover:underline"
+      className="truncate text-xs font-medium text-gray-700 hover:text-gray-900 hover:underline"
     >
       {name || "—"}
     </button>

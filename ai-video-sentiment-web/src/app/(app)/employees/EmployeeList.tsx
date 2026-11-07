@@ -3,49 +3,79 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
 import {
-  FiSearch,
-  FiSliders,
+  FiArrowDown,
+  FiArrowUp,
   FiChevronLeft,
   FiChevronRight,
+  FiSearch,
 } from "react-icons/fi";
 import type { EmployeeRow } from "~/server/repositories/employee";
 
 interface EmployeeListProps {
   employees: EmployeeRow[];
-  seesAllUsers: boolean;
-  // Page-level action (the add-employee button). It shares the filter row so
+  // Page-level action (the add-employee button). It shares the toolbar row so
   // it does not cost a separate, mostly empty row above the list.
   actions?: ReactNode;
 }
 
-type SortKey = "name_asc" | "date_desc" | "date_asc";
+type SortColumn = "name" | "department" | "email" | "addedBy" | "createdAt";
+type SortDir = "asc" | "desc";
 
 const PAGE_SIZE = 10;
 
-function getInitials(name: string): string {
-  return name
-    .split(" ")
-    .map((w) => w[0] ?? "")
-    .slice(0, 2)
-    .join("")
-    .toUpperCase();
+// One column template for the header and every row, so they line up. Phones
+// get no columns: each row stacks name over department and email.
+const COLUMNS =
+  "sm:grid sm:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,1.4fr)_minmax(0,1fr)_6rem] sm:gap-4";
+
+const HEADERS: { column: SortColumn; label: string }[] = [
+  { column: "name", label: "Name" },
+  { column: "department", label: "Department" },
+  { column: "email", label: "Email" },
+  { column: "addedBy", label: "Added by" },
+  { column: "createdAt", label: "Added on" },
+];
+
+const SORT_VALUE: Record<SortColumn, (e: EmployeeRow) => string | number> = {
+  name: (e) => e.name,
+  department: (e) => e.department ?? "",
+  email: (e) => e.email ?? "",
+  addedBy: (e) => e.addedBy?.name ?? "",
+  createdAt: (e) => e.createdAt.getTime(),
+};
+
+// Blanks sort last in either direction; ties fall back to name.
+function compareBy(column: SortColumn, dir: SortDir) {
+  return (a: EmployeeRow, b: EmployeeRow): number => {
+    const x = SORT_VALUE[column](a);
+    const y = SORT_VALUE[column](b);
+    if (x === "" || y === "") {
+      if (x !== y) return x === "" ? 1 : -1;
+      return a.name.localeCompare(b.name);
+    }
+    const cmp =
+      typeof x === "number" && typeof y === "number"
+        ? x - y
+        : String(x).localeCompare(String(y));
+    return (dir === "asc" ? cmp : -cmp) || a.name.localeCompare(b.name);
+  };
 }
 
-export function EmployeeList({
-  employees,
-  seesAllUsers,
-  actions,
-}: EmployeeListProps) {
+export function EmployeeList({ employees, actions }: EmployeeListProps) {
   const [query, setQuery] = useState("");
   const [department, setDepartment] = useState("");
   const [addedBy, setAddedBy] = useState("");
-  const [sort, setSort] = useState<SortKey>("name_asc");
+  const [sort, setSort] = useState<{ column: SortColumn; dir: SortDir }>({
+    column: "name",
+    dir: "asc",
+  });
   const [page, setPage] = useState(1);
-  const [showFilters, setShowFilters] = useState(false);
 
   const departments = useMemo(
     () =>
-      [...new Set(employees.map((e) => e.department).filter(Boolean))].sort() as string[],
+      [
+        ...new Set(employees.map((e) => e.department).filter(Boolean)),
+      ].sort() as string[],
     [employees],
   );
 
@@ -71,19 +101,7 @@ export function EmployeeList({
         (e.department?.toLowerCase().includes(q) ?? false)
       );
     });
-    const sorted = [...rows];
-    if (sort === "name_asc") {
-      sorted.sort((a, b) => a.name.localeCompare(b.name));
-    } else if (sort === "date_desc") {
-      sorted.sort(
-        (a, b) => b.createdAt.getTime() - a.createdAt.getTime(),
-      );
-    } else {
-      sorted.sort(
-        (a, b) => a.createdAt.getTime() - b.createdAt.getTime(),
-      );
-    }
-    return sorted;
+    return rows.sort(compareBy(sort.column, sort.dir));
   }, [employees, query, department, addedBy, sort]);
 
   useEffect(() => {
@@ -100,6 +118,15 @@ export function EmployeeList({
   const endIdx = Math.min(startIdx + PAGE_SIZE, filtered.length);
   const pageRows = filtered.slice(startIdx, endIdx);
 
+  // Clicking the active column flips its direction; a new column starts
+  // A to Z, or newest first for the date.
+  const sortBy = (column: SortColumn) =>
+    setSort((s) =>
+      s.column === column
+        ? { column, dir: s.dir === "asc" ? "desc" : "asc" }
+        : { column, dir: column === "createdAt" ? "desc" : "asc" },
+    );
+
   if (employees.length === 0) {
     return (
       <div className="flex flex-col gap-3">
@@ -111,63 +138,32 @@ export function EmployeeList({
     );
   }
 
-  const inputClass =
-    "w-full rounded-md border border-gray-200 px-3 py-1.5 text-sm focus:border-gray-400 focus:outline-none";
   const selectClass =
-    "rounded-md border border-gray-200 bg-white px-3 py-1.5 text-sm focus:border-gray-400 focus:outline-none";
-
-  const showAddedBy = seesAllUsers && adders.length > 0;
-  const hasFilters = departments.length > 0 || showAddedBy;
-  const activeFilterCount = (department ? 1 : 0) + (addedBy ? 1 : 0);
+    "min-w-0 flex-1 rounded-md border border-gray-200 bg-white px-3 py-1.5 text-sm text-gray-700 focus:border-gray-400 focus:outline-none sm:w-44 sm:flex-none";
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex flex-col gap-2">
-        <div className="flex flex-col gap-2 sm:flex-row">
-          <div className="relative min-w-0 flex-1">
-            <FiSearch className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-400" />
-            <input
-              type="search"
-              placeholder="Search name, email, department"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              className={`${inputClass} pl-9`}
-            />
-          </div>
-          {hasFilters && (
-            <button
-              type="button"
-              onClick={() => setShowFilters((s) => !s)}
-              aria-expanded={showFilters}
-              className="inline-flex items-center justify-center gap-1.5 rounded-md border border-gray-200 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50"
-            >
-              <FiSliders className="h-3.5 w-3.5" />
-              Filters
-              {activeFilterCount > 0 && (
-                <span className="rounded-full bg-gray-900 px-1.5 text-xs text-white">
-                  {activeFilterCount}
-                </span>
-              )}
-            </button>
-          )}
-          <select
-            value={sort}
-            onChange={(e) => setSort(e.target.value as SortKey)}
-            className={`${selectClass} sm:w-44`}
-          >
-            <option value="name_asc">Name (A–Z)</option>
-            <option value="date_desc">Newest first</option>
-            <option value="date_asc">Oldest first</option>
-          </select>
-          {actions}
+      {/* Search and both filters always in view: no toggle, no second row. */}
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+        <div className="relative min-w-0 flex-1">
+          <FiSearch className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-400" />
+          <input
+            type="search"
+            placeholder="Search name, email, department"
+            aria-label="Search employees"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            className="w-full rounded-md border border-gray-200 py-1.5 pl-9 pr-3 text-sm focus:border-gray-400 focus:outline-none"
+          />
         </div>
-        {showFilters && hasFilters && (
-          <div className="flex flex-col gap-2 sm:flex-row">
+        {(departments.length > 0 || adders.length > 0) && (
+          <div className="flex gap-2">
             {departments.length > 0 && (
               <select
                 value={department}
                 onChange={(e) => setDepartment(e.target.value)}
-                className={`${selectClass} sm:w-44`}
+                aria-label="Filter by department"
+                className={selectClass}
               >
                 <option value="">All departments</option>
                 {departments.map((d) => (
@@ -177,11 +173,12 @@ export function EmployeeList({
                 ))}
               </select>
             )}
-            {showAddedBy && (
+            {adders.length > 0 && (
               <select
                 value={addedBy}
                 onChange={(e) => setAddedBy(e.target.value)}
-                className={`${selectClass} sm:w-44`}
+                aria-label="Filter by who added the employee"
+                className={selectClass}
               >
                 <option value="">Added by anyone</option>
                 {adders.map((a) => (
@@ -193,6 +190,7 @@ export function EmployeeList({
             )}
           </div>
         )}
+        {actions}
       </div>
 
       {filtered.length === 0 ? (
@@ -201,62 +199,99 @@ export function EmployeeList({
         </div>
       ) : (
         <>
-          <div className="flex flex-col gap-2">
-            {pageRows.map((emp) => (
-              <Link
-                key={emp.id}
-                href={`/employees/${emp.id}`}
-                className="flex items-center gap-3 rounded-xl border border-gray-200 px-4 py-3 hover:bg-gray-50"
-              >
-                <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-gray-100">
-                  <span className="text-xs font-medium text-gray-600">
-                    {getInitials(emp.name)}
-                  </span>
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium text-gray-900">{emp.name}</span>
-                  </div>
-                  <div className="truncate text-xs text-gray-500">
-                    {[emp.department, emp.email].filter(Boolean).join(" · ")}
-                  </div>
-                </div>
-              </Link>
-            ))}
+          <div className="overflow-hidden rounded-xl border border-gray-200">
+            {/* Column headers double as the sort control. */}
+            <div
+              className={`hidden border-b border-gray-200 bg-gray-50 px-4 py-2 text-xs font-medium text-gray-500 ${COLUMNS}`}
+            >
+              {HEADERS.map(({ column, label }) => {
+                const active = sort.column === column;
+                const Arrow = sort.dir === "asc" ? FiArrowUp : FiArrowDown;
+                return (
+                  <button
+                    key={column}
+                    type="button"
+                    onClick={() => sortBy(column)}
+                    className={`flex items-center gap-1 text-left hover:text-gray-900 ${active ? "text-gray-900" : ""}`}
+                  >
+                    {label}
+                    {active && (
+                      <>
+                        <Arrow className="h-3 w-3" aria-hidden />
+                        <span className="sr-only">
+                          (sorted{" "}
+                          {sort.dir === "asc" ? "ascending" : "descending"})
+                        </span>
+                      </>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+            <ul className="divide-y divide-gray-100">
+              {pageRows.map((emp) => (
+                <li key={emp.id}>
+                  <Link
+                    href={`/employees/${emp.id}`}
+                    className={`block px-4 py-2.5 text-sm hover:bg-gray-50 ${COLUMNS}`}
+                  >
+                    <span className="block truncate font-medium text-gray-900">
+                      {emp.name}
+                    </span>
+                    <span className="block truncate text-xs text-gray-500 sm:hidden">
+                      {[emp.department, emp.email].filter(Boolean).join(" · ")}
+                    </span>
+                    <span className="hidden truncate text-gray-600 sm:block">
+                      {emp.department ?? "—"}
+                    </span>
+                    <span className="hidden truncate text-gray-600 sm:block">
+                      {emp.email ?? "—"}
+                    </span>
+                    <span className="hidden truncate text-gray-600 sm:block">
+                      {emp.addedBy?.name ?? "—"}
+                    </span>
+                    <span className="hidden tabular-nums text-gray-600 sm:block">
+                      {emp.createdAt.toLocaleDateString("en-GB")}
+                    </span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
           </div>
 
-          <div className="flex items-center justify-between pt-1 text-xs text-gray-500">
-            <span>
-              Showing {startIdx + 1}–{endIdx} of {filtered.length}
-            </span>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                disabled={safePage <= 1}
-                className="inline-flex items-center gap-1 rounded-md border border-gray-200 px-2 py-1 text-gray-600 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-white"
-                aria-label="Previous page"
-              >
-                <FiChevronLeft className="h-3.5 w-3.5" />
-                Prev
-              </button>
-              <span className="tabular-nums text-gray-600">
-                Page {safePage} of {totalPages}
+          {/* Paging only matters past one page; for one it is just noise. */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between pt-1 text-xs text-gray-500">
+              <span>
+                Showing {startIdx + 1}–{endIdx} of {filtered.length}
               </span>
-              <button
-                type="button"
-                onClick={() =>
-                  setPage((p) => Math.min(totalPages, p + 1))
-                }
-                disabled={safePage >= totalPages}
-                className="inline-flex items-center gap-1 rounded-md border border-gray-200 px-2 py-1 text-gray-600 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-white"
-                aria-label="Next page"
-              >
-                Next
-                <FiChevronRight className="h-3.5 w-3.5" />
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  disabled={safePage <= 1}
+                  className="inline-flex items-center gap-1 rounded-md border border-gray-200 px-2 py-1 text-gray-600 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-white"
+                  aria-label="Previous page"
+                >
+                  <FiChevronLeft className="h-3.5 w-3.5" />
+                  Prev
+                </button>
+                <span className="tabular-nums text-gray-600">
+                  Page {safePage} of {totalPages}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={safePage >= totalPages}
+                  className="inline-flex items-center gap-1 rounded-md border border-gray-200 px-2 py-1 text-gray-600 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-white"
+                  aria-label="Next page"
+                >
+                  Next
+                  <FiChevronRight className="h-3.5 w-3.5" />
+                </button>
+              </div>
             </div>
-          </div>
+          )}
         </>
       )}
     </div>

@@ -129,6 +129,12 @@ def _download(video_url: str, suffix: str) -> str:
                     raise ValueError("Video exceeds the 3 GB limit")
                 tmp.write(chunk)
         return tmp.name
+    except requests.RequestException as exc:
+        # requests messages embed the presigned URL (signature included) and
+        # this error is persisted and shown in the UI, so never forward it.
+        status = getattr(exc.response, "status_code", None)
+        detail = f"HTTP {status}" if status else type(exc).__name__
+        raise RuntimeError(f"Video download failed: {detail}") from None
     finally:
         tmp.close()
 
@@ -140,7 +146,9 @@ def _download(video_url: str, suffix: str) -> str:
     secrets=[hf_secret, auth_secret],
     min_containers=0,
     scaledown_window=1800,
-    timeout=3600,
+    # Run time grows with video length: a 14-min meeting took ~40 min and a
+    # 20-min one ran past 1 h. Keep GET_URL_TTL in r2.ts >= 2x this + queue.
+    timeout=10800,
     max_containers=3,
     retries=1,
 )

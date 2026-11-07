@@ -7,11 +7,11 @@ import { getAuditLog, type AuditLogRow } from "~/server/repositories/audit";
 // 404s /admin, but server actions are public RPC and must guard themselves).
 export async function getAuditLogPage(
   page: number,
-): Promise<{ entries: AuditLogRow[]; hasMore: boolean }> {
+): Promise<{ entries: AuditLogRow[]; totalPages: number }> {
   const session = await auth();
   const role = session?.user?.role;
   if (role !== "MANAGER" && role !== "DIRECTOR") {
-    return { entries: [], hasMore: false };
+    return { entries: [], totalPages: 1 };
   }
   return getAuditLog(page);
 }
