@@ -61,9 +61,7 @@ export default async function SessionDetailPage({ params }: PageProps) {
   if (!session) notFound();
 
   const sessionTypeLabel =
-    SESSION_TYPE_LABELS[
-      session.sessionType as keyof typeof SESSION_TYPE_LABELS
-    ] ?? session.sessionType;
+    SESSION_TYPE_LABELS[session.sessionType] ?? session.sessionType;
 
   // UPLOADING is reached when the user leaves the upload page mid-upload:
   // same loading view, so Cancel is always one click from the dashboard.
@@ -79,9 +77,12 @@ export default async function SessionDetailPage({ params }: PageProps) {
           >
             <FiArrowLeft className="h-3 w-3" /> Back to Dashboard
           </Link>
-          <h1 className="text-xl font-semibold text-gray-900">{session.title}</h1>
+          <h1 className="text-xl font-semibold text-gray-900">
+            {session.title}
+          </h1>
           <p className="text-sm text-gray-500">
-            {session.sessionDate.toLocaleDateString("en-GB")} · {sessionTypeLabel}
+            {session.sessionDate.toLocaleDateString("en-GB")} ·{" "}
+            {sessionTypeLabel}
           </p>
         </div>
         <div className="flex flex-col items-center justify-center gap-4 rounded-xl border border-dashed border-gray-200 py-20">
@@ -110,7 +111,9 @@ export default async function SessionDetailPage({ params }: PageProps) {
           >
             <FiArrowLeft className="h-3 w-3" /> Back to Dashboard
           </Link>
-          <h1 className="text-xl font-semibold text-gray-900">{session.title}</h1>
+          <h1 className="text-xl font-semibold text-gray-900">
+            {session.title}
+          </h1>
         </div>
         <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-red-200 bg-red-50 py-16">
           <p className="text-sm font-medium text-red-700">Analysis failed</p>
@@ -124,7 +127,11 @@ export default async function SessionDetailPage({ params }: PageProps) {
   }
 
   const speakers = [
-    ...new Set(session.utterances.map((u) => u.speaker).filter((s): s is string => s !== null)),
+    ...new Set(
+      session.utterances
+        .map((u) => u.speaker)
+        .filter((s): s is string => s !== null),
+    ),
   ];
   // Same pure function that wrote the stored summary text, so the visual
   // summary and the text always agree.
@@ -163,7 +170,9 @@ export default async function SessionDetailPage({ params }: PageProps) {
           </div>
           <div className="flex flex-shrink-0 items-center gap-1">
             <ExportButtons sessionId={session.id} userRole={role} />
-            {canMutate && <DeleteSessionButton sessionId={session.id} iconOnly />}
+            {canMutate && (
+              <DeleteSessionButton sessionId={session.id} iconOnly />
+            )}
           </div>
         </div>
         {/* Icons stand in for word labels to keep the row light; each icon
@@ -291,9 +300,10 @@ export default async function SessionDetailPage({ params }: PageProps) {
                   <RejectCandidateButton sessionId={session.id} />
                 </div>
               );
+            } else {
+              body = <p className="text-xs text-gray-500">Pending decision</p>;
             }
 
-            if (!body) return null;
             return (
               <div className="mt-4 border-t border-gray-100 pt-3">{body}</div>
             );
@@ -303,11 +313,12 @@ export default async function SessionDetailPage({ params }: PageProps) {
 
       <SessionSummary
         sentiment={summary.sentiment}
-        sentimentDescription={`Tone across all ${summary.total} utterance${summary.total !== 1 ? "s" : ""}`}
+        sentimentDescription={`Main tone of each of the ${summary.total} utterance${summary.total !== 1 ? "s" : ""}`}
         emotionSlices={toPercentSlices(expressive.expressiveEmotions)}
         emotionsDescription={`Among the ${expressive.expressivenessPct}% of utterances that were not neutral`}
         peakCount={summary.peakCount}
         peakTimes={summary.peakTimes}
+        filterPath={`/dashboard/${session.id}`}
       />
 
       {/* Meeting participant/speaker binding stays visible: speakerLabel is
@@ -321,7 +332,13 @@ export default async function SessionDetailPage({ params }: PageProps) {
         />
       )}
 
-      <section className="flex flex-col gap-3 rounded-xl border border-gray-200 p-4">
+      {/* Target of the summary legend links (#transcript). */}
+      <section
+        id="transcript"
+        // Focusable so keyboard users land here after a legend link jumps.
+        tabIndex={-1}
+        className="flex scroll-mt-4 flex-col gap-3 rounded-xl border border-gray-200 p-4 focus:outline-none"
+      >
         <h3 className="text-sm font-medium text-gray-800">Transcript</h3>
         <SpeakerTimeline
           sessionId={session.id}

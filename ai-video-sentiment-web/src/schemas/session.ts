@@ -1,5 +1,10 @@
 import { z } from "zod";
 import { SESSION_TYPES } from "~/types/analysis";
+import { dayKey } from "~/lib/periods";
+
+export const FUTURE_DATE_MESSAGE =
+  "A recorded session cannot have a future date";
+const MAX_YEAR = 9999;
 
 export const sessionMetadataSchema = z.object({
   title: z.string().min(1, "Title is required").max(200),
@@ -10,6 +15,15 @@ export const sessionMetadataSchema = z.object({
   sessionDate: z
     .string()
     .refine((v) => !Number.isNaN(Date.parse(v)), "Invalid session date")
+    // A recording already happened: today (Manila) is the latest day allowed.
+    .refine((v) => {
+      const d = new Date(v);
+      // Day keys compare as text, which only holds for 4-digit years.
+      return (
+        Number.isNaN(d.getTime()) ||
+        (d.getUTCFullYear() < MAX_YEAR && dayKey(d) <= dayKey(new Date()))
+      );
+    }, FUTURE_DATE_MESSAGE)
     .optional(),
   interviewerName: z.string().max(200).optional(),
 });
@@ -38,7 +52,10 @@ const MAX_MEETING_PARTICIPANTS = 20;
 export const meetingParticipantsSchema = z
   .array(z.string().min(1).max(64))
   .min(2, "A meeting needs at least 2 participants")
-  .max(MAX_MEETING_PARTICIPANTS, `At most ${MAX_MEETING_PARTICIPANTS} participants`)
+  .max(
+    MAX_MEETING_PARTICIPANTS,
+    `At most ${MAX_MEETING_PARTICIPANTS} participants`,
+  )
   .refine((ids) => new Set(ids).size === ids.length, "Duplicate participant");
 
 // Post-inference: bind one declared participant to a detected speaker
@@ -56,4 +73,6 @@ export const onboardingCandidateSchema = z.object({
 });
 
 export type SessionMetadataSchema = z.infer<typeof sessionMetadataSchema>;
-export type OnboardingCandidateSchema = z.infer<typeof onboardingCandidateSchema>;
+export type OnboardingCandidateSchema = z.infer<
+  typeof onboardingCandidateSchema
+>;

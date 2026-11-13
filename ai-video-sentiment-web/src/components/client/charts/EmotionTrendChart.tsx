@@ -34,13 +34,13 @@ function flatten(rows: EmotionTrendRow[]): ChartRow[] {
   if (first === -1) return [];
   return rows
     .slice(first)
-    .map((r) => (hasSessions(r) ? { date: r.date, ...r.emotions } : { date: r.date }));
+    .map((r) =>
+      hasSessions(r) ? { date: r.date, ...r.emotions } : { date: r.date },
+    );
 }
 
 function isEmpty(rows: EmotionTrendRow[]): boolean {
-  return rows.every((r) =>
-    Object.values(r.emotions).every((v) => v === 0),
-  );
+  return rows.every((r) => Object.values(r.emotions).every((v) => v === 0));
 }
 
 function formatTick(date: string): string {
@@ -102,13 +102,16 @@ export function EmotionTrendChart({
     <div className="flex h-full flex-col gap-4 rounded-xl border border-gray-200 p-4">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2 text-gray-400">
-          <span className="text-xs uppercase tracking-wide">
-            Emotion trend
-          </span>
+          <span className="text-xs uppercase tracking-wide">Emotion trend</span>
           {isPending && (
             <span className="text-xs text-gray-400">updating…</span>
           )}
         </div>
+        {windows.length === 1 && (
+          <span className="text-xs text-gray-500">
+            {WINDOW_LABELS[days] ?? `${days}d`}
+          </span>
+        )}
         {windows.length > 1 && (
           <div
             role="group"
@@ -192,7 +195,11 @@ export function EmotionTrendChart({
                     stroke={EMOTION_HEX[e]?.bg ?? "#6b7280"}
                     strokeWidth={2}
                     // A dot marks each day that had sessions.
-                    dot={{ r: 3, strokeWidth: 0, fill: EMOTION_HEX[e]?.bg ?? "#6b7280" }}
+                    dot={{
+                      r: 3,
+                      strokeWidth: 0,
+                      fill: EMOTION_HEX[e]?.bg ?? "#6b7280",
+                    }}
                     activeDot={{ r: 4 }}
                     connectNulls
                     hide={hidden.has(e)}

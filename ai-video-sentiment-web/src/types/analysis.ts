@@ -96,19 +96,57 @@ export interface TopEmotionBreakdown {
 // non-numeric keys).
 export type EmotionCounts = Record<string, number>;
 
+// A line's highest score; on a tie the first listed wins; undefined when it
+// has none. Every per-line figure (donuts, transcript badges and filter,
+// stress peaks) uses this one rule, so the numbers always agree.
+export function mainScore(scores: Score[]): Score | undefined {
+  let top: Score | undefined;
+  for (const s of scores) {
+    if (!top || s.confidence > top.confidence) top = s;
+  }
+  return top;
+}
+
+// Tally of each score list's main label. Lists with no scores are skipped.
+function countTopLabels(lists: Score[][]): EmotionCounts {
+  const counts: EmotionCounts = {};
+  for (const scores of lists) {
+    const top = mainScore(scores);
+    if (top) counts[top.label] = (counts[top.label] ?? 0) + 1;
+  }
+  return counts;
+}
+
 export function countTopEmotions(
   utterances: { emotions: Score[] }[],
 ): EmotionCounts {
-  const counts: EmotionCounts = {};
-  for (const u of utterances) {
-    if (u.emotions.length === 0) continue;
-    let top = u.emotions[0]!;
-    for (const e of u.emotions) {
-      if (e.confidence > top.confidence) top = e;
-    }
-    counts[top.label] = (counts[top.label] ?? 0) + 1;
-  }
-  return counts;
+  return countTopLabels(utterances.map((u) => u.emotions));
+}
+
+export function countTopSentiments(
+  utterances: { sentiments: Score[] }[],
+): EmotionCounts {
+  return countTopLabels(utterances.map((u) => u.sentiments));
+}
+
+// Most frequent label in a tally (first seen wins a tie); "neutral" when empty.
+export function topLabel(counts: EmotionCounts): string {
+  return (
+    Object.entries(counts).sort((a, b) => b[1] - a[1])[0]?.[0] ?? "neutral"
+  );
+}
+
+// Share of lines whose main sentiment is each label, as integer percents
+// summing to 100. Every sentiment figure in the app (session donut, dashboard,
+// employee page, summary text, exports) uses this, so a session reads the same
+// everywhere and matches the transcript lines the legend links to.
+export function sentimentFromCounts(counts: EmotionCounts): SentimentBreakdown {
+  const [positive = 0, neutral = 0, negative = 0] = distributePercents([
+    counts.positive ?? 0,
+    counts.neutral ?? 0,
+    counts.negative ?? 0,
+  ]);
+  return { positive, neutral, negative };
 }
 
 // Sums tallies in the order given; a label first seen earlier stays ahead
@@ -191,7 +229,6 @@ export function computeAverages(utterances: ScoredUtterance[]): {
   avgEmotions: Score[];
   avgSentiments: Score[];
   topEmotion: string;
-  topSentiment: string;
 } {
   const emotionMap: Record<string, number[]> = {};
   const sentimentMap: Record<string, number[]> = {};
@@ -228,7 +265,6 @@ export function computeAverages(utterances: ScoredUtterance[]): {
     avgEmotions,
     avgSentiments,
     topEmotion: avgEmotions[0]?.label ?? "neutral",
-    topSentiment: avgSentiments[0]?.label ?? "neutral",
   };
 }
 
@@ -236,7 +272,6 @@ export interface EmployeeSessionMetrics {
   avgEmotions: Score[];
   avgSentiments: Score[];
   topEmotion: string;
-  topSentiment: string;
   expressivenessPct: number;
   topExpressiveEmotion: string;
   expressiveEmotions: Score[];
@@ -247,14 +282,13 @@ export interface EmployeeSessionMetrics {
 export function computeEmployeeSessionMetrics(
   utterances: ScoredUtterance[],
 ): EmployeeSessionMetrics {
-  const { avgEmotions, avgSentiments, topEmotion, topSentiment } =
+  const { avgEmotions, avgSentiments, topEmotion } =
     computeAverages(utterances);
   const expressive = computeExpressive(utterances);
   return {
     avgEmotions,
     avgSentiments,
     topEmotion,
-    topSentiment,
     expressivenessPct: expressive.expressivenessPct,
     topExpressiveEmotion: expressive.topExpressiveEmotion,
     expressiveEmotions: expressive.expressiveEmotions,
@@ -265,10 +299,7 @@ export function computeEmployeeSessionMetrics(
 // known total (default 100), returns integers that sum to exactly that total.
 // Rounding each share independently can drift by +/- 1 per bucket; this keeps
 // the sum stable for display (e.g. percentage bars that must add to 100).
-export function distributePercents(
-  shares: number[],
-  total = 100,
-): number[] {
+export function distributePercents(shares: number[], total = 100): number[] {
   if (shares.length === 0) return [];
   const sum = shares.reduce((a, b) => a + b, 0);
   if (sum === 0) return shares.map(() => 0);
@@ -287,8 +318,6 @@ export function distributePercents(
   return floors;
 }
 
-// Shares -> integer percent slices for a donut and its legend: largest first,
-// summing to exactly 100, zero slices dropped.
 // Mean of each label's share across several breakdowns, each weighted
 // equally (one per session); a label missing from a breakdown counts as 0.
 export function averageShares(breakdowns: Score[][]): Score[] {
@@ -303,6 +332,8 @@ export function averageShares(breakdowns: Score[][]): Score[] {
   }));
 }
 
+// Shares -> integer percent slices for a donut and its legend: largest first,
+// summing to exactly 100, zero slices dropped.
 export function toPercentSlices(
   scores: Score[],
 ): { label: string; value: number }[] {
@@ -311,18 +342,4 @@ export function toPercentSlices(
   return sorted
     .map((s, i) => ({ label: s.label, value: pcts[i] ?? 0 }))
     .filter((s) => s.value > 0);
-}
-
-export function getSentimentBreakdown(scores: Score[]): SentimentBreakdown {
-  let pos = 0;
-  let neu = 0;
-  let neg = 0;
-  for (const s of scores) {
-    if (s.label === "positive") pos = s.confidence;
-    else if (s.label === "neutral") neu = s.confidence;
-    else if (s.label === "negative") neg = s.confidence;
-  }
-  if (pos + neu + neg === 0) return { positive: 0, neutral: 0, negative: 0 };
-  const [p, n, g] = distributePercents([pos, neu, neg]);
-  return { positive: p!, neutral: n!, negative: g! };
 }

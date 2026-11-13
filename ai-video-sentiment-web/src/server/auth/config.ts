@@ -14,6 +14,7 @@ import { asRole, type Role } from "~/types/roles";
 import { db } from "~/server/db";
 import { consumeToken } from "~/server/repositories/verificationToken";
 import { validateTrustedDevice } from "~/server/repositories/trustedDevice";
+import { getAccountState } from "~/server/repositories/user";
 
 // Distinct from any NextAuth-managed cookie (authjs.*) so signOut() never
 // clears it: surviving logout is exactly what makes "remember me" skip the
@@ -97,6 +98,12 @@ export const authConfig = {
             throw new EmailNotVerifiedError();
           }
 
+          // Archived accounts never get a session. requestLoginCode tells
+          // the user why; this is the gate a direct signIn() cannot skip.
+          if (user.archivedAt) {
+            return null;
+          }
+
           const sessionUser = {
             id: user.id,
             email: user.email,
@@ -140,12 +147,37 @@ export const authConfig = {
   },
   adapter: PrismaAdapter(db),
   callbacks: {
-    jwt: ({ token, user, trigger, session }) => {
+    jwt: async ({ token, user, trigger, session }) => {
       if (user) {
         (token as { role?: Role }).role = asRole(user.role);
+        // Sign-in time. "iat" cannot serve: it is re-stamped on every refresh.
+        (token as { authAt?: number }).authAt = Date.now();
       }
-      if (trigger === "update" && typeof (session as { name?: unknown })?.name === "string") {
+      if (
+        trigger === "update" &&
+        typeof (session as { name?: unknown })?.name === "string"
+      ) {
         token.name = (session as { name: string }).name;
+      }
+      // Middleware runs this on the Edge runtime, where Prisma cannot run, so
+      // it only checks that someone is signed in. Pages, actions and API
+      // routes run on Node and re-read the account: a role change or archive
+      // applies on the user's next request. Null ends the session.
+      if (process.env.NEXT_RUNTIME === "nodejs" && token.sub) {
+        const account = await getAccountState(token.sub);
+        if (!account || account.archived) return null;
+        // Cookies issued before the last archive stay dead after a restore.
+        const authAt = (token as { authAt?: unknown }).authAt;
+        if (
+          account.sessionsRevokedAt &&
+          !(
+            typeof authAt === "number" &&
+            authAt > account.sessionsRevokedAt.getTime()
+          )
+        ) {
+          return null;
+        }
+        (token as { role?: Role }).role = account.role;
       }
       return token;
     },

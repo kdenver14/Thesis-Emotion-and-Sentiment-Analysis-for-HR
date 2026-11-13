@@ -3,8 +3,8 @@
 import { auth } from "~/server/auth";
 import {
   createEmployee,
-  deleteEmployee,
   findEmployeesByUser,
+  setEmployeeArchived,
   updateEmployeeName,
   type EmployeeRow,
 } from "~/server/repositories/employee";
@@ -22,16 +22,23 @@ export async function getEmployees(): Promise<EmployeeRow[]> {
   return findEmployeesByUser(null);
 }
 
+// Shown on the Employees page only; pickers never offer archived employees.
+export async function getArchivedEmployees(): Promise<EmployeeRow[]> {
+  const scope = await getAccessScope();
+  if (scope.kind === "unauthenticated") return [];
+  return findEmployeesByUser(null, true);
+}
+
 export async function addEmployee(data: {
   name: string;
   email?: string;
   department?: string;
   phone?: string;
-  status?: string;
 }): Promise<{ employee?: EmployeeRow; error?: string }> {
   const session = await auth();
   if (!session?.user?.id) return { error: "Unauthorized" };
-  if (session.user.role === "DIRECTOR") return { error: "Directors cannot create employee records" };
+  if (session.user.role === "DIRECTOR")
+    return { error: "Directors cannot create employee records" };
 
   const parsed = addEmployeeSchema.safeParse(data);
   if (!parsed.success) {
@@ -44,7 +51,7 @@ export async function addEmployee(data: {
     email: v.email,
     department: v.department,
     phone: v.phone,
-    status: v.status ?? "Active",
+    status: "Active",
   });
 
   return { employee };
@@ -56,7 +63,8 @@ export async function renameEmployee(
 ): Promise<void> {
   const session = await auth();
   if (!session?.user?.id) throw new Error("Unauthorized");
-  if (session.user.role === "DIRECTOR") throw new Error("Directors cannot edit employee records");
+  if (session.user.role === "DIRECTOR")
+    throw new Error("Directors cannot edit employee records");
   const trimmed = name.trim();
   if (!trimmed) throw new Error("Employee name is required");
   if (trimmed.length > MAX_EMPLOYEE_NAME)
@@ -66,22 +74,44 @@ export async function renameEmployee(
   await updateEmployeeName(employeeId, null, trimmed);
 }
 
-export async function removeEmployee(
+// Archive replaces delete: the employee leaves the lists and pickers, their
+// sessions stay linked, and restoring brings them back.
+async function setArchived(
   employeeId: string,
+  archived: boolean,
 ): Promise<{ error?: string }> {
   const session = await auth();
   if (!session?.user?.id) return { error: "Unauthorized" };
-  if (session.user.role === "DIRECTOR") return { error: "Directors cannot delete employee records" };
+  if (session.user.role === "DIRECTOR")
+    return { error: "Directors have view-only access" };
 
-  const deletedName = await deleteEmployee(employeeId, null);
-  if (deletedName === null) return { error: "Employee not found or already deleted" };
+  const name = await setEmployeeArchived(employeeId, null, archived);
+  if (name === null) {
+    return {
+      error: archived
+        ? "Employee not found or already archived"
+        : "Employee not found or not archived",
+    };
+  }
   await recordAudit({
     actorId: session.user.id,
     actorName: await getActorName(session.user.id),
-    action: "employee.delete",
+    action: archived ? "employee.archive" : "employee.restore",
     targetType: "employee",
     targetId: employeeId,
-    targetName: deletedName,
+    targetName: name,
   });
   return {};
+}
+
+export async function archiveEmployee(
+  employeeId: string,
+): Promise<{ error?: string }> {
+  return setArchived(employeeId, true);
+}
+
+export async function restoreEmployee(
+  employeeId: string,
+): Promise<{ error?: string }> {
+  return setArchived(employeeId, false);
 }

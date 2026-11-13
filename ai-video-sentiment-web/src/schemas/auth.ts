@@ -11,6 +11,18 @@ export const loginSchema = z.object({
 
 export type LoginSchema = z.infer<typeof loginSchema>;
 
+// Account names: letters (any alphabet), spaces, hyphens, apostrophes and
+// periods. No digits or other symbols.
+export const userNameSchema = z
+  .string()
+  .trim()
+  .min(1, "Name is required")
+  .max(200, "Name must be 200 characters or fewer")
+  .regex(
+    /^[\p{L}\p{M} .'\u2019-]+$/u,
+    "Only letters, spaces, hyphens (-), apostrophes (') and periods (.) are allowed",
+  );
+
 // 72 = bcrypt's hard input ceiling (bytes beyond are silently dropped).
 export const passwordSchema = z
   .string()

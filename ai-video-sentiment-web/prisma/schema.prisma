@@ -43,6 +43,16 @@ model User {
     password         String
     role             String            @default("STAFF")
     createdAt        DateTime?
+    // Set when an admin creates the account with an emailed temporary
+    // password; every app page sends the user to /set-password until they
+    // choose their own (any password change or reset clears it).
+    mustChangePassword Boolean         @default(false)
+    // Archived accounts cannot sign in and any open session ends on its next
+    // request; their sessions and employees stay. Restore clears it.
+    archivedAt       DateTime?
+    // Login cookies issued before this moment are dead (set on archive), so
+    // restoring an account never revives an old or stolen cookie.
+    sessionsRevokedAt DateTime?
     accounts         Account[]
     sessions         Session[]
     employees        Employee[]
@@ -113,11 +123,15 @@ model AnalysisSession {
     topSentiment         String                @default("")
     summary              String                @default("")
     durationSecs         Float?
-    // Dominant-emotion tally (JSON, first-seen order) and utterance count,
-    // written with the result so lists and dashboard totals never re-read
-    // every utterance. Anything that adds or removes utterances must refresh
-    // both (scripts/backfill-emotion-counts.ts recomputes them).
+    // Per-line figures written with the result (computeSessionTallies) so
+    // lists and totals never re-read every utterance: emotionCounts and
+    // sentimentCounts (JSON tallies, first-seen order), utteranceCount, plus
+    // topSentiment and summary. Anything that adds or removes utterances must
+    // refresh them (scripts/backfill-session-tallies.ts recomputes all).
     emotionCounts        String                @default("{}")
+    // Same idea for each line's main sentiment; every sentiment % is the
+    // share of lines built from this.
+    sentimentCounts      String                @default("{}")
     utteranceCount       Int                   @default(0)
     status               String                @default("PROCESSING")
     errorMessage         String?
