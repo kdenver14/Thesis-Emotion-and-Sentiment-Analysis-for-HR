@@ -8,6 +8,7 @@ import {
   FiUsers,
   FiSettings,
   FiFileText,
+  FiBarChart2,
 } from "react-icons/fi";
 import { SignOutButton } from "./signout";
 import { EditableName } from "./EditableName";
@@ -40,6 +41,11 @@ export default function Navigation({
       ? [{ href: "/upload", label: "Upload", icon: FiUpload }]
       : []),
     ...BASE_NAV,
+    // The quarterly report is the HR Director's alone; Managers compare
+    // months from the dashboard instead.
+    ...(userRole === "DIRECTOR"
+      ? [{ href: "/reports", label: "Reports", icon: FiBarChart2 }]
+      : []),
     ...(userRole === "MANAGER" || userRole === "DIRECTOR"
       ? [
           { href: "/admin/users", label: "Users", icon: FiSettings },
@@ -59,14 +65,18 @@ export default function Navigation({
                 <Link
                   key={href}
                   href={href}
-                  className={`flex items-center gap-1.5 rounded-md px-3 py-2 text-sm transition-colors ${
+                  // Icons only below 1024px, where the labels would wrap.
+                  aria-label={label}
+                  aria-current={isActive ? "page" : undefined}
+                  title={label}
+                  className={`flex items-center gap-1.5 whitespace-nowrap rounded-md px-3 py-2 text-sm transition-colors ${
                     isActive
                       ? "bg-gray-100 font-medium text-gray-900"
                       : "text-gray-500 hover:bg-gray-50 hover:text-gray-900"
                   }`}
                 >
-                  <Icon className="h-4 w-4" />
-                  <span className="hidden sm:block">{label}</span>
+                  <Icon className="h-4 w-4" aria-hidden />
+                  <span className="hidden lg:block">{label}</span>
                 </Link>
               );
             })}

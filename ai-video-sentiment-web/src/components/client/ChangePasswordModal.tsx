@@ -34,7 +34,7 @@ export function ChangePasswordModal() {
   };
 
   const requestCode = async (): Promise<boolean> => {
-    const result = await requestPasswordChangeCode(current);
+    const result = await requestPasswordChangeCode(current, next);
     if (result.error) {
       setError(result.error);
       return false;
@@ -77,8 +77,8 @@ export function ChangePasswordModal() {
       setError(result.error);
       return;
     }
+    // Stays until dismissed: an auto-close could be missed.
     setSuccess(true);
-    setTimeout(close, 1500);
   };
 
   const inputClass =
@@ -115,9 +115,19 @@ export function ChangePasswordModal() {
             </div>
 
             {success ? (
-              <p className="py-4 text-center text-sm text-gray-600">
-                Password updated.
-              </p>
+              <div className="flex flex-col items-center gap-4 py-2">
+                <p role="status" className="text-sm text-gray-700">
+                  Password updated.
+                </p>
+                <button
+                  type="button"
+                  onClick={close}
+                  autoFocus
+                  className="rounded-md bg-gray-800 px-3 py-1.5 text-sm text-white hover:bg-gray-700"
+                >
+                  Done
+                </button>
+              </div>
             ) : step === "form" ? (
               <form onSubmit={handleSendCode} className="flex flex-col gap-3">
                 <div className="flex flex-col gap-1">
@@ -157,7 +167,11 @@ export function ChangePasswordModal() {
                     autoComplete="new-password"
                   />
                 </div>
-                {error && <p className="text-xs text-red-500">{error}</p>}
+                {error && (
+                  <p role="alert" className="text-xs text-red-500">
+                    {error}
+                  </p>
+                )}
                 <div className="flex justify-end gap-2 pt-1">
                   <button
                     type="button"
@@ -177,13 +191,9 @@ export function ChangePasswordModal() {
               </form>
             ) : (
               <form onSubmit={handleConfirm} className="flex flex-col gap-3">
-                {notice && (
-                  <p className="text-xs text-gray-500">{notice}</p>
-                )}
+                {notice && <p className="text-xs text-gray-500">{notice}</p>}
                 <div className="flex flex-col gap-1">
-                  <label className="text-xs text-gray-500">
-                    6-digit code
-                  </label>
+                  <label className="text-xs text-gray-500">6-digit code</label>
                   <input
                     type="text"
                     inputMode="numeric"
@@ -191,14 +201,16 @@ export function ChangePasswordModal() {
                     required
                     maxLength={6}
                     value={code}
-                    onChange={(e) =>
-                      setCode(e.target.value.replace(/\D/g, ""))
-                    }
+                    onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
                     className={`${inputClass} tracking-[0.4em]`}
                     placeholder="000000"
                   />
                 </div>
-                {error && <p className="text-xs text-red-500">{error}</p>}
+                {error && (
+                  <p role="alert" className="text-xs text-red-500">
+                    {error}
+                  </p>
+                )}
                 <div className="flex items-center justify-between pt-1">
                   <button
                     type="button"

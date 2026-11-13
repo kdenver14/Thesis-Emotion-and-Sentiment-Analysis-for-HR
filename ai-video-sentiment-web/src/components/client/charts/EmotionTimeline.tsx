@@ -5,21 +5,65 @@ import type { ParsedUtterance } from "~/server/repositories/session";
 import {
   EMOTION_HEX as EMOTION_COLORS,
   EMOTION_HEX_DEFAULT as DEFAULT_COLOR,
+  sentimentHex,
 } from "~/lib/sentiment";
+import { formatTimestamp } from "~/lib/dates";
+import { splitByTerm } from "~/lib/textSearch";
+import { mainScore } from "~/types/analysis";
 
 interface EmotionTimelineProps {
   utterances: ParsedUtterance[];
   employeeSpeakerId?: string | null;
+  // Search term to mark in each line's text ("" marks nothing).
+  highlight?: string;
 }
 
-function topEmotion(utterance: ParsedUtterance): string {
-  return (
-    [...utterance.emotions].sort((a, b) => b.confidence - a.confidence)[0]
-      ?.label ?? "neutral"
+function Highlighted({ text, term }: { text: string; term: string }) {
+  return splitByTerm(text, term).map((part, i) =>
+    i % 2 === 1 ? (
+      // Gray, not yellow: the UI is monochrome except emotion colors.
+      <mark key={i} className="rounded-sm bg-gray-200 px-0.5 text-gray-900">
+        {part}
+      </mark>
+    ) : (
+      part
+    ),
   );
 }
 
-export function EmotionTimeline({ utterances, employeeSpeakerId }: EmotionTimelineProps) {
+function topEmotion(utterance: ParsedUtterance): string {
+  return mainScore(utterance.emotions)?.label ?? "neutral";
+}
+
+// One width for both badge columns, so the header labels sit above them.
+const BADGE_COLUMN = "w-[4.5rem] flex-shrink-0 text-center";
+
+function Badge({
+  kind,
+  label,
+  colors,
+}: {
+  kind: "Emotion" | "Sentiment";
+  label: string;
+  colors: { bg: string; text: string };
+}) {
+  return (
+    <span
+      title={kind}
+      className={`${BADGE_COLUMN} rounded px-1.5 py-0.5 text-xs font-medium capitalize`}
+      style={{ color: colors.text, backgroundColor: `${colors.bg}20` }}
+    >
+      <span className="sr-only">{kind}: </span>
+      {label}
+    </span>
+  );
+}
+
+export function EmotionTimeline({
+  utterances,
+  employeeSpeakerId,
+  highlight = "",
+}: EmotionTimelineProps) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   if (utterances.length === 0) {
@@ -30,129 +74,124 @@ export function EmotionTimeline({ utterances, employeeSpeakerId }: EmotionTimeli
     );
   }
 
-  const totalDuration =
-    utterances.at(-1)?.endTime ?? utterances.at(-1)?.startTime ?? 1;
-
+  // Each line names its own emotion, so there is no color strip or legend.
+  // Tall enough to read a stretch of the conversation; long lines wrap, so it
+  // never scrolls sideways.
   return (
-    <div className="flex flex-col gap-3">
-      {/* Visual strip */}
-      <div className="flex h-8 w-full overflow-hidden rounded-md">
-        {utterances.map((u) => {
-          const emotion = topEmotion(u);
-          const widthPct = ((u.endTime - u.startTime) / totalDuration) * 100;
-          return (
-            <div
-              key={u.id}
-              title={`${u.startTime.toFixed(1)}s–${u.endTime.toFixed(1)}s: ${emotion}\n"${u.text}"`}
-              style={{
-                width: `${widthPct}%`,
-                backgroundColor: (EMOTION_COLORS[emotion] ?? DEFAULT_COLOR).bg,
-                minWidth: 2,
-              }}
-            />
-          );
-        })}
+    <div className="flex max-h-[36rem] flex-col gap-0.5 overflow-y-auto overflow-x-hidden">
+      {/* Names the two badge columns ("neutral" can be either). Inside the
+          scroll box, so a scrollbar never shifts it off the columns. */}
+      <div
+        aria-hidden
+        className="sticky top-0 z-10 hidden justify-end gap-1 bg-white px-2 pb-1 text-xs text-gray-400 sm:flex"
+      >
+        <span className={BADGE_COLUMN}>Emotion</span>
+        <span className={BADGE_COLUMN}>Sentiment</span>
       </div>
-
-      {/* Legend */}
-      <div className="flex flex-wrap gap-3">
-        {Object.entries(EMOTION_COLORS).map(([label, { bg }]) => (
-          <div key={label} className="flex items-center gap-1">
-            <div
-              className="h-3 w-3 rounded-sm"
-              style={{ backgroundColor: bg }}
-            />
-            <span className="text-xs capitalize text-gray-600">{label}</span>
-          </div>
-        ))}
-      </div>
-
-      {/* Utterance list */}
-      <div className="flex max-h-64 flex-col gap-1 overflow-y-auto">
-        {utterances.map((u) => {
-          const emotion = topEmotion(u);
-          const isEmployee = u.speaker !== null && u.speaker === employeeSpeakerId;
-          const isExpanded = expandedId === u.id;
-          return (
-            <div key={u.id} className="flex flex-col">
-              <button
-                type="button"
-                onClick={() => setExpandedId(isExpanded ? null : u.id)}
-                className="flex w-full items-start gap-3 rounded-md px-2 py-1 text-left hover:bg-gray-50"
+      {utterances.map((u) => {
+        const emotion = topEmotion(u);
+        const sentiment = mainScore(u.sentiments)?.label ?? "neutral";
+        const isEmployee =
+          u.speaker !== null && u.speaker === employeeSpeakerId;
+        const isExpanded = expandedId === u.id;
+        return (
+          <div key={u.id} className="flex flex-col">
+            <button
+              type="button"
+              onClick={() => setExpandedId(isExpanded ? null : u.id)}
+              aria-expanded={isExpanded}
+              className="flex w-full items-start gap-3 rounded-md px-2 py-1 text-left hover:bg-gray-50"
+            >
+              <span
+                className="mt-1 block h-2 w-2 flex-shrink-0 rounded-full"
+                style={{
+                  backgroundColor: (EMOTION_COLORS[emotion] ?? DEFAULT_COLOR)
+                    .bg,
+                }}
+              />
+              <span
+                className="w-10 flex-shrink-0 text-xs tabular-nums text-gray-500"
+                title={`${formatTimestamp(u.startTime)} to ${formatTimestamp(u.endTime)}`}
               >
-                <div
-                  className="mt-1 h-2 w-2 flex-shrink-0 rounded-full"
-                  style={{ backgroundColor: (EMOTION_COLORS[emotion] ?? DEFAULT_COLOR).bg }}
-                />
-                <span className="w-20 flex-shrink-0 text-xs text-gray-400">
-                  {u.startTime.toFixed(1)}–{u.endTime.toFixed(1)}s
-                </span>
-                {u.speaker !== null && (
-                  <span
-                    className={`flex-shrink-0 rounded px-1.5 py-0.5 text-xs font-medium ${
-                      isEmployee
-                        ? "bg-blue-100 text-blue-700"
-                        : "bg-gray-100 text-gray-500"
-                    }`}
-                  >
-                    {isEmployee ? "Employee" : u.speaker}
-                  </span>
-                )}
+                {formatTimestamp(u.startTime)}
+              </span>
+              {u.speaker !== null && (
                 <span
-                  className="text-xs font-medium"
-                  style={{ color: (EMOTION_COLORS[emotion] ?? DEFAULT_COLOR).text }}
+                  // Capped so a long renamed speaker cannot squeeze the text
+                  // or push the emotion label out of view.
+                  title={isEmployee ? "Employee" : u.speaker}
+                  className={`max-w-[5rem] flex-shrink-0 truncate rounded px-1.5 py-0.5 text-xs font-medium sm:max-w-[8rem] ${
+                    isEmployee
+                      ? "bg-blue-100 text-blue-700"
+                      : "bg-gray-100 text-gray-500"
+                  }`}
                 >
-                  {u.text}
+                  {isEmployee ? "Employee" : u.speaker}
                 </span>
-                <span
-                  className="ml-auto flex-shrink-0 rounded px-1.5 py-0.5 text-xs capitalize font-medium"
-                  style={{
-                    color: (EMOTION_COLORS[emotion] ?? DEFAULT_COLOR).text,
-                    backgroundColor: `${(EMOTION_COLORS[emotion] ?? DEFAULT_COLOR).bg}20`,
-                  }}
-                >
-                  {emotion}
-                </span>
-              </button>
-
-              {isExpanded && (
-                <div className="ml-7 mr-2 mb-1 flex flex-col gap-1.5 rounded-md bg-gray-50 px-3 py-2">
-                  <span className="text-xs font-medium text-gray-500">
-                    Emotion breakdown
-                  </span>
-                  {[...u.emotions]
-                    .sort((a, b) => b.confidence - a.confidence)
-                    .map((e) => {
-                      const colors = EMOTION_COLORS[e.label] ?? DEFAULT_COLOR;
-                      return (
-                        <div key={e.label} className="flex items-center gap-2">
-                          <span
-                            className="w-16 text-xs font-medium capitalize"
-                            style={{ color: colors.text }}
-                          >
-                            {e.label}
-                          </span>
-                          <div className="h-1.5 flex-1 rounded-full bg-gray-200">
-                            <div
-                              className="h-full rounded-full"
-                              style={{
-                                width: `${(e.confidence * 100).toFixed(0)}%`,
-                                backgroundColor: colors.bg,
-                              }}
-                            />
-                          </div>
-                          <span className="w-10 text-right text-xs text-gray-400">
-                            {(e.confidence * 100).toFixed(0)}%
-                          </span>
-                        </div>
-                      );
-                    })}
-                </div>
               )}
-            </div>
-          );
-        })}
-      </div>
+              <span
+                className="min-w-0 flex-1 text-xs font-medium [overflow-wrap:anywhere]"
+                style={{
+                  color: (EMOTION_COLORS[emotion] ?? DEFAULT_COLOR).text,
+                }}
+              >
+                <Highlighted text={u.text} term={highlight} />
+              </span>
+              {/* Stacked on phones, where two badges do not fit beside the text. */}
+              <span className="ml-auto flex flex-shrink-0 flex-col gap-1 sm:flex-row">
+                <Badge
+                  kind="Emotion"
+                  label={emotion}
+                  colors={EMOTION_COLORS[emotion] ?? DEFAULT_COLOR}
+                />
+                <Badge
+                  kind="Sentiment"
+                  label={sentiment}
+                  colors={sentimentHex(sentiment)}
+                />
+              </span>
+            </button>
+
+            {isExpanded && (
+              <div className="mb-1 ml-7 mr-2 flex flex-col gap-1.5 rounded-md bg-gray-50 px-3 py-2">
+                {/* The full time range, reachable by tap and keyboard (the
+                    row's tooltip only shows on mouse hover). */}
+                <span className="text-xs font-medium text-gray-500">
+                  {formatTimestamp(u.startTime)} to {formatTimestamp(u.endTime)}{" "}
+                  · Emotion breakdown
+                </span>
+                {[...u.emotions]
+                  .sort((a, b) => b.confidence - a.confidence)
+                  .map((e) => {
+                    const colors = EMOTION_COLORS[e.label] ?? DEFAULT_COLOR;
+                    return (
+                      <div key={e.label} className="flex items-center gap-2">
+                        <span
+                          className="w-16 text-xs font-medium capitalize"
+                          style={{ color: colors.text }}
+                        >
+                          {e.label}
+                        </span>
+                        <div className="h-1.5 flex-1 rounded-full bg-gray-200">
+                          <div
+                            className="h-full rounded-full"
+                            style={{
+                              width: `${(e.confidence * 100).toFixed(0)}%`,
+                              backgroundColor: colors.bg,
+                            }}
+                          />
+                        </div>
+                        <span className="w-10 text-right text-xs text-gray-400">
+                          {(e.confidence * 100).toFixed(0)}%
+                        </span>
+                      </div>
+                    );
+                  })}
+              </div>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }

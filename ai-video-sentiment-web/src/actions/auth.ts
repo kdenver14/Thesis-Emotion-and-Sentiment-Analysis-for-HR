@@ -22,6 +22,9 @@ import { TRUST_COOKIE } from "~/server/auth/config";
 
 const emailSchema = z.string().trim().toLowerCase().email();
 
+const ARCHIVED_MESSAGE =
+  "This account is archived. Ask an HR Manager to restore it.";
+
 // Status the /login client routes on. "invalid" stays generic (parity with
 // the existing signIn() "Invalid email or password" copy); "unverified"
 // keeps the existing resend-verification UX path.
@@ -46,11 +49,19 @@ export async function requestLoginCode(
 
   const user = await db.user.findUnique({
     where: { email: parsed.data },
-    select: { id: true, email: true, password: true, emailVerified: true },
+    select: {
+      id: true,
+      email: true,
+      password: true,
+      emailVerified: true,
+      archivedAt: true,
+    },
   });
   if (!user?.password || !(await bcrypt.compare(password, user.password))) {
     return { step: "invalid" };
   }
+  // After the password check, so this reveals nothing to a stranger.
+  if (user.archivedAt) return { step: "error", error: ARCHIVED_MESSAGE };
   if (!user.emailVerified) return { step: "unverified" };
 
   const trust = (await cookies()).get(TRUST_COOKIE)?.value;
@@ -77,11 +88,12 @@ export async function verifyLoginCode(
 
   const user = await db.user.findUnique({
     where: { email: parsed.data },
-    select: { id: true, password: true, emailVerified: true },
+    select: { id: true, password: true, emailVerified: true, archivedAt: true },
   });
   if (!user?.password || !(await bcrypt.compare(password, user.password))) {
     return { ok: false, error: "Invalid email or password" };
   }
+  if (user.archivedAt) return { ok: false, error: ARCHIVED_MESSAGE };
   if (!user.emailVerified) {
     return { ok: false, error: "Invalid email or password" };
   }

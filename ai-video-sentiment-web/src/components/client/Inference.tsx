@@ -12,6 +12,8 @@ import {
   normalizePhone,
   toStoredPhone,
 } from "~/lib/phone";
+import { dayKey } from "~/lib/periods";
+import { FUTURE_DATE_MESSAGE } from "~/schemas/session";
 
 const MIN_MEETING_PARTICIPANTS = 2;
 const MAX_MEETING_PARTICIPANTS = 20;
@@ -28,12 +30,15 @@ interface InferenceProps {
 export function Inference({ employees, interviewerName }: InferenceProps) {
   // Form fields are drafts: they survive a visit to another tab.
   const [title, setTitle] = useDraft("upload.title", "");
-  const [sessionType, setSessionType] = useDraft<SessionType>("upload.sessionType", "interview");
-  const [employeeId, setEmployeeId] = useDraft("upload.employeeId", "");
-  const [sessionDate, setSessionDate] = useDraft(
-    "upload.sessionDate",
-    new Date().toISOString().slice(0, 10),
+  const [sessionType, setSessionType] = useDraft<SessionType>(
+    "upload.sessionType",
+    "interview",
   );
+  const [employeeId, setEmployeeId] = useDraft("upload.employeeId", "");
+  // Manila's day, the same clock the server checks the date against.
+  const today = dayKey(new Date());
+  const [sessionDate, setSessionDate] = useDraft("upload.sessionDate", today);
+  const dateError = sessionDate > today ? FUTURE_DATE_MESSAGE : null;
 
   // Meeting participants (declared at upload; bound to speakers later)
   const [participantIds, setParticipantIds] = useDraft<string[]>(
@@ -44,7 +49,10 @@ export function Inference({ employees, interviewerName }: InferenceProps) {
   function handleParticipantCount(n: number) {
     const clamped = Math.max(
       MIN_MEETING_PARTICIPANTS,
-      Math.min(MAX_MEETING_PARTICIPANTS, Number.isNaN(n) ? MIN_MEETING_PARTICIPANTS : n),
+      Math.min(
+        MAX_MEETING_PARTICIPANTS,
+        Number.isNaN(n) ? MIN_MEETING_PARTICIPANTS : n,
+      ),
     );
     setParticipantIds((prev) => {
       const next = prev.slice(0, clamped);
@@ -54,17 +62,30 @@ export function Inference({ employees, interviewerName }: InferenceProps) {
   }
 
   function handleParticipantChange(idx: number, value: string) {
-    setParticipantIds((prev) =>
-      prev.map((v, i) => (i === idx ? value : v)),
-    );
+    setParticipantIds((prev) => prev.map((v, i) => (i === idx ? value : v)));
   }
 
   // Onboarding candidate fields
-  const [candidateFirstName, setCandidateFirstName] = useDraft("upload.candidateFirstName", "");
-  const [candidateLastName, setCandidateLastName] = useDraft("upload.candidateLastName", "");
-  const [candidatePosition, setCandidatePosition] = useDraft("upload.candidatePosition", "");
-  const [candidateEmail, setCandidateEmail] = useDraft("upload.candidateEmail", "");
-  const [candidatePhone, setCandidatePhone] = useDraft("upload.candidatePhone", "");
+  const [candidateFirstName, setCandidateFirstName] = useDraft(
+    "upload.candidateFirstName",
+    "",
+  );
+  const [candidateLastName, setCandidateLastName] = useDraft(
+    "upload.candidateLastName",
+    "",
+  );
+  const [candidatePosition, setCandidatePosition] = useDraft(
+    "upload.candidatePosition",
+    "",
+  );
+  const [candidateEmail, setCandidateEmail] = useDraft(
+    "upload.candidateEmail",
+    "",
+  );
+  const [candidatePhone, setCandidatePhone] = useDraft(
+    "upload.candidatePhone",
+    "",
+  );
 
   // Validation touch state
   const [nameTouched, setNameTouched] = useState(false);
@@ -90,16 +111,19 @@ export function Inference({ employees, interviewerName }: InferenceProps) {
 
   const nameError =
     nameTouched && !hasFullName ? "First and last name are required" : null;
-  const emailError = emailTouched && candidateEmail && !isValidEmail(candidateEmail) ? "Invalid email format" : null;
+  const emailError =
+    emailTouched && candidateEmail && !isValidEmail(candidateEmail)
+      ? "Invalid email format"
+      : null;
   const phoneError =
     candidatePhone && candidatePhone.length !== PHONE_DIGITS
       ? `Phone number must be exactly ${PHONE_DIGITS} digits`
       : null;
-  const isInterviewValid = !isInterview || (
-    hasFullName &&
-    (!candidateEmail || isValidEmail(candidateEmail)) &&
-    !phoneError
-  );
+  const isInterviewValid =
+    !isInterview ||
+    (hasFullName &&
+      (!candidateEmail || isValidEmail(candidateEmail)) &&
+      !phoneError);
 
   const metadata = {
     title: title || `Session ${new Date().toLocaleDateString("en-GB")}`,
@@ -157,10 +181,17 @@ export function Inference({ employees, interviewerName }: InferenceProps) {
             <label className="text-xs text-gray-500">Date</label>
             <input
               type="date"
+              max={today}
+              aria-invalid={dateError ? true : undefined}
               value={sessionDate}
               onChange={(e) => setSessionDate(e.target.value)}
-              className="rounded-md border border-gray-200 px-3 py-1.5 text-sm focus:border-gray-400 focus:outline-none"
+              className={`rounded-md border px-3 py-1.5 text-sm focus:outline-none ${dateError ? "border-red-300 focus:border-red-400" : "border-gray-200 focus:border-gray-400"}`}
             />
+            {dateError && (
+              <p role="alert" className="text-xs text-red-500">
+                {dateError}
+              </p>
+            )}
           </div>
           {!isInterview && !isMeeting && (
             <div className="flex flex-col gap-1 sm:col-span-2">
@@ -218,8 +249,7 @@ export function Inference({ employees, interviewerName }: InferenceProps) {
                       >
                         <option value="">— select employee —</option>
                         {employees.map((emp) => {
-                          const taken =
-                            pickedSet.has(emp.id) && emp.id !== id;
+                          const taken = pickedSet.has(emp.id) && emp.id !== id;
                           return (
                             <option
                               key={emp.id}
@@ -328,7 +358,9 @@ export function Inference({ employees, interviewerName }: InferenceProps) {
                 onBlur={() => setEmailTouched(true)}
                 className={`rounded-md border px-3 py-1.5 text-sm focus:outline-none ${emailError ? "border-red-300 focus:border-red-400" : "border-gray-200 focus:border-gray-400"}`}
               />
-              {emailError && <p className="text-xs text-red-500">{emailError}</p>}
+              {emailError && (
+                <p className="text-xs text-red-500">{emailError}</p>
+              )}
             </div>
           </div>
         </div>
@@ -336,7 +368,7 @@ export function Inference({ employees, interviewerName }: InferenceProps) {
 
       <UploadVideo
         metadata={metadata}
-        disabled={!isInterviewValid || !isMeetingValid}
+        disabled={!isInterviewValid || !isMeetingValid || dateError !== null}
       />
     </div>
   );
