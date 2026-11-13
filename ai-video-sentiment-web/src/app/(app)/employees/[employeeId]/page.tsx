@@ -21,11 +21,12 @@ import { SessionTable } from "~/components/client/charts/SessionTable";
 import { Fact } from "~/components/Fact";
 import {
   averageShares,
-  distributePercents,
-  getSentimentBreakdown,
+  mergeEmotionCounts,
+  sentimentFromCounts,
   toPercentSlices,
 } from "~/types/analysis";
-import { DeleteEmployeeButton } from "./DeleteEmployeeButton";
+import { ArchiveEmployeeButton } from "./ArchiveEmployeeButton";
+import { ARCHIVED_STATUS } from "~/schemas/employee";
 
 interface PageProps {
   params: Promise<{ employeeId: string }>;
@@ -35,18 +36,13 @@ function plural(n: number, word: string): string {
   return `${n} ${word}${n !== 1 ? "s" : ""}`;
 }
 
-// Average tone across sessions (each weighted equally) as integer percents
-// that sum to 100, the shape the summary card's sentiment donut takes.
-function averageSentiment(sessions: ParsedSession[]) {
-  const totals = [0, 0, 0];
-  for (const s of sessions) {
-    const b = getSentimentBreakdown(s.avgSentiments);
-    totals[0]! += b.positive;
-    totals[1]! += b.neutral;
-    totals[2]! += b.negative;
-  }
-  const [positive = 0, neutral = 0, negative = 0] = distributePercents(totals);
-  return { positive, neutral, negative };
+// Share of the lines across this employee's sessions, the same per-line rule
+// as everywhere else. Meetings count only their own speaker's lines; other
+// session types count every line, interviewer included.
+function sentimentAcross(sessions: ParsedSession[]) {
+  return sentimentFromCounts(
+    mergeEmotionCounts(sessions.map((s) => s.sentimentCounts)),
+  );
 }
 
 export default async function EmployeeDetailPage({ params }: PageProps) {
@@ -63,6 +59,7 @@ export default async function EmployeeDetailPage({ params }: PageProps) {
   ]);
 
   if (!employee) notFound();
+  const archived = employee.status === ARCHIVED_STATUS;
 
   const completed = allSessions.filter((s) => s.status === "COMPLETED");
   const expressive = completed
@@ -79,7 +76,7 @@ export default async function EmployeeDetailPage({ params }: PageProps) {
         >
           <FiArrowLeft className="h-3 w-3" /> Back to Employees
         </Link>
-        {/* Only a trash icon on the right, so it fits beside the name even on phones. */}
+        {/* Only one small action on the right, so it fits beside the name even on phones. */}
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">
             {canMutate ? (
@@ -94,8 +91,19 @@ export default async function EmployeeDetailPage({ params }: PageProps) {
               </h1>
             )}
           </div>
-          {canMutate && <DeleteEmployeeButton employeeId={employeeId} />}
+          {canMutate && (
+            <ArchiveEmployeeButton
+              employeeId={employeeId}
+              archived={archived}
+            />
+          )}
         </div>
+        {archived && (
+          <p className="text-sm text-gray-500">
+            Archived. Their sessions are kept, but they are hidden from the
+            employee list and cannot be picked for new sessions.
+          </p>
+        )}
         <dl className="flex flex-wrap gap-x-5 gap-y-1.5 text-sm">
           {employee.department && (
             <Fact icon={FiBriefcase} label="Department">
@@ -123,13 +131,13 @@ export default async function EmployeeDetailPage({ params }: PageProps) {
         </dl>
       </div>
 
-      {/* Same two-donut card as a session, averaged over this person's
-          analysed sessions. */}
+      {/* Same two-donut card as a session: sentiment pooled over the lines,
+          emotions averaged per session. */}
       {completed.length > 0 ? (
         <SessionSummary
           title="Employee Summary"
-          sentiment={averageSentiment(completed)}
-          sentimentDescription={`Average tone across ${plural(completed.length, "session")}`}
+          sentiment={sentimentAcross(completed)}
+          sentimentDescription={`Main tone of the lines across ${plural(completed.length, "session")}`}
           emotionSlices={toPercentSlices(averageShares(expressive))}
           emotionsDescription={`Non-neutral utterances, averaged across ${plural(expressive.length, "session")}`}
         />

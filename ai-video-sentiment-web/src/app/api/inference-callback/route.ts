@@ -3,13 +3,13 @@ import { NextResponse } from "next/server";
 import { env } from "~/env";
 import { db } from "~/server/db";
 import { inferenceResultSchema } from "~/schemas/inference";
-import { generateSummary } from "~/server/services/summary";
+import { computeSessionTallies } from "~/server/services/summary";
 import {
   updateSessionResult,
   updateSessionFailed,
 } from "~/server/repositories/session";
 import { deleteObject } from "~/server/storage/r2";
-import { computeAverages, countTopEmotions } from "~/types/analysis";
+import { computeAverages } from "~/types/analysis";
 
 export const runtime = "nodejs"; // HMAC (node:crypto), not edge
 
@@ -18,13 +18,35 @@ const SIG_HEADER = "x-inference-signature"; // "sha256=<hex>"
 // Verify the EXACT bytes Modal POSTed before any JSON parse. req.json() first
 // would discard the raw body and any whitespace/key-order drift would break
 // verification.
-function verify(raw: string, signature: string | null, secret: string): boolean {
+function verify(
+  raw: string,
+  signature: string | null,
+  secret: string,
+): boolean {
   if (!signature) return false;
   const expected =
     "sha256=" + createHmac("sha256", secret).update(raw).digest("hex");
   const a = Buffer.from(signature);
   const b = Buffer.from(expected);
   return a.length === b.length && timingSafeEqual(a, b);
+}
+
+// Failure texts the inference server writes itself. Anything else is a raw
+// library error (an ffmpeg log, server file paths) and stays out of the UI.
+const SAFE_FAILURE_PREFIXES = [
+  "Video download failed",
+  "Video exceeds the 3 GB limit",
+  "The analysis server restarted",
+  "Analysis stopped unexpectedly",
+];
+const GENERIC_FAILURE =
+  "The video could not be analysed. The file may be damaged or in an unsupported format.";
+
+function publicFailureReason(raw: unknown): string {
+  if (typeof raw !== "string") return GENERIC_FAILURE;
+  return SAFE_FAILURE_PREFIXES.some((prefix) => raw.startsWith(prefix))
+    ? raw
+    : GENERIC_FAILURE;
 }
 
 // Best-effort: a delete failure must not fail the callback (results are
@@ -76,9 +98,12 @@ export async function POST(req: Request) {
   }
 
   if (payload.status === "failed") {
-    const msg =
-      typeof payload.error === "string" ? payload.error : "Inference failed";
-    await updateSessionFailed(sessionId, msg);
+    // The full text goes to the server log only.
+    console.error(
+      `inference-callback: analysis failed for ${sessionId}:`,
+      payload.error,
+    );
+    await updateSessionFailed(sessionId, publicFailureReason(payload.error));
     await purge(sessionRow.videoKey);
     return NextResponse.json({ ok: true });
   }
@@ -101,18 +126,22 @@ export async function POST(req: Request) {
   }
 
   const analysis = parsed.data;
-  const { avgEmotions, avgSentiments, topEmotion, topSentiment } =
-    computeAverages(analysis.utterances);
-  const summary = generateSummary(analysis.utterances);
+  // Raw model averages are kept as-is; every per-line figure (tallies, top
+  // sentiment, summary text) comes from one shared function.
+  const { avgEmotions, avgSentiments, topEmotion } = computeAverages(
+    analysis.utterances,
+  );
+  const tallies = computeSessionTallies(analysis.utterances);
 
   await updateSessionResult(sessionId, {
     avgEmotions: JSON.stringify(avgEmotions),
     avgSentiments: JSON.stringify(avgSentiments),
     topEmotion,
-    topSentiment,
-    summary: summary.text,
+    topSentiment: tallies.topSentiment,
+    summary: tallies.summary,
     durationSecs: analysis.utterances.at(-1)?.end_time ?? null,
-    emotionCounts: JSON.stringify(countTopEmotions(analysis.utterances)),
+    emotionCounts: tallies.emotionCounts,
+    sentimentCounts: tallies.sentimentCounts,
     utterances: analysis.utterances.map((u) => ({
       startTime: u.start_time,
       endTime: u.end_time,

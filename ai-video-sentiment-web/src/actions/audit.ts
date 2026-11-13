@@ -3,8 +3,9 @@
 import { auth } from "~/server/auth";
 import { getAuditLog, type AuditLogRow } from "~/server/repositories/audit";
 
-// Managers and Directors only. STAFF never read the audit log (middleware also
-// 404s /admin, but server actions are public RPC and must guard themselves).
+// Managers and Directors only. STAFF never read the audit log (the /admin
+// page also 404s them, but server actions are public RPC and must guard
+// themselves).
 export async function getAuditLogPage(
   page: number,
 ): Promise<{ entries: AuditLogRow[]; totalPages: number }> {

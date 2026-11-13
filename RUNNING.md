@@ -10,7 +10,7 @@ npm run dev                                   # only while editing code (slow ov
 
 ====================
 
-Public address (permanent): https://kurts-macbook-air.tailcbe27e.ts.net
+Public address (permanent): https://hr-analysis.tailcbe27e.ts.net
 Tailscale Funnel forwards it to localhost:3000. It starts with the Mac (brew service)
 and comes back by itself: no tunnel command, APP_URL never changes.
   tailscale funnel status          # check it

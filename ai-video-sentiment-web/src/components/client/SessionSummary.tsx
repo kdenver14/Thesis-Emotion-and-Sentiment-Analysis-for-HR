@@ -14,6 +14,23 @@ interface SessionSummaryProps {
   emotionsDescription: string;
   peakCount?: number;
   peakTimes?: string[];
+  // The session page's own URL. When set, each legend label links to it with
+  // ?sentiment= or ?emotion= so the transcript below shows those lines.
+  filterPath?: string;
+}
+
+function filterLinks(
+  filterPath: string | undefined,
+  param: "sentiment" | "emotion",
+  slices: DonutSlice[],
+): Record<string, string> | undefined {
+  if (!filterPath) return undefined;
+  return Object.fromEntries(
+    slices.map((s) => [
+      s.label,
+      `${filterPath}?${param}=${encodeURIComponent(s.label)}#transcript`,
+    ]),
+  );
 }
 
 // Two halves with the same anatomy (title, one-line description, donut with
@@ -26,6 +43,7 @@ export function SessionSummary({
   emotionsDescription,
   peakCount = 0,
   peakTimes = [],
+  filterPath,
 }: SessionSummaryProps) {
   // Fixed positive/neutral/negative order; the donut centers the largest.
   const sentimentSlices: DonutSlice[] = [
@@ -52,7 +70,11 @@ export function SessionSummary({
           className="pb-6 md:pb-0 md:pr-8"
         >
           {hasSentiment ? (
-            <BreakdownDonutLazy slices={sentimentSlices} palette="sentiment" />
+            <BreakdownDonutLazy
+              slices={sentimentSlices}
+              palette="sentiment"
+              links={filterLinks(filterPath, "sentiment", sentimentSlices)}
+            />
           ) : (
             <Empty>No sentiment detected.</Empty>
           )}
@@ -67,7 +89,11 @@ export function SessionSummary({
           className="border-t border-gray-100 pt-6 md:border-l md:border-t-0 md:pl-8 md:pt-0"
         >
           {emotionSlices.length > 0 ? (
-            <BreakdownDonutLazy slices={emotionSlices} palette="emotion" />
+            <BreakdownDonutLazy
+              slices={emotionSlices}
+              palette="emotion"
+              links={filterLinks(filterPath, "emotion", emotionSlices)}
+            />
           ) : (
             <Empty>Every utterance was neutral.</Empty>
           )}

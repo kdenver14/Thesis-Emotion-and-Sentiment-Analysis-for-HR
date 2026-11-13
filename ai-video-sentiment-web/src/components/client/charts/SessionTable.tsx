@@ -13,7 +13,9 @@ import {
 import type { ParsedSession } from "~/server/repositories/session";
 import { SESSION_TYPE_LABELS } from "~/types/analysis";
 import { emotionColorClass } from "~/lib/sentiment";
+import { ARCHIVED_STATUS } from "~/schemas/employee";
 import { removeSessionsBulk } from "~/actions/sessions";
+import { useConfirm } from "~/components/client/ConfirmDialog";
 
 type SortKey =
   | "sessionDate"
@@ -95,6 +97,7 @@ export function SessionTable({
   const [selected, setSelected] = useState<Set<string>>(new Set());
 
   const [isBulkDeleting, startBulkTransition] = useTransition();
+  const { confirm } = useConfirm();
 
   const SORT_OPTIONS: { value: SortKey; label: string }[] = [
     { value: "sessionDate", label: "Date" },
@@ -116,7 +119,7 @@ export function SessionTable({
     ? byType.filter((s) => {
         const typeLabel =
           SESSION_TYPE_LABELS[
-            s.sessionType as keyof typeof SESSION_TYPE_LABELS
+            s.sessionType
           ] ?? s.sessionType;
         const haystack = [
           s.title,
@@ -147,11 +150,11 @@ export function SessionTable({
     } else if (sortKey === "sessionType") {
       const al =
         SESSION_TYPE_LABELS[
-          a.sessionType as keyof typeof SESSION_TYPE_LABELS
+          a.sessionType
         ] ?? a.sessionType;
       const bl =
         SESSION_TYPE_LABELS[
-          b.sessionType as keyof typeof SESSION_TYPE_LABELS
+          b.sessionType
         ] ?? b.sessionType;
       cmp = al.localeCompare(bl);
     }
@@ -185,14 +188,14 @@ export function SessionTable({
     });
   };
 
-  const handleBulkDelete = () => {
+  const handleBulkDelete = async () => {
     const ids = [...selected];
-    if (
-      !confirm(
-        `Delete ${ids.length} session${ids.length > 1 ? "s" : ""}? This cannot be undone.`,
-      )
-    )
-      return;
+    const ok = await confirm({
+      message: `Delete ${ids.length} session${ids.length > 1 ? "s" : ""}? This cannot be undone.`,
+      confirmLabel: "Delete",
+      destructive: true,
+    });
+    if (!ok) return;
     startBulkTransition(async () => {
       await removeSessionsBulk(ids);
       setSelected(new Set());
@@ -346,7 +349,7 @@ export function SessionTable({
                   </td>
                   <td className="px-4 py-3 text-gray-500">
                     {SESSION_TYPE_LABELS[
-                      s.sessionType as keyof typeof SESSION_TYPE_LABELS
+                      s.sessionType
                     ] ?? s.sessionType}
                   </td>
                   {!hideEmployee && (
@@ -369,9 +372,9 @@ export function SessionTable({
                       ) : (
                         <span className="text-gray-500">
                           {s.employee?.name ?? "—"}
-                          {s.employee?.status === "Deleted" && (
+                          {s.employee?.status === ARCHIVED_STATUS && (
                             <span className="ml-1 text-xs text-gray-400">
-                              (deleted)
+                              (archived)
                             </span>
                           )}
                         </span>

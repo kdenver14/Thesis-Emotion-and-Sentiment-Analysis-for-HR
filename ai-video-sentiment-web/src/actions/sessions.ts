@@ -25,6 +25,7 @@ import {
   requireMutator,
 } from "~/server/auth/guards";
 import { resolveTrendDays } from "~/lib/trend";
+import { findActiveEmployeeIds } from "~/server/repositories/employee";
 import {
   sessionFiltersSchema,
   sessionIdsSchema,
@@ -75,6 +76,7 @@ export async function getDashboardEmotionMetrics(sessionType?: string) {
         breakdown: [],
       },
       sentiment: { positive: 0, neutral: 0, negative: 0 },
+      sessionCount: 0,
     };
   }
   const userId = scope.kind === "own" ? scope.userId : null;
@@ -147,6 +149,13 @@ export async function assignSessionEmployee(
 ): Promise<void> {
   await assertCanMutate();
   const userId = await requireScopeUserId();
+  // null unassigns; otherwise only an active employee can be linked.
+  if (
+    employeeId !== null &&
+    (await findActiveEmployeeIds([employeeId])).length === 0
+  ) {
+    throw new Error("Unknown or archived employee");
+  }
   await updateSessionEmployee(sessionId, userId, employeeId);
 }
 

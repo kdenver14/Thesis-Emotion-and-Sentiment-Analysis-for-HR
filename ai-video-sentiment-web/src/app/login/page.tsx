@@ -32,11 +32,7 @@ export default function LoginPage() {
 
   // Completes the NextAuth session. With a proof, authorize() consumes it;
   // without one it relies on the trusted-device cookie just set / matched.
-  async function finishSignIn(
-    email: string,
-    password: string,
-    proof?: string,
-  ) {
+  async function finishSignIn(email: string, password: string, proof?: string) {
     const result = await signIn("credentials", {
       redirect: false,
       email,
@@ -44,7 +40,8 @@ export default function LoginPage() {
       ...(proof ? { proof } : {}),
     });
     if (!result?.error) {
-      router.push("/dashboard");
+      // Full page load so nothing cached from a previous account is reused.
+      window.location.assign("/dashboard");
     } else {
       setError("Could not complete sign-in. Please try again.");
     }
@@ -191,16 +188,22 @@ export default function LoginPage() {
                       {...form.register("password")}
                       type={showPassword ? "text" : "password"}
                       placeholder="********"
-                      className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 pr-10 text-sm placeholder-gray-400 shadow-sm focus:border-gray-500 focus:outline-none"
+                      className="own-reveal mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 pr-10 text-sm placeholder-gray-400 shadow-sm focus:border-gray-500 focus:outline-none"
                     />
                     <button
                       type="button"
                       tabIndex={-1}
                       onClick={() => setShowPassword((v) => !v)}
-                      aria-label={showPassword ? "Hide password" : "Show password"}
+                      aria-label={
+                        showPassword ? "Hide password" : "Show password"
+                      }
                       className="absolute inset-y-0 right-0 mt-1 flex items-center px-3 text-gray-500 hover:text-gray-800"
                     >
-                      {showPassword ? <FiEyeOff size={16} /> : <FiEye size={16} />}
+                      {showPassword ? (
+                        <FiEyeOff size={16} />
+                      ) : (
+                        <FiEye size={16} />
+                      )}
                     </button>
                   </div>
                   {form.formState.errors.password && (

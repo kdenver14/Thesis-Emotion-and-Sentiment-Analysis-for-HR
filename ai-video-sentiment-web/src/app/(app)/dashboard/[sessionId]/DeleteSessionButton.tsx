@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { FiTrash2 } from "react-icons/fi";
 import { removeSession } from "~/actions/sessions";
+import { useConfirm } from "~/components/client/ConfirmDialog";
 
 interface DeleteSessionButtonProps {
   sessionId: string;
@@ -13,9 +14,15 @@ interface DeleteSessionButtonProps {
 
 export function DeleteSessionButton({ sessionId, iconOnly = false }: DeleteSessionButtonProps) {
   const router = useRouter();
+  const { confirm } = useConfirm();
 
   const handleDelete = async () => {
-    if (!confirm("Delete this session? This cannot be undone.")) return;
+    const ok = await confirm({
+      message: "Delete this session? This cannot be undone.",
+      confirmLabel: "Delete",
+      destructive: true,
+    });
+    if (!ok) return;
     await removeSession(sessionId);
     router.push("/dashboard");
   };

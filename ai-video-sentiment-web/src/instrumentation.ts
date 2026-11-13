@@ -24,19 +24,37 @@ async function runPurge(): Promise<void> {
   }
 }
 
-// Sessions saved by an older build lack the stored emotion tally; fill it so
-// lists and dashboard totals stay right with no manual backfill.
-async function fillEmotionCounts(): Promise<void> {
+// Sessions saved by an older build lack some stored per-line figures; fill
+// them so lists and totals stay right with no manual backfill.
+async function fillTallies(): Promise<void> {
   try {
-    const { fillMissingEmotionCounts } = await import(
-      "~/server/repositories/session"
+    const { fillMissingSessionTallies } = await import(
+      "~/server/services/tallies"
     );
-    const fixed = await fillMissingEmotionCounts();
+    const fixed = await fillMissingSessionTallies();
     if (fixed > 0) {
-      console.log(`[emotion-counts] filled ${fixed} session(s)`);
+      console.log(`[tallies] filled ${fixed} session(s)`);
     }
   } catch (err) {
-    console.error("[emotion-counts] fill failed", err);
+    console.error("[tallies] fill failed", err);
+  }
+}
+
+// Employees soft-deleted before archiving existed were stored as "Deleted";
+// the archive screens read "Archived".
+async function renameDeletedEmployees(): Promise<void> {
+  try {
+    const { renameLegacyDeletedEmployees } = await import(
+      "~/server/repositories/employee"
+    );
+    const renamed = await renameLegacyDeletedEmployees();
+    if (renamed > 0) {
+      console.log(
+        `[employees] marked ${renamed} deleted employee(s) as archived`,
+      );
+    }
+  } catch (err) {
+    console.error("[employees] archive rename failed", err);
   }
 }
 
@@ -45,7 +63,8 @@ export async function register(): Promise<void> {
   // Do not run (or start a timer) during the production build step.
   if (process.env.NEXT_PHASE === "phase-production-build") return;
 
-  await fillEmotionCounts();
+  await renameDeletedEmployees();
+  await fillTallies();
   await runPurge();
 
   if (!globalForPurge.__rejectedCandidatePurgeTimer) {

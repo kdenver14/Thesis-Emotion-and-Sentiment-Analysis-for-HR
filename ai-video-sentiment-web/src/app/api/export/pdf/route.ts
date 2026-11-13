@@ -5,7 +5,17 @@ import {
   getSessionsByUser,
   type ParsedSession,
 } from "~/server/repositories/session";
-import { parseDateParam } from "~/lib/dates";
+import { formatTimestamp, parseDateParam } from "~/lib/dates";
+import { getQuarterlyReport } from "~/actions/reports";
+import type { QuarterlyReportView } from "~/server/services/reports";
+import {
+  countTopEmotions,
+  mainScore,
+  mergeEmotionCounts,
+  sentimentFromCounts,
+  toPercentSlices,
+  topLabel,
+} from "~/types/analysis";
 
 // jsPDF is browser-first but works in Node.js for basic usage
 import type { jsPDF as JsPDFType } from "jspdf";
@@ -23,6 +33,12 @@ type JsPDFWithAutoTable = InstanceType<typeof jsPDF> & {
   lastAutoTable: { finalY: number };
 };
 
+const STATUS_LABELS: Record<string, string> = {
+  UPLOADING: "Uploading",
+  PROCESSING: "Processing",
+  FAILED: "Failed",
+};
+
 function speakerLabel(
   speaker: string | null,
   employeeSpeakerId: string | null,
@@ -31,7 +47,10 @@ function speakerLabel(
   return speaker === employeeSpeakerId ? "Employee" : speaker;
 }
 
-function buildSessionPdf(doc: JsPDFWithAutoTable, data: Awaited<ReturnType<typeof getSessionById>>) {
+function buildSessionPdf(
+  doc: JsPDFWithAutoTable,
+  data: Awaited<ReturnType<typeof getSessionById>>,
+) {
   if (!data) return;
 
   const hasSpeakers = data.utterances.some((u) => u.speaker !== null);
@@ -41,13 +60,12 @@ function buildSessionPdf(doc: JsPDFWithAutoTable, data: Awaited<ReturnType<typeo
 
   doc.setFontSize(10);
   doc.setTextColor(100);
-  const sessionTopExprPct = Math.round(
-    (data.expressiveEmotions[0]?.confidence ?? 0) * 100,
-  );
+  // The session page's emotion donut: same shares, same rounding.
+  const emotionSlices = toPercentSlices(data.expressiveEmotions);
   const expressiveSummary =
     data.expressivenessPct === 0
       ? "Mostly neutral"
-      : `${data.topExpressiveEmotion} ${sessionTopExprPct}% (${data.expressivenessPct}% overall)`;
+      : `${data.topExpressiveEmotion} ${emotionSlices[0]?.value ?? 0}% (${data.expressivenessPct}% overall)`;
   doc.text(
     `Date: ${data.sessionDate.toLocaleDateString("en-GB")}  |  Type: ${data.sessionType}  |  Expressive: ${expressiveSummary}`,
     14,
@@ -82,15 +100,17 @@ function buildSessionPdf(doc: JsPDFWithAutoTable, data: Awaited<ReturnType<typeo
   const afterSummary = summaryStartY + 8 + summaryLines.length * 5 + 10;
 
   doc.setFontSize(12);
-  doc.text("Emotion & Sentiment Averages", 14, afterSummary);
+  doc.text("Emotions & Sentiment by Line", 14, afterSummary);
 
   doc.autoTable({
     startY: afterSummary + 4,
-    head: [["Emotion", "Score"]],
-    body: data.avgEmotions.map((e) => [
-      e.label,
-      `${(e.confidence * 100).toFixed(1)}%`,
-    ]),
+    head: [["Emotion", "Share of expressive lines"]],
+    body:
+      emotionSlices.length > 0
+        ? emotionSlices.map((s) => [s.label, `${s.value}%`])
+        : data.utterances.length > 0
+          ? [["neutral", "Every line was neutral"]]
+          : [["—", "No lines of speech"]],
     theme: "striped",
     headStyles: { fillColor: [40, 40, 40] },
     styles: { fontSize: 9 },
@@ -102,11 +122,10 @@ function buildSessionPdf(doc: JsPDFWithAutoTable, data: Awaited<ReturnType<typeo
   doc.autoTable({
     startY: afterSummary + 4,
     startX: 110,
-    head: [["Sentiment", "Score"]],
-    body: data.avgSentiments.map((s) => [
-      s.label,
-      `${(s.confidence * 100).toFixed(1)}%`,
-    ]),
+    head: [["Sentiment", "Share of lines"]],
+    body: Object.entries(sentimentFromCounts(data.sentimentCounts))
+      .sort((a, b) => b[1] - a[1])
+      .map(([label, pct]) => [label, `${pct}%`]),
     theme: "striped",
     headStyles: { fillColor: [40, 40, 40] },
     styles: { fontSize: 9 },
@@ -125,15 +144,19 @@ function buildSessionPdf(doc: JsPDFWithAutoTable, data: Awaited<ReturnType<typeo
       : [["Time", "Text", "Top Emotion", "Top Sentiment"]];
 
     const utteranceBody = data.utterances.map((u) => {
-      const topEmotion =
-        [...u.emotions].sort((a, b) => b.confidence - a.confidence)[0]?.label ?? "";
-      const topSentiment =
-        [...u.sentiments].sort((a, b) => b.confidence - a.confidence)[0]?.label ?? "";
-      const time = `${u.startTime.toFixed(1)}–${u.endTime.toFixed(1)}s`;
-      const text = u.text.slice(0, 80);
+      const topEmotion = mainScore(u.emotions)?.label ?? "";
+      const topSentiment = mainScore(u.sentiments)?.label ?? "";
+      const time = `${formatTimestamp(u.startTime)}–${formatTimestamp(u.endTime)}`;
+      const text = u.text.trim();
 
       if (hasSpeakers) {
-        return [time, speakerLabel(u.speaker, data.employeeSpeakerId), text, topEmotion, topSentiment];
+        return [
+          time,
+          speakerLabel(u.speaker, data.employeeSpeakerId),
+          text,
+          topEmotion,
+          topSentiment,
+        ];
       }
       return [time, text, topEmotion, topSentiment];
     });
@@ -154,40 +177,29 @@ function buildSessionPdf(doc: JsPDFWithAutoTable, data: Awaited<ReturnType<typeo
 
     // Per-speaker summary when multiple speakers exist
     if (hasSpeakers) {
-      const perSpeaker = new Map<string, { count: number; emotions: Record<string, number[]> }>();
+      const perSpeaker = new Map<string, typeof data.utterances>();
       for (const u of data.utterances) {
         if (!u.speaker) continue;
         const label = speakerLabel(u.speaker, data.employeeSpeakerId);
-        if (!perSpeaker.has(label)) perSpeaker.set(label, { count: 0, emotions: {} });
-        const entry = perSpeaker.get(label)!;
-        entry.count++;
-        for (const e of u.emotions) {
-          if (!entry.emotions[e.label]) entry.emotions[e.label] = [];
-          entry.emotions[e.label]!.push(e.confidence);
-        }
+        perSpeaker.set(label, [...(perSpeaker.get(label) ?? []), u]);
       }
-
-      const avg = (arr: number[]) =>
-        arr.length === 0 ? 0 : arr.reduce((a, b) => a + b, 0) / arr.length;
 
       const speakerSummaryY = doc.lastAutoTable.finalY + 10;
       doc.setFontSize(12);
       doc.text("Speaker Summary", 14, speakerSummaryY);
 
-      const speakerBody = Array.from(perSpeaker.entries()).map(([label, v]) => {
-        const topEmotion = Object.entries(v.emotions)
-          .map(([l, vals]) => [l, avg(vals)] as const)
-          .sort((a, b) => b[1] - a[1])[0];
-        return [
-          label,
-          String(v.count),
-          topEmotion ? `${topEmotion[0]} (${(topEmotion[1] * 100).toFixed(0)}%)` : "—",
-        ];
-      });
+      const speakerBody = Array.from(perSpeaker.entries()).map(
+        ([label, lines]) => {
+          const counts = countTopEmotions(lines);
+          const top = topLabel(counts);
+          const share = Math.round(((counts[top] ?? 0) / lines.length) * 100);
+          return [label, String(lines.length), `${top} (${share}% of lines)`];
+        },
+      );
 
       doc.autoTable({
         startY: speakerSummaryY + 4,
-        head: [["Speaker", "Utterances", "Dominant Emotion"]],
+        head: [["Speaker", "Utterances", "Most frequent emotion"]],
         body: speakerBody,
         theme: "striped",
         headStyles: { fillColor: [40, 40, 40] },
@@ -228,14 +240,13 @@ function buildExecutivePdf(
   }
 
   const emotionCounts: Record<string, number> = {};
-  const sentimentCounts = { positive: 0, neutral: 0, negative: 0 };
-
   for (const s of completed) {
     emotionCounts[s.topEmotion] = (emotionCounts[s.topEmotion] ?? 0) + 1;
-    if (s.topSentiment in sentimentCounts) {
-      sentimentCounts[s.topSentiment as keyof typeof sentimentCounts]++;
-    }
   }
+  // Share of all lines in the period, the same figure the dashboard shows.
+  const sentiment = sentimentFromCounts(
+    mergeEmotionCounts(completed.map((s) => s.sentimentCounts)),
+  );
 
   const dominantEmotion =
     Object.entries(emotionCounts).sort((a, b) => b[1] - a[1])[0]?.[0] ?? "—";
@@ -251,8 +262,9 @@ function buildExecutivePdf(
     }
   }
   const topExpressiveEmotion =
-    Object.entries(expressiveEmotionCounts).sort((a, b) => b[1] - a[1])[0]?.[0] ??
-    "—";
+    Object.entries(expressiveEmotionCounts).sort(
+      (a, b) => b[1] - a[1],
+    )[0]?.[0] ?? "—";
 
   doc.setFontSize(12);
   doc.text("Key Metrics", 14, 42);
@@ -298,14 +310,13 @@ function buildExecutivePdf(
   doc.setFontSize(12);
   doc.text("Sentiment Breakdown", 14, afterEmotion);
 
-  const total = completed.length;
   doc.autoTable({
     startY: afterEmotion + 4,
-    head: [["Sentiment", "Share"]],
+    head: [["Sentiment", "Share of lines"]],
     body: [
-      ["Positive", `${Math.round((sentimentCounts.positive / total) * 100)}%`],
-      ["Neutral", `${Math.round((sentimentCounts.neutral / total) * 100)}%`],
-      ["Negative", `${Math.round((sentimentCounts.negative / total) * 100)}%`],
+      ["Positive", `${sentiment.positive}%`],
+      ["Neutral", `${sentiment.neutral}%`],
+      ["Negative", `${sentiment.negative}%`],
     ],
     theme: "striped",
     headStyles: { fillColor: [40, 40, 40] },
@@ -351,6 +362,54 @@ function buildExecutivePdf(
   }
 }
 
+// The Reports tab's quarterly comparison, as the page shows it.
+function buildQuarterlyPdf(
+  doc: JsPDFWithAutoTable,
+  report: QuarterlyReportView,
+) {
+  doc.setFontSize(18);
+  doc.text("Quarterly HR Sentiment Report", 14, 20);
+  doc.setFontSize(10);
+  doc.setTextColor(100);
+  doc.text(
+    `Generated: ${new Date().toLocaleDateString("en-GB")}  |  Last four calendar quarters, all sessions`,
+    14,
+    30,
+  );
+  doc.setTextColor(0);
+  doc.setFontSize(11);
+  const headline = doc.splitTextToSize(report.headline, 180) as string[];
+  doc.text(headline, 14, 40);
+
+  doc.autoTable({
+    startY: 40 + headline.length * 6 + 4,
+    head: [
+      [
+        "",
+        ...report.columns.map(
+          (c) => `${c.label}\n${c.months}${c.toDate ? ", to date" : ""}`,
+        ),
+      ],
+    ],
+    body: report.rows.map((r) => [
+      r.metric,
+      ...r.cells.map((c) => (c.change ? `${c.value}\n${c.change}` : c.value)),
+    ]),
+    theme: "striped",
+    headStyles: { fillColor: [40, 40, 40] },
+    styles: { fontSize: 9 },
+  });
+
+  doc.setFontSize(8);
+  doc.setTextColor(100);
+  doc.text(
+    "Sessions count in the quarter of their session date. Each change is against the quarter before. Every percentage is a share of lines of speech, except the top expressive emotion, which is a share of expressive lines.",
+    14,
+    doc.lastAutoTable.finalY + 8,
+    { maxWidth: 180 },
+  );
+}
+
 export async function GET(req: Request) {
   const session = await auth();
   if (!session?.user?.id) {
@@ -365,7 +424,15 @@ export async function GET(req: Request) {
   const doc = new jsPDF() as JsPDFWithAutoTable;
   let filename: string;
 
-  if (sessionId) {
+  if (searchParams.get("report") === "quarterly") {
+    // HR Director only; the action returns null for anyone else.
+    const report = await getQuarterlyReport();
+    if (!report) {
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
+    buildQuarterlyPdf(doc, report);
+    filename = "quarterly-report.pdf";
+  } else if (sessionId) {
     const effectiveUserId = role === "STAFF" ? userId : null;
     const data = await getSessionById(sessionId, effectiveUserId);
     if (!data) {
@@ -412,22 +479,22 @@ export async function GET(req: Request) {
           ],
         ],
         body: sessions.map((s) => {
-          const pct = Math.round(
-            (s.expressiveEmotions[0]?.confidence ?? 0) * 100,
-          );
-          const expressiveCell =
-            s.expressivenessPct === 0
-              ? "Mostly neutral"
-              : `${s.topExpressiveEmotion} ${pct}% (${s.expressivenessPct}%)`;
-          return [
+          const base = [
             s.sessionDate.toLocaleDateString("en-GB"),
             s.title,
             s.sessionType,
             s.employee?.name ?? "—",
-            s.topEmotion,
-            s.topSentiment,
-            expressiveCell,
           ];
+          // Not analysed (yet): its status, never made-up figures.
+          if (s.status !== "COMPLETED") {
+            return [...base, "—", "—", STATUS_LABELS[s.status] ?? s.status];
+          }
+          const pct = toPercentSlices(s.expressiveEmotions)[0]?.value ?? 0;
+          const expressiveCell =
+            s.expressivenessPct === 0
+              ? "Mostly neutral"
+              : `${s.topExpressiveEmotion} ${pct}% (${s.expressivenessPct}%)`;
+          return [...base, s.topEmotion, s.topSentiment, expressiveCell];
         }),
         theme: "striped",
         headStyles: { fillColor: [40, 40, 40] },

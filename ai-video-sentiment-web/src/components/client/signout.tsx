@@ -2,11 +2,9 @@
 
 import { useState } from "react";
 import { signOut } from "next-auth/react";
-import { useRouter } from "next/navigation";
 import { FiLogOut, FiX } from "react-icons/fi";
 
 export function SignOutButton() {
-  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
 
@@ -20,7 +18,9 @@ export function SignOutButton() {
     await signOut({
       redirect: false,
     });
-    router.push("/login");
+    // Full page load, not router.push: the client router cache still holds
+    // this account's pages, and the next person to sign in would see them.
+    window.location.assign("/login");
   };
 
   return (

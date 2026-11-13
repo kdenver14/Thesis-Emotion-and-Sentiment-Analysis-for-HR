@@ -10,18 +10,29 @@ import { SessionTable } from "~/components/client/charts/SessionTable";
 import { SessionTypeFilter } from "~/components/client/charts/SessionTypeFilter";
 import { ExportButtons } from "~/components/client/ExportButtons";
 import { EmotionPanel } from "~/components/client/charts/EmotionPanel";
+import { DashboardStats } from "~/components/DashboardStats";
+import { MonthCompareButton } from "~/components/client/MonthCompareButton";
+import { ProcessingPoller } from "~/components/client/ProcessingPoller";
+import { getMonthComparison } from "~/actions/reports";
 import { allowedWindows, hasTrendAccess } from "~/lib/trend";
 import { auth } from "~/server/auth";
 import { SESSION_TYPES } from "~/types/analysis";
+
+// Longest analysis seen is about 80 minutes; 6 hours leaves a wide margin.
+const WATCH_WINDOW_MS = 6 * 60 * 60 * 1000;
 
 // The `?type=` URL param lets the type filter in SessionTable drive the
 // emotion bars and trend chart too. The server validates it against the
 // allow-list; a garbage value is dropped and the dashboard renders as if
 // no filter were set (safeType stays undefined → unfiltered queries).
-function resolveTypeParam(raw: string | string[] | undefined): string | undefined {
+function resolveTypeParam(
+  raw: string | string[] | undefined,
+): string | undefined {
   const value = Array.isArray(raw) ? raw[0] : raw;
   if (!value) return undefined;
-  return (SESSION_TYPES as readonly string[]).includes(value) ? value : undefined;
+  return (SESSION_TYPES as readonly string[]).includes(value)
+    ? value
+    : undefined;
 }
 
 export default async function DashboardPage({
@@ -41,15 +52,25 @@ export default async function DashboardPage({
   const params = await searchParams;
   const typeFilter = resolveTypeParam(params.type);
 
-  const [emotionMetrics, trend, sessions] = await Promise.all([
+  const [emotionMetrics, trend, sessions, monthComparison] = await Promise.all([
     getDashboardEmotionMetrics(typeFilter),
     showTrend
       ? getEmotionTrend(trendDays, typeFilter)
       : Promise.resolve<EmotionTrendRow[]>([]),
     getSessions(),
+    // HR Managers only (null otherwise); the Director has the Reports tab.
+    getMonthComparison(typeFilter),
   ]);
 
   const total = sessions.length;
+  // An unfinished session older than this is stuck (abandoned upload, lost
+  // result) and would otherwise be polled for as long as the page is open.
+  const watchSince = Date.now() - WATCH_WINDOW_MS;
+  const inProgress = sessions.filter(
+    (s) =>
+      (s.status === "PROCESSING" || s.status === "UPLOADING") &&
+      s.createdAt.getTime() > watchSince,
+  );
   // Only offer types that actually exist in the visible sessions.
   const typeOptions = [...new Set(sessions.map((s) => s.sessionType))].sort();
 
@@ -79,6 +100,13 @@ export default async function DashboardPage({
 
   return (
     <div className="flex flex-col gap-6 p-4 sm:p-8">
+      {/* Each unfinished session is watched, so its row and the figures
+          update without a manual reload.
+          shortcut: one status request per watched session; batch them into
+          one query if many videos are ever analysed at once. */}
+      {inProgress.map((s) => (
+        <ProcessingPoller key={s.id} sessionId={s.id} status={s.status} />
+      ))}
       {/* Emotion overview. Its toolbar also carries the export actions, so the
           page shows one control row instead of a title bar plus a second row. */}
       <EmotionPanel
@@ -88,12 +116,26 @@ export default async function DashboardPage({
         initialDays={trendDays}
         showTrend={showTrend}
         sessionType={typeFilter}
+        summary={
+          <DashboardStats
+            sessionCount={emotionMetrics.sessionCount}
+            lineCount={emotionMetrics.allEmotions.total}
+            sentiment={emotionMetrics.sentiment}
+            expressive={emotionMetrics.expressive}
+          />
+        }
         actions={
           <>
             <SessionTypeFilter
               value={typeFilter ?? "all"}
               options={typeOptions}
             />
+            {monthComparison && (
+              <MonthCompareButton
+                data={monthComparison}
+                typeFilter={typeFilter}
+              />
+            )}
             <ExportButtons
               aggregateParams={{}}
               label="Export all"
@@ -105,10 +147,6 @@ export default async function DashboardPage({
 
       {/* Sessions table */}
       <div className="flex flex-col gap-3">
-        <h2 className="text-sm font-medium text-gray-700">
-          Recent sessions
-          <span className="ml-2 font-normal text-gray-400">· {total}</span>
-        </h2>
         <SessionTable
           sessions={sessions}
           seesAllUsers={seesAllUsers}
