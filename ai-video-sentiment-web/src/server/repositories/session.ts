@@ -1,11 +1,12 @@
 import { db } from "~/server/db";
 import {
   computeEmployeeSessionMetrics,
-  countTopEmotions,
+  countTopSentiments,
   expressiveFromCounts,
-  getSentimentBreakdown,
   mergeEmotionCounts,
+  sentimentFromCounts,
   topEmotionFromCounts,
+  topLabel,
   type EmotionCounts,
   type ExpressiveBreakdown,
   type Score,
@@ -31,14 +32,21 @@ export interface ParsedSession {
   topEmotion: string;
   topSentiment: string;
   avgEmotions: Score[];
-  avgSentiments: Score[];
+  // Main-sentiment tally of the lines (label -> count). Every sentiment %
+  // is built from it with sentimentFromCounts.
+  sentimentCounts: EmotionCounts;
   summary: string;
   durationSecs: number | null;
   interviewerName: string | null;
   createdAt: Date;
   employeeId: string | null;
   employeeSpeakerId: string | null;
-  employee: { id: string; name: string; department: string | null; status: string } | null;
+  employee: {
+    id: string;
+    name: string;
+    department: string | null;
+    status: string;
+  } | null;
   // Meeting participants' names, in the order they were added. Meetings use
   // these instead of `employee`.
   attendeeNames: string[];
@@ -115,14 +123,19 @@ function parseSession(raw: {
   topEmotion: string;
   topSentiment: string;
   avgEmotions: string;
-  avgSentiments: string;
+  sentimentCounts: string;
   summary: string;
   durationSecs: number | null;
   interviewerName: string | null;
   createdAt: Date;
   employeeId: string | null;
   employeeSpeakerId: string | null;
-  employee: { id: string; name: string; department: string | null; status: string } | null;
+  employee: {
+    id: string;
+    name: string;
+    department: string | null;
+    status: string;
+  } | null;
   user: { id: string; name: string | null } | null;
   participants: { employee: { name: string } }[];
   status: string;
@@ -142,7 +155,7 @@ function parseSession(raw: {
     topEmotion: raw.topEmotion,
     topSentiment: raw.topSentiment,
     avgEmotions: JSON.parse(raw.avgEmotions) as Score[],
-    avgSentiments: JSON.parse(raw.avgSentiments) as Score[],
+    sentimentCounts: JSON.parse(raw.sentimentCounts) as EmotionCounts,
     summary: raw.summary,
     durationSecs: raw.durationSecs,
     interviewerName: raw.interviewerName,
@@ -169,7 +182,7 @@ const SESSION_SELECT = {
   topEmotion: true,
   topSentiment: true,
   avgEmotions: true,
-  avgSentiments: true,
+  sentimentCounts: true,
   summary: true,
   durationSecs: true,
   interviewerName: true,
@@ -233,7 +246,9 @@ export async function getSessionsByUser(
     },
     select: {
       ...SESSION_SELECT,
-      utterances: { select: { emotions: true, sentiments: true, speaker: true } },
+      utterances: {
+        select: { emotions: true, sentiments: true, speaker: true },
+      },
     },
     orderBy: { sessionDate: "desc" },
   });
@@ -245,7 +260,8 @@ export async function getSessionsByUser(
       continue;
     }
     const speakerLabel =
-      row.participants.find((p) => p.employeeId === employeeId)?.speakerLabel ?? null;
+      row.participants.find((p) => p.employeeId === employeeId)?.speakerLabel ??
+      null;
     if (speakerLabel === null) continue;
     const slice = row.utterances
       .filter((u) => u.speaker === speakerLabel)
@@ -254,12 +270,14 @@ export async function getSessionsByUser(
         sentiments: JSON.parse(u.sentiments) as Score[],
       }));
     const metrics = computeEmployeeSessionMetrics(slice);
+    // Only this employee's own lines count toward their sentiment.
+    const sentimentCounts = countTopSentiments(slice);
     result.push({
       ...parseSession(row),
       avgEmotions: metrics.avgEmotions,
-      avgSentiments: metrics.avgSentiments,
+      sentimentCounts,
       topEmotion: metrics.topEmotion,
-      topSentiment: metrics.topSentiment,
+      topSentiment: topLabel(sentimentCounts),
       expressivenessPct: metrics.expressivenessPct,
       topExpressiveEmotion: metrics.topExpressiveEmotion,
       expressiveEmotions: metrics.expressiveEmotions,
@@ -345,45 +363,75 @@ export async function getAggregateEmotionMetrics(
   expressive: ExpressiveBreakdown;
   allEmotions: TopEmotionBreakdown;
   sentiment: SentimentBreakdown;
+  // Completed sessions behind these figures (the dashboard numbers row).
+  sessionCount: number;
 }> {
   const where: Record<string, unknown> = { status: "COMPLETED" };
   if (userId) where.userId = userId;
   if (sessionType) where.sessionType = sessionType;
 
-  // One row per session: its stored emotion tally replaces loading every
-  // utterance of every completed session.
-  const sentimentRows = await db.analysisSession.findMany({
+  // One row per session: its stored tallies replace loading every utterance
+  // of every completed session.
+  const rows = await db.analysisSession.findMany({
     where,
-    select: { avgSentiments: true, emotionCounts: true, utteranceCount: true },
+    select: {
+      sentimentCounts: true,
+      emotionCounts: true,
+      utteranceCount: true,
+    },
   });
 
   const counts = mergeEmotionCounts(
-    sentimentRows.map((s) => JSON.parse(s.emotionCounts) as EmotionCounts),
+    rows.map((s) => JSON.parse(s.emotionCounts) as EmotionCounts),
   );
-  const totalUtterances = sentimentRows.reduce(
-    (sum, s) => sum + s.utteranceCount,
-    0,
-  );
+  const totalUtterances = rows.reduce((sum, s) => sum + s.utteranceCount, 0);
 
-  // Average each sentiment label's confidence across completed sessions,
-  // then normalize via the shared pure breakdown helper.
-  const sums: Record<string, number> = {};
-  for (const s of sentimentRows) {
-    for (const score of JSON.parse(s.avgSentiments) as Score[]) {
-      sums[score.label] = (sums[score.label] ?? 0) + score.confidence;
-    }
-  }
-  const n = sentimentRows.length;
-  const avgSentiment: Score[] = Object.entries(sums).map(([label, sum]) => ({
-    label,
-    confidence: n > 0 ? sum / n : 0,
-  }));
+  // Share of all lines (every session's lines pooled), like the emotions.
+  const sentimentCounts = mergeEmotionCounts(
+    rows.map((s) => JSON.parse(s.sentimentCounts) as EmotionCounts),
+  );
 
   return {
     expressive: expressiveFromCounts(counts, totalUtterances),
     allEmotions: topEmotionFromCounts(counts, totalUtterances),
-    sentiment: getSentimentBreakdown(avgSentiment),
+    sentiment: sentimentFromCounts(sentimentCounts),
+    sessionCount: rows.length,
   };
+}
+
+export type SessionTallyRow = {
+  sessionDate: Date;
+  emotionCounts: EmotionCounts;
+  sentimentCounts: EmotionCounts;
+  utteranceCount: number;
+};
+
+// Stored per-line tallies of every completed session dated on or after
+// `since` (optionally one session type), any owner: callers gate by role
+// (Director quarterly report, Manager month comparison).
+export async function getCompletedTalliesSince(
+  since: Date,
+  sessionType?: string,
+): Promise<SessionTallyRow[]> {
+  const rows = await db.analysisSession.findMany({
+    where: {
+      status: "COMPLETED",
+      sessionDate: { gte: since },
+      ...(sessionType ? { sessionType } : {}),
+    },
+    select: {
+      sessionDate: true,
+      emotionCounts: true,
+      sentimentCounts: true,
+      utteranceCount: true,
+    },
+  });
+  return rows.map((r) => ({
+    sessionDate: r.sessionDate,
+    emotionCounts: JSON.parse(r.emotionCounts) as EmotionCounts,
+    sentimentCounts: JSON.parse(r.sentimentCounts) as EmotionCounts,
+    utteranceCount: r.utteranceCount,
+  }));
 }
 
 export async function getEmotionTrendsOverTime(
@@ -479,7 +527,8 @@ export async function getEmotionTrendsOverTime(
     for (const score of s.avgSentiments) {
       if (score.label === "positive") entry.positive.push(score.confidence);
       else if (score.label === "neutral") entry.neutral.push(score.confidence);
-      else if (score.label === "negative") entry.negative.push(score.confidence);
+      else if (score.label === "negative")
+        entry.negative.push(score.confidence);
     }
   }
 
@@ -545,7 +594,13 @@ export async function getEmotionHeatmap(
     arr.length === 0 ? 0 : arr.reduce((a, b) => a + b, 0) / arr.length;
 
   const EMPTY_EMOTIONS: Record<string, number> = {
-    anger: 0, disgust: 0, fear: 0, joy: 0, neutral: 0, sadness: 0, surprise: 0,
+    anger: 0,
+    disgust: 0,
+    fear: 0,
+    joy: 0,
+    neutral: 0,
+    sadness: 0,
+    surprise: 0,
   };
 
   const result: EmotionTrendRow[] = [];
@@ -577,34 +632,58 @@ export async function getEmotionHeatmap(
   return result;
 }
 
-// Fills the stored tally for completed sessions that have utterances but no
-// tally (results saved by a build from before the tally existed). Runs at
-// server start, so nobody has to run the backfill script by hand. Returns how
-// many sessions it fixed; normally 0, and the query finds nothing.
-export async function fillMissingEmotionCounts(): Promise<number> {
-  const stale = await db.analysisSession.findMany({
-    where: { status: "COMPLETED", utteranceCount: 0, utterances: { some: {} } },
-    // No orderBy: same first-seen order as every other tally.
-    select: { id: true, utterances: { select: { emotions: true } } },
+// Completed sessions whose stored per-line figures are missing: saved by a
+// build from before emotionCounts (utteranceCount 0) or sentimentCounts
+// ("{}") existed. Utterances come without orderBy, the same first-seen order
+// as every other tally.
+export async function findSessionsMissingTallies(): Promise<
+  {
+    id: string;
+    utterances: {
+      start_time: number;
+      emotions: Score[];
+      sentiments: Score[];
+    }[];
+  }[]
+> {
+  const rows = await db.analysisSession.findMany({
+    where: {
+      status: "COMPLETED",
+      utterances: { some: {} },
+      OR: [{ utteranceCount: 0 }, { sentimentCounts: "{}" }],
+    },
+    select: {
+      id: true,
+      utterances: {
+        select: { startTime: true, emotions: true, sentiments: true },
+      },
+    },
   });
+  return rows.map((r) => ({
+    id: r.id,
+    utterances: r.utterances.map((u) => ({
+      start_time: u.startTime,
+      emotions: JSON.parse(u.emotions) as Score[],
+      sentiments: JSON.parse(u.sentiments) as Score[],
+    })),
+  }));
+}
+
+export async function saveSessionTallies(
+  rows: {
+    id: string;
+    emotionCounts: string;
+    sentimentCounts: string;
+    utteranceCount: number;
+    topSentiment: string;
+    summary: string;
+  }[],
+): Promise<void> {
   await db.$transaction(
-    stale.map((s) =>
-      db.analysisSession.update({
-        where: { id: s.id },
-        data: {
-          emotionCounts: JSON.stringify(
-            countTopEmotions(
-              s.utterances.map((u) => ({
-                emotions: JSON.parse(u.emotions) as Score[],
-              })),
-            ),
-          ),
-          utteranceCount: s.utterances.length,
-        },
-      }),
+    rows.map(({ id, ...data }) =>
+      db.analysisSession.update({ where: { id }, data }),
     ),
   );
-  return stale.length;
 }
 
 export async function updateSessionResult(
@@ -616,8 +695,9 @@ export async function updateSessionResult(
     topSentiment: string;
     summary: string;
     durationSecs: number | null;
-    // countTopEmotions() of these same utterances, as JSON.
+    // From computeSessionTallies() over these same utterances.
     emotionCounts: string;
+    sentimentCounts: string;
     utterances: Array<{
       startTime: number;
       endTime: number;
@@ -639,6 +719,7 @@ export async function updateSessionResult(
         summary: data.summary,
         durationSecs: data.durationSecs,
         emotionCounts: data.emotionCounts,
+        sentimentCounts: data.sentimentCounts,
         utteranceCount: data.utterances.length,
         status: "COMPLETED",
         errorMessage: null,
@@ -667,9 +748,7 @@ export async function updateSessionFailed(
 // PROCESSING only after the object is confirmed in storage, so a client
 // that dies mid-upload leaves an UPLOADING (abandonable) row, never a
 // PROCESSING spinner that never resolves.
-export async function markSessionProcessing(
-  sessionId: string,
-): Promise<void> {
+export async function markSessionProcessing(sessionId: string): Promise<void> {
   await db.analysisSession.update({
     where: { id: sessionId },
     data: { status: "PROCESSING", errorMessage: null },
@@ -912,7 +991,10 @@ export async function getSessionTypeBreakdown(userId: string | null) {
     select: { sessionType: true, avgEmotions: true, avgSentiments: true },
   });
 
-  const byType = new Map<string, { emotions: Record<string, number[]>; sentiments: Record<string, number[]> }>();
+  const byType = new Map<
+    string,
+    { emotions: Record<string, number[]>; sentiments: Record<string, number[]> }
+  >();
 
   for (const s of sessions) {
     if (!byType.has(s.sessionType)) {

@@ -6,6 +6,7 @@ import {
   getSessionsByUser,
 } from "~/server/repositories/session";
 import { parseDateParam } from "~/lib/dates";
+import { mainScore, toPercentSlices } from "~/types/analysis";
 
 // CSV formula injection: a cell whose first char is one of these is
 // executed as a formula by Excel/Sheets. Prefix with a single quote to
@@ -52,9 +53,9 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
 
-    const sessionTopExprPct = Math.round(
-      (data.expressiveEmotions[0]?.confidence ?? 0) * 100,
-    );
+    // Same rounding as the session page's emotion donut.
+    const sessionTopExprPct =
+      toPercentSlices(data.expressiveEmotions)[0]?.value ?? 0;
 
     const rows = data.utterances.map((u) => ({
       session_id: data.id,
@@ -64,9 +65,14 @@ export async function GET(req: Request) {
       employee: data.employee?.name ?? "",
       utterance_start: u.startTime,
       utterance_end: u.endTime,
+      // As the transcript names them ("Employee" for the mapped speaker).
+      speaker:
+        u.speaker !== null && u.speaker === data.employeeSpeakerId
+          ? "Employee"
+          : (u.speaker ?? ""),
       text: u.text,
-      top_emotion: [...u.emotions].sort((a, b) => b.confidence - a.confidence)[0]?.label ?? "",
-      top_sentiment: [...u.sentiments].sort((a, b) => b.confidence - a.confidence)[0]?.label ?? "",
+      top_emotion: mainScore(u.emotions)?.label ?? "",
+      top_sentiment: mainScore(u.sentiments)?.label ?? "",
       expressiveness_pct: data.expressivenessPct,
       top_expressive_emotion: data.topExpressiveEmotion,
       top_expressive_pct: sessionTopExprPct,
@@ -80,22 +86,27 @@ export async function GET(req: Request) {
       to: parseDateParam(searchParams.get("to")),
     });
 
-    const rows = sessions.map((s) => ({
-      id: s.id,
-      title: s.title,
-      date: s.sessionDate.toISOString(),
-      session_type: s.sessionType,
-      employee: s.employee?.name ?? "",
-      top_emotion: s.topEmotion,
-      top_sentiment: s.topSentiment,
-      expressiveness_pct: s.expressivenessPct,
-      top_expressive_emotion: s.topExpressiveEmotion,
-      top_expressive_pct: Math.round(
-        (s.expressiveEmotions[0]?.confidence ?? 0) * 100,
-      ),
-      utterance_count: s.utteranceCount ?? 0,
-      duration_secs: s.durationSecs ?? "",
-    }));
+    const rows = sessions.map((s) => {
+      // A session not analysed (yet) has no figures: blank, never defaults.
+      const done = s.status === "COMPLETED";
+      return {
+        id: s.id,
+        title: s.title,
+        date: s.sessionDate.toISOString(),
+        session_type: s.sessionType,
+        status: s.status,
+        employee: s.employee?.name ?? "",
+        top_emotion: done ? s.topEmotion : "",
+        top_sentiment: done ? s.topSentiment : "",
+        expressiveness_pct: done ? s.expressivenessPct : "",
+        top_expressive_emotion: done ? s.topExpressiveEmotion : "",
+        top_expressive_pct: done
+          ? (toPercentSlices(s.expressiveEmotions)[0]?.value ?? 0)
+          : "",
+        utterance_count: done ? (s.utteranceCount ?? 0) : "",
+        duration_secs: s.durationSecs ?? "",
+      };
+    });
 
     csv = Papa.unparse(rows.map(sanitizeRow));
     filename = "sessions-export.csv";

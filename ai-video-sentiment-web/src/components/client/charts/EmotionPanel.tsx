@@ -19,7 +19,8 @@ const ChartSkeleton = ({ className }: { className?: string }) => (
 );
 
 const EmotionBars = dynamic(
-  () => import("~/components/client/charts/EmotionBars").then((m) => m.EmotionBars),
+  () =>
+    import("~/components/client/charts/EmotionBars").then((m) => m.EmotionBars),
   { ssr: false, loading: () => <ChartSkeleton className="h-40 w-full" /> },
 );
 
@@ -49,6 +50,8 @@ interface Props {
   // Page-level actions (exports) rendered at the end of the control row, so
   // the dashboard shows one toolbar instead of two stacked ones.
   actions?: ReactNode;
+  // Headline numbers, between the control row and the charts.
+  summary?: ReactNode;
 }
 
 export function EmotionPanel({
@@ -59,6 +62,7 @@ export function EmotionPanel({
   showTrend,
   sessionType,
   actions,
+  summary,
 }: Props) {
   const [view, setView] = useState<EmotionView>("expressive");
 
@@ -87,6 +91,8 @@ export function EmotionPanel({
         </div>
         <div className="flex flex-wrap items-center gap-2">{actions}</div>
       </div>
+
+      {summary}
 
       <div
         className={`grid grid-cols-1 gap-6 ${showTrend ? "md:grid-cols-2" : ""}`}
@@ -119,7 +125,9 @@ export function EmotionPanel({
         {showTrend && (
           <div className="h-full">
             <EmotionTrendChart
-              key={sessionType ?? "all"}
+              // The line count is in the key too: when a session finishes and
+              // the dashboard refreshes itself, the chart takes the new data.
+              key={`${sessionType ?? "all"}:${metrics.allEmotions.total}`}
               data={trend}
               windows={windows}
               initialDays={initialDays}

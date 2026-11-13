@@ -13,6 +13,8 @@ import type { EmployeeRow } from "~/server/repositories/employee";
 
 interface EmployeeListProps {
   employees: EmployeeRow[];
+  // Archived employees, shown only when the "Archived" view is picked.
+  archived: EmployeeRow[];
   // Page-level action (the add-employee button). It shares the toolbar row so
   // it does not cost a separate, mostly empty row above the list.
   actions?: ReactNode;
@@ -22,6 +24,12 @@ type SortColumn = "name" | "department" | "email" | "addedBy" | "createdAt";
 type SortDir = "asc" | "desc";
 
 const PAGE_SIZE = 10;
+
+type View = "active" | "archived";
+const VIEW_LABEL: Record<View, string> = {
+  active: "Active",
+  archived: "Archived",
+};
 
 // One column template for the header and every row, so they line up. Phones
 // get no columns: each row stacks name over department and email.
@@ -61,7 +69,14 @@ function compareBy(column: SortColumn, dir: SortDir) {
   };
 }
 
-export function EmployeeList({ employees, actions }: EmployeeListProps) {
+export function EmployeeList({
+  employees: active,
+  archived,
+  actions,
+}: EmployeeListProps) {
+  const [view, setView] = useState<View>("active");
+  const otherView: View = view === "active" ? "archived" : "active";
+  const employees = view === "archived" ? archived : active;
   const [query, setQuery] = useState("");
   const [department, setDepartment] = useState("");
   const [addedBy, setAddedBy] = useState("");
@@ -106,7 +121,7 @@ export function EmployeeList({ employees, actions }: EmployeeListProps) {
 
   useEffect(() => {
     setPage(1);
-  }, [query, department, addedBy, sort]);
+  }, [query, department, addedBy, sort, view]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
@@ -127,7 +142,7 @@ export function EmployeeList({ employees, actions }: EmployeeListProps) {
         : { column, dir: column === "createdAt" ? "desc" : "asc" },
     );
 
-  if (employees.length === 0) {
+  if (active.length === 0 && archived.length === 0) {
     return (
       <div className="flex flex-col gap-3">
         {actions && <div className="flex justify-end">{actions}</div>}
@@ -156,8 +171,28 @@ export function EmployeeList({ employees, actions }: EmployeeListProps) {
             className="w-full rounded-md border border-gray-200 py-1.5 pl-9 pr-3 text-sm focus:border-gray-400 focus:outline-none"
           />
         </div>
-        {(departments.length > 0 || adders.length > 0) && (
+        {(archived.length > 0 ||
+          departments.length > 0 ||
+          adders.length > 0) && (
           <div className="flex gap-2">
+            {archived.length > 0 && (
+              // Two states only: one button that names the list shown and
+              // flips to the other on click. Fixed width so the bar holds still.
+              <button
+                type="button"
+                onClick={() => {
+                  setView(otherView);
+                  // The other list has its own departments and adders.
+                  setDepartment("");
+                  setAddedBy("");
+                }}
+                title={`Showing ${view} employees. Click to show ${otherView}.`}
+                aria-label={`Showing ${view} employees. Click to show ${otherView}.`}
+                className="w-24 shrink-0 rounded-md border border-gray-200 bg-white px-3 py-1.5 text-left text-sm text-gray-700 hover:bg-gray-50 focus:border-gray-400 focus:outline-none"
+              >
+                {VIEW_LABEL[view]}
+              </button>
+            )}
             {departments.length > 0 && (
               <select
                 value={department}
@@ -195,7 +230,11 @@ export function EmployeeList({ employees, actions }: EmployeeListProps) {
 
       {filtered.length === 0 ? (
         <div className="flex h-40 items-center justify-center rounded-xl border border-dashed border-gray-200 text-sm text-gray-400">
-          No employees match your search.
+          {employees.length === 0
+            ? view === "archived"
+              ? "No archived employees."
+              : "No active employees. Add one to get started."
+            : "No employees match your search."}
         </div>
       ) : (
         <>
@@ -205,17 +244,17 @@ export function EmployeeList({ employees, actions }: EmployeeListProps) {
               className={`hidden border-b border-gray-200 bg-gray-50 px-4 py-2 text-xs font-medium text-gray-500 ${COLUMNS}`}
             >
               {HEADERS.map(({ column, label }) => {
-                const active = sort.column === column;
+                const isSorted = sort.column === column;
                 const Arrow = sort.dir === "asc" ? FiArrowUp : FiArrowDown;
                 return (
                   <button
                     key={column}
                     type="button"
                     onClick={() => sortBy(column)}
-                    className={`flex items-center gap-1 text-left hover:text-gray-900 ${active ? "text-gray-900" : ""}`}
+                    className={`flex items-center gap-1 text-left hover:text-gray-900 ${isSorted ? "text-gray-900" : ""}`}
                   >
                     {label}
-                    {active && (
+                    {isSorted && (
                       <>
                         <Arrow className="h-3 w-3" aria-hidden />
                         <span className="sr-only">

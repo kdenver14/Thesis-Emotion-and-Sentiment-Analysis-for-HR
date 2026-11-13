@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { ParsedSession } from "~/server/repositories/session";
-import { SESSION_TYPE_LABELS, getSentimentBreakdown } from "~/types/analysis";
+import { SESSION_TYPE_LABELS, sentimentFromCounts } from "~/types/analysis";
 import {
   NEGATIVE_CLASS,
   NEUTRAL_CLASS,
@@ -50,9 +50,7 @@ export function LatestSessionCard({ session }: Props) {
 
       <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500">
         <span className="rounded-full border border-gray-200 px-2 py-0.5">
-          {SESSION_TYPE_LABELS[
-            session.sessionType as keyof typeof SESSION_TYPE_LABELS
-          ] ?? session.sessionType}
+          {SESSION_TYPE_LABELS[session.sessionType] ?? session.sessionType}
         </span>
         {session.employee && (
           <span>
@@ -74,43 +72,44 @@ export function LatestSessionCard({ session }: Props) {
         )}
       </div>
 
-      {session.status === "COMPLETED" && (() => {
-        const b = getSentimentBreakdown(session.avgSentiments);
-        const topExprPct = Math.round(
-          (session.expressiveEmotions[0]?.confidence ?? 0) * 100,
-        );
-        return (
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-gray-600">
-            {session.expressivenessPct === 0 ? (
-              <span className="text-gray-500">Mostly neutral</span>
-            ) : (
-              <span>
-                {EMOTION_EMOJI[session.topExpressiveEmotion] ?? ""}{" "}
-                <span
-                  className={`capitalize ${emotionColorClass(session.topExpressiveEmotion)}`}
-                >
-                  {session.topExpressiveEmotion} {topExprPct}%
+      {session.status === "COMPLETED" &&
+        (() => {
+          const b = sentimentFromCounts(session.sentimentCounts);
+          const topExprPct = Math.round(
+            (session.expressiveEmotions[0]?.confidence ?? 0) * 100,
+          );
+          return (
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-gray-600">
+              {session.expressivenessPct === 0 ? (
+                <span className="text-gray-500">Mostly neutral</span>
+              ) : (
+                <span>
+                  {EMOTION_EMOJI[session.topExpressiveEmotion] ?? ""}{" "}
+                  <span
+                    className={`capitalize ${emotionColorClass(session.topExpressiveEmotion)}`}
+                  >
+                    {session.topExpressiveEmotion} {topExprPct}%
+                  </span>
+                  <span className="ml-1 text-xs text-gray-400">
+                    · {session.expressivenessPct}% expressive
+                  </span>
                 </span>
-                <span className="ml-1 text-xs text-gray-400">
-                  · {session.expressivenessPct}% expressive
-                </span>
+              )}
+              <span
+                className={`capitalize ${sentimentToneClass(session.topSentiment)}`}
+              >
+                {session.topSentiment}
               </span>
-            )}
-            <span
-              className={`capitalize ${sentimentToneClass(session.topSentiment)}`}
-            >
-              {session.topSentiment}
-            </span>
-            <span className="text-xs">
-              <span className={POSITIVE_CLASS}>{b.positive}% pos</span>
-              <span className="text-gray-400"> · </span>
-              <span className={NEUTRAL_CLASS}>{b.neutral}% neu</span>
-              <span className="text-gray-400"> · </span>
-              <span className={NEGATIVE_CLASS}>{b.negative}% neg</span>
-            </span>
-          </div>
-        );
-      })()}
+              <span className="text-xs">
+                <span className={POSITIVE_CLASS}>{b.positive}% pos</span>
+                <span className="text-gray-400"> · </span>
+                <span className={NEUTRAL_CLASS}>{b.neutral}% neu</span>
+                <span className="text-gray-400"> · </span>
+                <span className={NEGATIVE_CLASS}>{b.negative}% neg</span>
+              </span>
+            </div>
+          );
+        })()}
     </Link>
   );
 }

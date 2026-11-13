@@ -8,6 +8,7 @@ import {
   type TopEmotionBreakdown,
 } from "~/types/analysis";
 import {
+  EMOTION_HEX,
   emotionColorClass,
   sentimentToneClass,
   type EmotionView,
@@ -72,12 +73,22 @@ export function EmotionBars({
   // Donut slices, positionally aligned to the Hamilton percents so the pie
   // and the legend show the same integers that always sum to 100. Zero
   // slices are dropped so the "expressive only" view has no empty wedges.
-  const pieData = sorted
+  const detected = sorted
     .map((s, i) => ({ label: s.label, value: barPcts[i] ?? 0 }))
     .filter((d) => d.value > 0);
+  // "All emotions" names every emotion: the ones no line showed are listed
+  // at 0% (the donut draws no arc for them).
+  const pieData =
+    view === "all"
+      ? [
+          ...detected,
+          ...Object.keys(EMOTION_HEX)
+            .filter((e) => !detected.some((d) => d.label === e))
+            .map((label) => ({ label, value: 0 })),
+        ]
+      : detected;
 
-  const sentTotal =
-    sentiment.positive + sentiment.neutral + sentiment.negative;
+  const sentTotal = sentiment.positive + sentiment.neutral + sentiment.negative;
   const sentEntries = [
     ["positive", sentiment.positive],
     ["neutral", sentiment.neutral],
@@ -86,14 +97,15 @@ export function EmotionBars({
   const [sentLabel, sentVal] = sentEntries.reduce((a, b) =>
     b[1] > a[1] ? b : a,
   );
-  const sentPct =
-    sentTotal > 0 ? Math.round((sentVal / sentTotal) * 100) : 0;
+  const sentPct = sentTotal > 0 ? Math.round((sentVal / sentTotal) * 100) : 0;
 
   const captionNode = <div className="text-xs text-gray-500">{caption}</div>;
   const summaryNode = top ? (
     <p className="text-xs leading-relaxed text-gray-600">
       Across all analyzed sessions, the most common emotion is{" "}
-      <span className={`font-medium capitalize ${emotionColorClass(top.label)}`}>
+      <span
+        className={`font-medium capitalize ${emotionColorClass(top.label)}`}
+      >
         {top.label}
       </span>{" "}
       ({topPct}%)

@@ -9,11 +9,20 @@ interface LinkEmailInput {
   url: string;
 }
 
+interface WelcomeEmailInput extends LinkEmailInput {
+  tempPassword: string;
+}
+
 const BRAND = "Blastasia HR";
 
 // Pure renderers (no IO). Monochrome inline styles only: the design system
 // uses no colored accents, so emails stay grayscale to match. No em dashes.
-function shell(heading: string, body: string, url: string, cta: string): string {
+function shell(
+  heading: string,
+  body: string,
+  url: string,
+  cta: string,
+): string {
   return [
     '<div style="font-family:Helvetica,Arial,sans-serif;max-width:480px;margin:0 auto;color:#111827">',
     `<h2 style="font-size:18px;font-weight:600;color:#111827">${heading}</h2>`,
@@ -24,6 +33,26 @@ function shell(heading: string, body: string, url: string, cta: string): string 
     `<p style="font-size:12px;color:#9ca3af;margin-top:24px">${BRAND}</p>`,
     "</div>",
   ].join("");
+}
+
+// Sent when an admin creates the account: the verify link plus a one-time
+// temporary password, which the user must replace at first sign-in.
+export function welcomeTemplate({
+  name,
+  url,
+  tempPassword,
+}: WelcomeEmailInput): RenderedEmail {
+  const greeting = name ? `Hi ${name},` : "Hi,";
+  return {
+    subject: `Your ${BRAND} account`,
+    text: `${greeting}\n\nA ${BRAND} account was created for you.\n\n1. Confirm your email (this link expires in 15 minutes):\n${url}\n\n2. Sign in with your email and this temporary password: ${tempPassword}\n\nYou will then choose your own password.\n\nIf you did not expect this, you can ignore this email.\n\n${BRAND}`,
+    html: shell(
+      "Your account is ready",
+      `${greeting} a ${BRAND} account was created for you. First confirm your email with the button below (valid for 15 minutes). Then sign in with your email and this temporary password: <strong style="font-family:monospace;font-size:15px;color:#111827">${tempPassword}</strong>. You will then choose your own password.`,
+      url,
+      "Verify email",
+    ),
+  };
 }
 
 export function verifyEmailTemplate({

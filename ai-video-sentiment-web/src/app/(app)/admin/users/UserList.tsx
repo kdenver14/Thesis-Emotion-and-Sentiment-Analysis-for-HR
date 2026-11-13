@@ -4,24 +4,30 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { IconType } from "react-icons";
 import { useRouter } from "next/navigation";
 import {
+  FiArchive,
   FiArrowDown,
   FiArrowUp,
   FiCheck,
   FiCopy,
   FiEdit2,
   FiMoreHorizontal,
+  FiRotateCcw,
   FiSearch,
-  FiTrash2,
+  FiUserCheck,
   FiX,
 } from "react-icons/fi";
-import { removeUser, updateUserName } from "~/actions/users";
+import {
+  archiveUser,
+  changeUserRole,
+  restoreUser,
+  updateUserName,
+} from "~/actions/users";
 import type { UserRow } from "~/actions/users";
+import { ROLE_LABELS, ROLES, type Role } from "~/types/roles";
+import { useConfirm } from "~/components/client/ConfirmDialog";
 
-const ROLE_LABEL: Record<string, string> = {
-  MANAGER: "HR Manager",
-  DIRECTOR: "HR Director",
-  STAFF: "HR Staff",
-};
+// Archived accounts of every role share one section, below the others.
+const ARCHIVED_GROUP = "ARCHIVED";
 
 // Director last: there is only one, and Managers and Staff are managed most.
 const ROLE_ORDER: readonly string[] = ["MANAGER", "STAFF", "DIRECTOR"];
@@ -86,26 +92,33 @@ function compareBy(column: SortColumn, dir: SortDir) {
   };
 }
 
-// Role sections in ROLE_ORDER, then any unexpected role as "Other".
+// Role sections in ROLE_ORDER, then any unexpected role as "Other", then
+// every archived account.
 function groupByRole(
   users: UserRow[],
 ): { role: string; label: string; users: UserRow[] }[] {
+  const active = users.filter((u) => !u.archived);
   const known = ROLE_ORDER.map((role) => ({
     role,
     label: SECTION_LABEL[role] ?? role,
-    users: users.filter((u) => u.role === role),
+    users: active.filter((u) => u.role === role),
   }));
-  const other = users.filter((u) => !ROLE_ORDER.includes(u.role));
-  return [...known, { role: "OTHER", label: "Other", users: other }].filter(
-    (g) => g.users.length > 0,
-  );
+  const other = active.filter((u) => !ROLE_ORDER.includes(u.role));
+  return [
+    ...known,
+    { role: "OTHER", label: "Other", users: other },
+    {
+      role: ARCHIVED_GROUP,
+      label: "Archived",
+      users: users.filter((u) => u.archived),
+    },
+  ].filter((g) => g.users.length > 0);
 }
 
 type MenuItem = {
   label: string;
   icon: IconType;
   onSelect: () => void;
-  danger?: boolean;
 };
 
 // Row actions behind one "⋯" button, same disclosure pattern as the Export
@@ -162,12 +175,9 @@ function RowMenu({
                 setOpen(false);
                 item.onSelect();
               }}
-              className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-gray-50 focus-visible:bg-gray-50 focus-visible:outline-none ${item.danger ? "text-red-600" : "text-gray-700"}`}
+              className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 focus-visible:bg-gray-50 focus-visible:outline-none`}
             >
-              <item.icon
-                className={`h-3.5 w-3.5 ${item.danger ? "" : "text-gray-400"}`}
-                aria-hidden
-              />
+              <item.icon className="h-3.5 w-3.5 text-gray-400" aria-hidden />
               {item.label}
             </button>
           ))}
@@ -182,16 +192,24 @@ function RowMenu({
 function UserRowItem({
   user,
   readOnly,
+  isSelf,
+  directorTaken,
 }: {
   user: UserRow;
   readOnly?: boolean;
+  // Managers cannot change their own role or archive themselves.
+  isSelf: boolean;
+  // Only one active HR Director at a time.
+  directorTaken: boolean;
 }) {
   const router = useRouter();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(user.name ?? "");
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
-  const roleLabel = ROLE_LABEL[user.role] ?? user.role;
+  const { confirm, notify } = useConfirm();
+  const roleLabel = ROLE_LABELS[user.role] ?? user.role;
+  const name = user.name ?? "this user";
 
   const cancelRename = () => {
     setEditing(false);
@@ -208,7 +226,7 @@ function UserRowItem({
     const result = await updateUserName(user.id, trimmed);
     setBusy(false);
     if (result.error) {
-      alert(result.error);
+      void notify(result.error);
       return;
     }
     setEditing(false);
@@ -223,47 +241,106 @@ function UserRowItem({
         setCopied(true);
         setTimeout(() => setCopied(false), COPIED_MS);
       })
-      .catch(() => alert("Could not copy to the clipboard."));
+      .catch(() => void notify("Could not copy to the clipboard."));
   };
 
-  const deleteAccount = async () => {
-    if (!confirm("Delete this user? Their sessions will be kept but unlinked."))
-      return;
+  // Asks first, then runs the action and reloads the list.
+  const confirmAndRun = async (
+    question: { message: string; confirmLabel: string; destructive?: boolean },
+    action: (id: string) => Promise<{ error?: string }>,
+  ) => {
+    if (!(await confirm(question))) return;
     setBusy(true);
-    const result = await removeUser(user.id);
-    if (result.error) {
-      alert(result.error);
+    try {
+      const result = await action(user.id);
+      if (result.error) {
+        void notify(result.error);
+        return;
+      }
+      router.refresh();
+    } catch {
+      void notify("Something went wrong. Try again.");
+    } finally {
       setBusy(false);
-      return;
     }
-    router.refresh();
   };
 
-  const items: MenuItem[] = [
-    ...(!readOnly
-      ? [
-          {
-            label: "Rename",
-            icon: FiEdit2,
-            onSelect: () => {
-              setDraft(user.name ?? "");
-              setEditing(true);
-            },
-          },
-        ]
-      : []),
-    { label: "Copy details", icon: FiCopy, onSelect: copyDetails },
-    ...(!readOnly && user.role !== "MANAGER"
-      ? [
-          {
-            label: "Delete account",
-            icon: FiTrash2,
-            danger: true,
-            onSelect: () => void deleteAccount(),
-          },
-        ]
-      : []),
-  ];
+  const roleItems: MenuItem[] = ROLES.filter(
+    (r) => r !== user.role && !(r === "DIRECTOR" && directorTaken),
+  ).map((r: Role) => ({
+    label: `Make ${ROLE_LABELS[r]}`,
+    icon: FiUserCheck,
+    onSelect: () =>
+      void confirmAndRun(
+        {
+          message: `Change ${name} to ${ROLE_LABELS[r]}? It applies on their next page load.`,
+          confirmLabel: "Change role",
+        },
+        (id) => changeUserRole(id, r),
+      ),
+  }));
+
+  const copyItem: MenuItem = {
+    label: "Copy details",
+    icon: FiCopy,
+    onSelect: copyDetails,
+  };
+
+  const items: MenuItem[] = user.archived
+    ? [
+        ...(!readOnly
+          ? [
+              {
+                label: "Restore account",
+                icon: FiRotateCcw,
+                onSelect: () =>
+                  void confirmAndRun(
+                    {
+                      message: `Restore ${name}? They can sign in again as ${roleLabel}.`,
+                      confirmLabel: "Restore",
+                    },
+                    restoreUser,
+                  ),
+              },
+            ]
+          : []),
+        copyItem,
+      ]
+    : [
+        ...(!readOnly
+          ? [
+              {
+                label: "Rename",
+                icon: FiEdit2,
+                onSelect: () => {
+                  setDraft(user.name ?? "");
+                  setEditing(true);
+                },
+              },
+            ]
+          : []),
+        ...(!readOnly && !isSelf ? roleItems : []),
+        copyItem,
+        // An HR Manager is demoted first, so Managers cannot archive each
+        // other by accident.
+        ...(!readOnly && !isSelf && user.role !== "MANAGER"
+          ? [
+              {
+                label: "Archive account",
+                icon: FiArchive,
+                onSelect: () =>
+                  void confirmAndRun(
+                    {
+                      message: `Archive ${name}? They can no longer sign in. Their sessions and employees stay, and you can restore them later.`,
+                      confirmLabel: "Archive",
+                      destructive: true,
+                    },
+                    archiveUser,
+                  ),
+              },
+            ]
+          : []),
+      ];
 
   return (
     <li className="flex items-center gap-2 pl-4 pr-2 last:rounded-b-xl hover:bg-gray-50">
@@ -304,6 +381,12 @@ function UserRowItem({
         ) : (
           <span className="block truncate font-medium text-gray-900">
             {user.name ?? "—"}
+            {/* The Archived section mixes roles, so it names each one. */}
+            {user.archived && (
+              <span className="ml-1.5 text-xs font-normal text-gray-500">
+                {roleLabel}
+              </span>
+            )}
           </span>
         )}
         <span className="block truncate text-xs text-gray-500 sm:text-sm sm:text-gray-600">
@@ -331,10 +414,12 @@ function UserRowItem({
 export function UserList({
   users,
   readOnly,
+  currentUserId,
   actions,
 }: {
   users: UserRow[];
   readOnly?: boolean;
+  currentUserId: string;
   // Page-level action (the create-account button), placed in the toolbar row.
   actions?: ReactNode;
 }) {
@@ -344,17 +429,21 @@ export function UserList({
     dir: "asc",
   });
   const [openGroups, setOpenGroups] = useState<Set<string>>(new Set());
+  // Archived accounts stay out of the list unless asked for (to restore one).
+  const [showArchived, setShowArchived] = useState(false);
+  const hasArchived = users.some((u) => u.archived);
 
   const q = query.trim().toLowerCase();
   const groups = useMemo(() => {
     const matches = users.filter(
       (u) =>
-        !q ||
-        (u.name?.toLowerCase().includes(q) ?? false) ||
-        (u.email?.toLowerCase().includes(q) ?? false),
+        (showArchived || !u.archived) &&
+        (!q ||
+          (u.name?.toLowerCase().includes(q) ?? false) ||
+          (u.email?.toLowerCase().includes(q) ?? false)),
     );
     return groupByRole(matches.sort(compareBy(sort.column, sort.dir)));
-  }, [users, q, sort]);
+  }, [users, q, sort, showArchived]);
 
   // Clicking the active column flips it; a new column starts A to Z, or
   // highest/newest first for the counts and dates.
@@ -368,6 +457,8 @@ export function UserList({
               column === "sessions" || column === "createdAt" ? "desc" : "asc",
           },
     );
+
+  const directorTaken = users.some((u) => u.role === "DIRECTOR" && !u.archived);
 
   const showGroup = (role: string) =>
     setOpenGroups((prev) => new Set(prev).add(role));
@@ -471,7 +562,13 @@ export function UserList({
                   </div>
                   <ul className="divide-y divide-gray-100">
                     {visible.map((u) => (
-                      <UserRowItem key={u.id} user={u} readOnly={readOnly} />
+                      <UserRowItem
+                        key={u.id}
+                        user={u}
+                        readOnly={readOnly}
+                        isSelf={u.id === currentUserId}
+                        directorTaken={directorTaken}
+                      />
                     ))}
                   </ul>
                   {hidden > 0 && (
@@ -488,6 +585,16 @@ export function UserList({
             );
           })}
         </div>
+      )}
+      {hasArchived && (
+        <button
+          type="button"
+          onClick={() => setShowArchived((v) => !v)}
+          aria-expanded={showArchived}
+          className="w-fit px-1 text-xs text-gray-500 hover:text-gray-900 hover:underline"
+        >
+          {showArchived ? "Hide archived accounts" : "Show archived accounts"}
+        </button>
       )}
     </div>
   );
