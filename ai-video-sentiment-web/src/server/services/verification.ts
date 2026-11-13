@@ -8,6 +8,7 @@ import {
   consumeToken,
   issueToken,
   issueCode,
+  peekToken,
   verifyCode,
   TokenRateLimitError,
   type CodeResult,
@@ -19,6 +20,7 @@ import {
   resetPasswordTemplate,
   stepUpCodeTemplate,
   verifyEmailTemplate,
+  welcomeTemplate,
 } from "~/server/mail/templates";
 
 // Business logic only. No nodemailer, no token hashing here: those live in the
@@ -30,10 +32,14 @@ function linkFor(path: string, rawToken: string): string {
   return `${env.APP_URL}${path}?token=${encodeURIComponent(rawToken)}`;
 }
 
-// Issues a verification token and emails the link. Throws on send failure so
-// the caller can decide whether that is fatal (createUser treats it as a
-// non-fatal warning; resend surfaces it generically).
-export async function sendVerificationEmail(userId: string): Promise<void> {
+// Issues a verification token and emails the link. With `tempPassword` (new
+// admin-created account) the email is the welcome email carrying it. Throws
+// on send failure so the caller can decide whether that is fatal (createUser
+// treats it as a non-fatal warning; resend surfaces it generically).
+export async function sendVerificationEmail(
+  userId: string,
+  tempPassword?: string,
+): Promise<void> {
   const user = await db.user.findUnique({
     where: { id: userId },
     select: { name: true, email: true, emailVerified: true },
@@ -41,10 +47,10 @@ export async function sendVerificationEmail(userId: string): Promise<void> {
   if (!user?.email || user.emailVerified) return;
 
   const raw = await issueToken("verify", userId);
-  const email = verifyEmailTemplate({
-    name: user.name,
-    url: linkFor("/verify-email", raw),
-  });
+  const url = linkFor("/verify-email", raw);
+  const email = tempPassword
+    ? welcomeTemplate({ name: user.name, url, tempPassword })
+    : verifyEmailTemplate({ name: user.name, url });
   await sendMail({ to: user.email, ...email });
 }
 
@@ -101,6 +107,12 @@ export async function requestPasswordReset(email: string): Promise<void> {
   }
 }
 
+// For the reset page: lets it say a link is dead when it opens, instead of
+// after the user has typed a new password.
+export async function isResetLinkUsable(rawToken: string): Promise<boolean> {
+  return (await peekToken(rawToken))?.purpose === "reset";
+}
+
 export async function resetPassword(
   rawToken: string,
   newPassword: string,
@@ -126,7 +138,9 @@ export async function resetPassword(
   const hashed = await bcrypt.hash(parsed.data, BCRYPT_ROUNDS);
   await db.user.update({
     where: { id: bound.userId },
-    data: { password: hashed },
+    // A reset sets a password of their own, so it also ends a pending
+    // temporary-password change.
+    data: { password: hashed, mustChangePassword: false },
   });
   // A credential rotation must evict every remembered device: an attacker
   // who triggered the reset (or had a trusted device) loses 2FA bypass.

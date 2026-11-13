@@ -7,7 +7,7 @@ import { UserList } from "./UserList";
 export default async function UsersPage() {
   const session = await auth();
   const role = session?.user?.role;
-  if (role !== "MANAGER" && role !== "DIRECTOR") notFound();
+  if (!session || (role !== "MANAGER" && role !== "DIRECTOR")) notFound();
 
   const isDirector = role === "DIRECTOR";
   const users = await getUsers();
@@ -17,6 +17,7 @@ export default async function UsersPage() {
       <UserList
         users={users}
         readOnly={isDirector}
+        currentUserId={session.user.id}
         actions={isDirector ? undefined : <CreateUserDisclosure />}
       />
     </div>

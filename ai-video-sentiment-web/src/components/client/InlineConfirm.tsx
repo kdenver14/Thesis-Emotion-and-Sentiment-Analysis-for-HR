@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import type { IconType } from "react-icons";
 import { FiTrash2 } from "react-icons/fi";
 
 interface InlineConfirmProps {
@@ -13,6 +14,8 @@ interface InlineConfirmProps {
   // A quiet trash icon instead of a labeled button, for page headers where
   // deleting is the rarest action. `label` becomes its accessible name.
   iconOnly?: boolean;
+  // The icon-only button's icon (trash unless given).
+  icon?: IconType;
 }
 
 const destructiveButton =
@@ -30,6 +33,7 @@ export function InlineConfirm({
   busyLabel,
   onConfirm,
   iconOnly = false,
+  icon: Icon = FiTrash2,
 }: InlineConfirmProps) {
   const [asking, setAsking] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -46,7 +50,7 @@ export function InlineConfirm({
         title={label}
         className="rounded-md p-2 text-gray-400 hover:bg-red-50 hover:text-red-600"
       >
-        <FiTrash2 className="h-4 w-4" aria-hidden />
+        <Icon className="h-4 w-4" aria-hidden />
       </button>
     ) : (
       <button

@@ -1,4 +1,5 @@
 import { db } from "~/server/db";
+import { ARCHIVED_STATUS } from "~/schemas/employee";
 
 export interface EmployeeRow {
   id: string;
@@ -38,13 +39,14 @@ function toEmployeeRow(r: RawEmployee): EmployeeRow {
   return { ...rest, addedBy: user };
 }
 
+// Active employees by default; `archived` lists only the archived ones.
 export async function findEmployeesByUser(
   userId: string | null,
+  archived = false,
 ): Promise<EmployeeRow[]> {
+  const status = archived ? ARCHIVED_STATUS : { not: ARCHIVED_STATUS };
   const rows = await db.employee.findMany({
-    where: userId
-      ? { userId, status: { not: "Deleted" } }
-      : { status: { not: "Deleted" } },
+    where: userId ? { userId, status } : { status },
     select: EMPLOYEE_SELECT,
     orderBy: { name: "asc" },
   });
@@ -64,7 +66,14 @@ export async function findEmployeeById(
 
 export async function createEmployee(
   userId: string,
-  data: { name: string; email?: string; department?: string; role?: string; phone?: string; status?: string },
+  data: {
+    name: string;
+    email?: string;
+    department?: string;
+    role?: string;
+    phone?: string;
+    status?: string;
+  },
 ): Promise<EmployeeRow> {
   const row = await db.employee.create({
     data: { userId, ...data },
@@ -84,21 +93,42 @@ export async function updateEmployeeName(
   });
 }
 
-// Soft delete. Returns the employee's name for the audit log, or null when
-// nothing changed (not found, not in scope, or already deleted).
-export async function deleteEmployee(
+// Sets the archived flag. Returns the employee's name for the audit log, or
+// null when nothing changed (not found, not in scope, or already in that
+// state).
+export async function setEmployeeArchived(
   employeeId: string,
   userId: string | null,
+  archived: boolean,
 ): Promise<string | null> {
   const where = {
     ...(userId ? { id: employeeId, userId } : { id: employeeId }),
-    status: { not: "Deleted" },
+    status: archived ? { not: ARCHIVED_STATUS } : ARCHIVED_STATUS,
   };
   const row = await db.employee.findFirst({ where, select: { name: true } });
   if (!row) return null;
   const { count } = await db.employee.updateMany({
     where,
-    data: { status: "Deleted" },
+    data: { status: archived ? ARCHIVED_STATUS : "Active" },
   });
   return count > 0 ? row.name : null;
+}
+
+// One-time rename for rows soft-deleted before archiving existed. Idempotent.
+export async function renameLegacyDeletedEmployees(): Promise<number> {
+  const { count } = await db.employee.updateMany({
+    where: { status: "Deleted" },
+    data: { status: ARCHIVED_STATUS },
+  });
+  return count;
+}
+
+// Of the given ids, those that exist and are not archived. New links
+// (participants, assignments) must only ever point at these.
+export async function findActiveEmployeeIds(ids: string[]): Promise<string[]> {
+  const rows = await db.employee.findMany({
+    where: { id: { in: ids }, status: { not: ARCHIVED_STATUS } },
+    select: { id: true },
+  });
+  return rows.map((r) => r.id);
 }

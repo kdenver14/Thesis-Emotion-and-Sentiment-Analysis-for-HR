@@ -4,8 +4,10 @@ import { randomUUID } from "crypto";
 import path from "path";
 import { db } from "~/server/db";
 import { getMutatorOrError } from "~/server/auth/guards";
+import { findActiveEmployeeIds } from "~/server/repositories/employee";
 import { env } from "~/env";
 import {
+  FUTURE_DATE_MESSAGE,
   sessionMetadataSchema,
   onboardingCandidateSchema,
   meetingParticipantsSchema,
@@ -64,13 +66,10 @@ async function resolveParticipants(
     return { error: parsed.error.issues[0]?.message ?? "Invalid participants" };
   }
   const ids = parsed.data;
-  // Employees are shared across roles, so any existing employee may attend.
-  const visible = await db.employee.findMany({
-    where: { id: { in: ids } },
-    select: { id: true },
-  });
-  if (visible.length !== ids.length) {
-    return { error: "Unknown or unauthorized participant" };
+  // Employees are shared across roles, so any active employee may attend.
+  const active = await findActiveEmployeeIds(ids);
+  if (active.length !== ids.length) {
+    return { error: "Unknown or archived participant" };
   }
   return { ids };
 }
@@ -115,8 +114,22 @@ export async function createUpload(
   }
 
   const metaParsed = parseMetadata(metadata);
-  if (!metaParsed.success) return { error: "Invalid session metadata" };
+  if (!metaParsed.success) {
+    // The date rule has its own wording; other failures stay generic.
+    const futureDate = metaParsed.error.issues.some(
+      (i) => i.message === FUTURE_DATE_MESSAGE,
+    );
+    return {
+      error: futureDate ? FUTURE_DATE_MESSAGE : "Invalid session metadata",
+    };
+  }
   const meta = metaParsed.data;
+  if (
+    meta.employeeId &&
+    (await findActiveEmployeeIds([meta.employeeId])).length === 0
+  ) {
+    return { error: "Unknown or archived employee" };
+  }
 
   let participantEmployeeIds: string[] = [];
   if (meta.sessionType === "meeting") {
@@ -252,10 +265,15 @@ async function requestInferenceCancel(sessionId: string): Promise<void> {
       signal: AbortSignal.timeout(CANCEL_TIMEOUT_MS),
     });
     if (!res.ok) {
-      console.warn(`cancelSession: inference service answered HTTP ${res.status} for ${sessionId}`);
+      console.warn(
+        `cancelSession: inference service answered HTTP ${res.status} for ${sessionId}`,
+      );
     }
   } catch (err) {
-    console.warn(`cancelSession: inference service unreachable for ${sessionId}`, err);
+    console.warn(
+      `cancelSession: inference service unreachable for ${sessionId}`,
+      err,
+    );
   }
 }
 

@@ -1,3 +1,9 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Edge adds its own show-password eye. Hidden only on fields that have their
+   own (class "own-reveal"); other password fields keep Edge's. */
+input.own-reveal::-ms-reveal {
+  display: none;
+}

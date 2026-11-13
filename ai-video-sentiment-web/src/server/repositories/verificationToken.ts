@@ -57,9 +57,7 @@ function parseIdentifier(
   const userId = identifier.slice(sep + 1);
   // Codes (login, pwchange) never reach consumeToken; loginproof does.
   if (
-    (purpose !== "verify" &&
-      purpose !== "reset" &&
-      purpose !== "loginproof") ||
+    (purpose !== "verify" && purpose !== "reset" && purpose !== "loginproof") ||
     !userId
   )
     return null;
@@ -133,6 +131,18 @@ export async function consumeToken(
   });
 }
 
+// Read-only twin of consumeToken: whether a link would still work, without
+// using it up. Pages check on open; the form consumes on submit.
+export async function peekToken(
+  raw: string,
+): Promise<{ purpose: TokenPurpose; userId: string } | null> {
+  const row = await db.verificationToken.findUnique({
+    where: { token: hashSecret(raw) },
+  });
+  if (!row || row.expires.getTime() < Date.now()) return null;
+  return parseIdentifier(row.identifier);
+}
+
 export async function invalidateTokens(
   purpose: TokenPurpose,
   userId: string,
@@ -169,8 +179,10 @@ export async function issueCode(
 }
 
 // Verifies a step-up code. Constant-time hash compare; expiry enforced;
-// failed attempts counted and the code destroyed at the cap ("locked") or on
-// success ("ok"). Single active code per identifier (issueCode deletes prior).
+// failed attempts counted. The code is destroyed on success ("ok"). An
+// expired or locked code is kept until the next one is issued (issueCode
+// deletes prior), so every further try gets the same answer instead of a
+// misleading "invalid". Single active code per identifier.
 export async function verifyCode(
   purpose: TokenPurpose,
   userId: string,
@@ -180,24 +192,20 @@ export async function verifyCode(
   const row = await db.verificationToken.findFirst({ where: { identifier } });
   if (!row) return "invalid";
 
-  if (row.expires.getTime() < Date.now()) {
-    await db.verificationToken.deleteMany({ where: { identifier } });
-    return "expired";
-  }
+  if (row.expires.getTime() < Date.now()) return "expired";
+
+  // Take one attempt before comparing, in a single conditional write: guesses
+  // sent in parallel each cost an attempt, and none gets through once the cap
+  // is reached. A locked code therefore never validates again.
+  const claimed = await db.verificationToken.updateMany({
+    where: { token: row.token, attempts: { lt: CODE_MAX_ATTEMPTS } },
+    data: { attempts: { increment: 1 } },
+  });
+  if (claimed.count === 0) return "locked";
 
   if (timingSafeEqualHex(row.token, hashSecret(`${userId}:${code}`))) {
     await db.verificationToken.deleteMany({ where: { identifier } });
     return "ok";
   }
-
-  const attempts = row.attempts + 1;
-  if (attempts >= CODE_MAX_ATTEMPTS) {
-    await db.verificationToken.deleteMany({ where: { identifier } });
-    return "locked";
-  }
-  await db.verificationToken.update({
-    where: { token: row.token },
-    data: { attempts },
-  });
-  return "invalid";
+  return row.attempts + 1 >= CODE_MAX_ATTEMPTS ? "locked" : "invalid";
 }

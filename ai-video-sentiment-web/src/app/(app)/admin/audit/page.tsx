@@ -4,6 +4,7 @@ import { z } from "zod";
 import { FiChevronLeft, FiChevronRight } from "react-icons/fi";
 import { auth } from "~/server/auth";
 import { getAuditLogPage } from "~/actions/audit";
+import { isRole, ROLE_LABELS } from "~/types/roles";
 
 // Match DASHBOARD_TZ in src/server/repositories/session.ts.
 const AUDIT_TZ = "Asia/Manila";
@@ -25,13 +26,11 @@ const ACTION_LABELS: Record<string, string> = {
   "user.password_reset": "Reset password",
   "user.email_verified": "Verified email",
   "employee.delete": "Deleted employee",
-};
-
-// Same wording as the User accounts page.
-const ROLE_LABELS: Record<string, string> = {
-  MANAGER: "HR Manager",
-  DIRECTOR: "HR Director",
-  STAFF: "HR Staff",
+  "user.archive": "Archived account",
+  "user.restore": "Restored account",
+  "user.role_change": "Changed role",
+  "employee.archive": "Archived employee",
+  "employee.restore": "Restored employee",
 };
 
 const pageParamSchema = z.coerce.number().int().min(1).catch(1);
@@ -80,9 +79,15 @@ export default async function AuditLogPage({
                     {auditDateFormatter.format(e.createdAt)}
                   </td>
                   <td className="px-4 py-2.5">
-                    <div className="font-medium text-gray-900">{e.actorName}</div>
+                    <div className="font-medium text-gray-900">
+                      {e.actorName}
+                    </div>
                     <div className="text-xs text-gray-500">
-                      {e.actorRole ? (ROLE_LABELS[e.actorRole] ?? e.actorRole) : "Role not recorded"}
+                      {e.actorRole
+                        ? isRole(e.actorRole)
+                          ? ROLE_LABELS[e.actorRole]
+                          : e.actorRole
+                        : "Role not recorded"}
                     </div>
                   </td>
                   <td className="whitespace-nowrap px-4 py-2.5 text-gray-600">
