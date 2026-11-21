@@ -10,7 +10,6 @@ import { getActorName, recordAudit } from "~/server/repositories/audit";
 import { revokeAllForUser } from "~/server/repositories/trustedDevice";
 import {
   archiveUserRecord,
-  changeRoleRecord,
   createUserIfDirectorFree,
   getEmailStatus,
   getUserAdminView,
@@ -21,7 +20,7 @@ import {
   sendPasswordChangeCode,
   verifyPasswordChangeCode,
 } from "~/server/services/verification";
-import { ROLE_LABELS, type Role } from "~/types/roles";
+import { type Role } from "~/types/roles";
 import { passwordSchema, userNameSchema } from "~/schemas/auth";
 import { DEMO_EMAIL_MESSAGE, DEMO_EMAIL_PATTERN } from "~/lib/demoEmail";
 
@@ -40,9 +39,7 @@ function passwordError(pw: string): string | null {
 }
 
 const ONE_DIRECTOR_ERROR =
-  "There is already an HR Director. Change their role or archive them first.";
-
-const roleSchema = z.enum(["STAFF", "MANAGER", "DIRECTOR"]);
+  "There is already an HR Director. Archive them first.";
 
 const createUserSchema = z.object({
   name: userNameSchema,
@@ -223,7 +220,7 @@ export async function archiveUser(userId: string): Promise<ActionResult> {
   if (target.archived) return { error: "Account is already archived" };
   // Server actions are public RPC; hiding the menu item is not enforcement.
   if (target.role === "MANAGER") {
-    return { error: "Change this HR Manager's role before archiving them" };
+    return { error: "HR Manager accounts cannot be archived here" };
   }
 
   await archiveUserRecord(userId);
@@ -257,40 +254,6 @@ export async function restoreUser(userId: string): Promise<ActionResult> {
     targetType: "user",
     targetId: userId,
     targetName: target.name,
-  });
-  return {};
-}
-
-// Promotion or demotion keeps the account and all of its data. Takes effect
-// on the user's next request (the jwt callback re-reads the role).
-export async function changeUserRole(
-  userId: string,
-  role: string,
-): Promise<ActionResult> {
-  const guard = await getManagerOrError();
-  if (!guard.ok) return { error: guard.error };
-  const parsed = roleSchema.safeParse(role);
-  if (!parsed.success) return { error: "Invalid role" };
-  const newRole = parsed.data;
-  // Only Managers get here (re-checked inside the write) and none can change
-  // their own role, so at least one HR Manager always remains.
-  if (guard.user.id === userId)
-    return { error: "You cannot change your own role" };
-
-  const target = await getUserAdminView(userId);
-  if (!target) return { error: "User not found" };
-  if (target.archived) return { error: "Restore this account first" };
-  if (target.role === newRole) return {};
-  const result = await changeRoleRecord(guard.user.id, userId, newRole);
-  if (result === "director_taken") return { error: ONE_DIRECTOR_ERROR };
-  if (result === "actor_not_manager") return { error: "Unauthorized" };
-  await recordAudit({
-    actorId: guard.user.id,
-    actorName: await getActorName(guard.user.id),
-    action: "user.role_change",
-    targetType: "user",
-    targetId: userId,
-    targetName: `${target.name ?? "(no name)"} (now ${ROLE_LABELS[newRole]})`,
   });
   return {};
 }

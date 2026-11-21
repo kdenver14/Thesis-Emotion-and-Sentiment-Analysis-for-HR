@@ -13,17 +13,11 @@ import {
   FiMoreHorizontal,
   FiRotateCcw,
   FiSearch,
-  FiUserCheck,
   FiX,
 } from "react-icons/fi";
-import {
-  archiveUser,
-  changeUserRole,
-  restoreUser,
-  updateUserName,
-} from "~/actions/users";
+import { archiveUser, restoreUser, updateUserName } from "~/actions/users";
 import type { UserRow } from "~/actions/users";
-import { ROLE_LABELS, ROLES, type Role } from "~/types/roles";
+import { ROLE_LABELS } from "~/types/roles";
 import { useConfirm } from "~/components/client/ConfirmDialog";
 
 // Archived accounts of every role share one section, below the others.
@@ -193,14 +187,11 @@ function UserRowItem({
   user,
   readOnly,
   isSelf,
-  directorTaken,
 }: {
   user: UserRow;
   readOnly?: boolean;
-  // Managers cannot change their own role or archive themselves.
+  // Managers cannot archive themselves.
   isSelf: boolean;
-  // Only one active HR Director at a time.
-  directorTaken: boolean;
 }) {
   const router = useRouter();
   const [editing, setEditing] = useState(false);
@@ -265,21 +256,6 @@ function UserRowItem({
     }
   };
 
-  const roleItems: MenuItem[] = ROLES.filter(
-    (r) => r !== user.role && !(r === "DIRECTOR" && directorTaken),
-  ).map((r: Role) => ({
-    label: `Make ${ROLE_LABELS[r]}`,
-    icon: FiUserCheck,
-    onSelect: () =>
-      void confirmAndRun(
-        {
-          message: `Change ${name} to ${ROLE_LABELS[r]}? It applies on their next page load.`,
-          confirmLabel: "Change role",
-        },
-        (id) => changeUserRole(id, r),
-      ),
-  }));
-
   const copyItem: MenuItem = {
     label: "Copy details",
     icon: FiCopy,
@@ -319,10 +295,9 @@ function UserRowItem({
               },
             ]
           : []),
-        ...(!readOnly && !isSelf ? roleItems : []),
         copyItem,
-        // An HR Manager is demoted first, so Managers cannot archive each
-        // other by accident.
+        // Roles change only through scripts/promote.ts, so an HR Manager
+        // account is never archived from here.
         ...(!readOnly && !isSelf && user.role !== "MANAGER"
           ? [
               {
@@ -458,8 +433,6 @@ export function UserList({
           },
     );
 
-  const directorTaken = users.some((u) => u.role === "DIRECTOR" && !u.archived);
-
   const showGroup = (role: string) =>
     setOpenGroups((prev) => new Set(prev).add(role));
 
@@ -567,7 +540,6 @@ export function UserList({
                         user={u}
                         readOnly={readOnly}
                         isSelf={u.id === currentUserId}
-                        directorTaken={directorTaken}
                       />
                     ))}
                   </ul>
