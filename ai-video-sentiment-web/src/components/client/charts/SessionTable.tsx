@@ -11,7 +11,7 @@ import {
   FiX,
 } from "react-icons/fi";
 import type { ParsedSession } from "~/server/repositories/session";
-import { SESSION_TYPE_LABELS } from "~/types/analysis";
+import { SESSION_TYPE_LABELS, toPercentSlices } from "~/types/analysis";
 import { emotionColorClass } from "~/lib/sentiment";
 import { ARCHIVED_STATUS } from "~/schemas/employee";
 import { removeSessionsBulk } from "~/actions/sessions";
@@ -395,10 +395,8 @@ export function SessionTable({
                         )}`}
                       >
                         {s.topExpressiveEmotion}{" "}
-                        {Math.round(
-                          (s.expressiveEmotions[0]?.confidence ?? 0) * 100,
-                        )}
-                        %
+                        {/* Same rounding as the session page and PDFs. */}
+                        {toPercentSlices(s.expressiveEmotions)[0]?.value ?? 0}%
                       </span>
                     )}
                   </td>

@@ -1,6 +1,7 @@
 import { db } from "~/server/db";
 import {
   computeEmployeeSessionMetrics,
+  countTopEmotions,
   countTopSentiments,
   expressiveFromCounts,
   mergeEmotionCounts,
@@ -35,6 +36,9 @@ export interface ParsedSession {
   // Main-sentiment tally of the lines (label -> count). Every sentiment %
   // is built from it with sentimentFromCounts.
   sentimentCounts: EmotionCounts;
+  // Main-emotion tally of the lines (neutral included). Reports pool these
+  // across sessions with mergeEmotionCounts, as the dashboard does.
+  emotionCounts: EmotionCounts;
   summary: string;
   durationSecs: number | null;
   interviewerName: string | null;
@@ -143,10 +147,8 @@ function parseSession(raw: {
   emotionCounts: string;
   utteranceCount: number;
 }): ParsedSession {
-  const expressive = expressiveFromCounts(
-    JSON.parse(raw.emotionCounts) as EmotionCounts,
-    raw.utteranceCount,
-  );
+  const emotionCounts = JSON.parse(raw.emotionCounts) as EmotionCounts;
+  const expressive = expressiveFromCounts(emotionCounts, raw.utteranceCount);
   return {
     id: raw.id,
     title: raw.title,
@@ -156,6 +158,7 @@ function parseSession(raw: {
     topSentiment: raw.topSentiment,
     avgEmotions: JSON.parse(raw.avgEmotions) as Score[],
     sentimentCounts: JSON.parse(raw.sentimentCounts) as EmotionCounts,
+    emotionCounts,
     summary: raw.summary,
     durationSecs: raw.durationSecs,
     interviewerName: raw.interviewerName,
@@ -276,6 +279,7 @@ export async function getSessionsByUser(
       ...parseSession(row),
       avgEmotions: metrics.avgEmotions,
       sentimentCounts,
+      emotionCounts: countTopEmotions(slice),
       topEmotion: metrics.topEmotion,
       topSentiment: topLabel(sentimentCounts),
       expressivenessPct: metrics.expressivenessPct,

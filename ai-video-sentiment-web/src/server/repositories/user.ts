@@ -129,29 +129,6 @@ export async function restoreUserRecord(
   });
 }
 
-// The actor is re-read inside the transaction: two Managers demoting each
-// other at the same moment cannot leave zero Managers.
-export async function changeRoleRecord(
-  actorId: string,
-  userId: string,
-  role: Role,
-): Promise<"ok" | "director_taken" | "actor_not_manager"> {
-  return db.$transaction(async (tx) => {
-    const actor = await tx.user.findUnique({
-      where: { id: actorId },
-      select: { role: true, archivedAt: true },
-    });
-    if (actor?.role !== "MANAGER" || actor.archivedAt) {
-      return "actor_not_manager" as const;
-    }
-    if (role === "DIRECTOR" && (await directorTaken(tx, userId))) {
-      return "director_taken" as const;
-    }
-    await tx.user.update({ where: { id: userId }, data: { role } });
-    return "ok" as const;
-  });
-}
-
 export async function getEmailStatus(
   email: string,
 ): Promise<"free" | "taken" | "archived"> {

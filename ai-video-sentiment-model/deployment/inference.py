@@ -123,10 +123,16 @@ class VideoUtteranceProcessor:
         segment_path = os.path.join(
             temp_dir, f"segment_{start_time}_{end_time}.mp4")
 
+        # -ss before -i jumps to the line; after -i, ffmpeg decoded from 0:00
+        # for every line, so late lines got slower. Video frames match the old
+        # cut; audio can differ in AAC noise-fill detail (5-clip spot check
+        # 2026-11-15: same labels; full parity run not finished). The end is
+        # a length (-t): "-to" before -i keeps one extra frame.
         subprocess.run([
-            "ffmpeg", "-i", video_path,
+            "ffmpeg",
             "-ss", str(start_time),
-            "-to", str(end_time),
+            "-i", video_path,
+            "-t", f"{end_time - start_time:.6f}",
             "-c:v", "libx264",
             "-c:a", "aac",
             "-y",
