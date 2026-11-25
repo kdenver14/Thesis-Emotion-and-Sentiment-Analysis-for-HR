@@ -4,6 +4,7 @@ import { useState, useRef } from "react";
 import { useSession } from "next-auth/react";
 import { FiCheck, FiX } from "react-icons/fi";
 import { updateCurrentUserName } from "~/actions/users";
+import { FULL_NAME_MAX } from "~/lib/inputLimits";
 
 export function EditableName({ initialName }: { initialName: string }) {
   const { update } = useSession();
@@ -52,6 +53,7 @@ export function EditableName({ initialName }: { initialName: string }) {
     return (
       <div className="relative flex items-center gap-1">
         <input
+          maxLength={FULL_NAME_MAX}
           ref={inputRef}
           type="text"
           aria-label="Your name"

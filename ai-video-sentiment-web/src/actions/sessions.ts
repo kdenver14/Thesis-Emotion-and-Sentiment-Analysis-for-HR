@@ -27,12 +27,12 @@ import {
 import { resolveTrendDays } from "~/lib/trend";
 import { findActiveEmployeeIds } from "~/server/repositories/employee";
 import {
+  SESSION_TITLE_MAX,
   sessionFiltersSchema,
   sessionIdsSchema,
   speakerBindingSchema,
 } from "~/schemas/session";
 
-const MAX_TITLE = 200;
 const MAX_SPEAKER_NAME = 200;
 
 async function assertCanMutate(): Promise<void> {
@@ -123,8 +123,10 @@ export async function renameSession(
   const userId = await requireScopeUserId();
   const trimmed = title.trim();
   if (!trimmed) throw new Error("Session title cannot be empty");
-  if (trimmed.length > MAX_TITLE)
-    throw new Error(`Session title must be ${MAX_TITLE} characters or fewer`);
+  if (trimmed.length > SESSION_TITLE_MAX)
+    throw new Error(
+      `Session title must be ${SESSION_TITLE_MAX} characters or fewer`,
+    );
   await updateSessionTitle(sessionId, userId, trimmed);
 }
 

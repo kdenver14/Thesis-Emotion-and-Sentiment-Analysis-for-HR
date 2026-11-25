@@ -9,6 +9,7 @@ import {
   normalizePhone,
   toStoredPhone,
 } from "~/lib/phone";
+import { EMAIL_MAX, NAME_PART_MAX } from "~/lib/inputLimits";
 
 const DEPARTMENTS = [
   "Architecture",
@@ -81,6 +82,7 @@ export function AddEmployeeForm({ onSuccess }: { onSuccess?: () => void } = {}) 
         <div className="flex flex-col gap-1">
           <label className="text-xs text-gray-500">First name *</label>
           <input
+            maxLength={NAME_PART_MAX}
             type="text"
             required
             placeholder="First name"
@@ -92,6 +94,7 @@ export function AddEmployeeForm({ onSuccess }: { onSuccess?: () => void } = {}) 
         <div className="flex flex-col gap-1">
           <label className="text-xs text-gray-500">Last name *</label>
           <input
+            maxLength={NAME_PART_MAX}
             type="text"
             required
             placeholder="Last name"
@@ -120,6 +123,7 @@ export function AddEmployeeForm({ onSuccess }: { onSuccess?: () => void } = {}) 
         <div className="flex flex-col gap-1">
           <label className="text-xs text-gray-500">Email</label>
           <input
+            maxLength={EMAIL_MAX}
             type="email"
             placeholder="name@example.com"
             value={email}

@@ -24,7 +24,8 @@ export const userNameSchema = z
   );
 
 // 72 = bcrypt's hard input ceiling (bytes beyond are silently dropped).
+export const PASSWORD_MAX = 72;
 export const passwordSchema = z
   .string()
   .min(8, "Password must be at least 8 characters")
-  .max(72, "Password must be 72 characters or fewer");
+  .max(PASSWORD_MAX, `Password must be ${PASSWORD_MAX} characters or fewer`);

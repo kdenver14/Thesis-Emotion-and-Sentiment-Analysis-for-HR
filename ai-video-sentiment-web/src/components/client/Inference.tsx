@@ -13,7 +13,8 @@ import {
   toStoredPhone,
 } from "~/lib/phone";
 import { dayKey } from "~/lib/periods";
-import { FUTURE_DATE_MESSAGE } from "~/schemas/session";
+import { FUTURE_DATE_MESSAGE, SESSION_TITLE_MAX } from "~/schemas/session";
+import { EMAIL_MAX, NAME_PART_MAX, POSITION_MAX } from "~/lib/inputLimits";
 
 const MIN_MEETING_PARTICIPANTS = 2;
 const MAX_MEETING_PARTICIPANTS = 20;
@@ -154,6 +155,7 @@ export function Inference({ employees, interviewerName }: InferenceProps) {
             <input
               type="text"
               placeholder="Session title"
+              maxLength={SESSION_TITLE_MAX}
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               className="rounded-md border border-gray-200 px-3 py-1.5 text-sm focus:border-gray-400 focus:outline-none"
@@ -293,6 +295,7 @@ export function Inference({ employees, interviewerName }: InferenceProps) {
                 First name <span className="text-red-400">*</span>
               </label>
               <input
+                maxLength={NAME_PART_MAX}
                 type="text"
                 placeholder="First name"
                 value={candidateFirstName}
@@ -306,6 +309,7 @@ export function Inference({ employees, interviewerName }: InferenceProps) {
                 Last name <span className="text-red-400">*</span>
               </label>
               <input
+                maxLength={NAME_PART_MAX}
                 type="text"
                 placeholder="Last name"
                 value={candidateLastName}
@@ -320,6 +324,7 @@ export function Inference({ employees, interviewerName }: InferenceProps) {
                 Position applied for
               </label>
               <input
+                maxLength={POSITION_MAX}
                 type="text"
                 placeholder="e.g. Software Engineer"
                 value={candidatePosition}
@@ -351,6 +356,7 @@ export function Inference({ employees, interviewerName }: InferenceProps) {
             <div className="flex flex-col gap-1 sm:col-span-2">
               <label className="text-xs text-gray-500">Email</label>
               <input
+                maxLength={EMAIL_MAX}
                 type="text"
                 placeholder="candidate@email.com"
                 value={candidateEmail}

@@ -16,6 +16,7 @@ import { emotionColorClass } from "~/lib/sentiment";
 import { ARCHIVED_STATUS } from "~/schemas/employee";
 import { removeSessionsBulk } from "~/actions/sessions";
 import { useConfirm } from "~/components/client/ConfirmDialog";
+import { SEARCH_MAX } from "~/lib/inputLimits";
 
 type SortKey =
   | "sessionDate"
@@ -212,6 +213,7 @@ export function SessionTable({
         <div className="relative flex-1">
           <FiSearch className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-400" />
           <input
+            maxLength={SEARCH_MAX}
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}

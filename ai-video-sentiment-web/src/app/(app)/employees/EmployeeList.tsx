@@ -10,6 +10,7 @@ import {
   FiSearch,
 } from "react-icons/fi";
 import type { EmployeeRow } from "~/server/repositories/employee";
+import { SEARCH_MAX } from "~/lib/inputLimits";
 
 interface EmployeeListProps {
   employees: EmployeeRow[];
@@ -163,6 +164,7 @@ export function EmployeeList({
         <div className="relative min-w-0 flex-1">
           <FiSearch className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-400" />
           <input
+            maxLength={SEARCH_MAX}
             type="search"
             placeholder="Search name, email, department"
             aria-label="Search employees"

@@ -7,8 +7,9 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import Link from "next/link";
 import { FiEye, FiEyeOff } from "react-icons/fi";
-import { loginSchema, type LoginSchema } from "~/schemas/auth";
+import { loginSchema, PASSWORD_MAX, type LoginSchema } from "~/schemas/auth";
 import { requestLoginCode, verifyLoginCode } from "~/actions/auth";
+import { EMAIL_MAX } from "~/lib/inputLimits";
 
 type Step = "credentials" | "code";
 
@@ -167,6 +168,7 @@ export default function LoginPage() {
                     Email address
                   </label>
                   <input
+                    maxLength={EMAIL_MAX}
                     {...form.register("email")}
                     type="email"
                     placeholder="you@example.com"
@@ -185,6 +187,7 @@ export default function LoginPage() {
                   </label>
                   <div className="relative">
                     <input
+                      maxLength={PASSWORD_MAX}
                       {...form.register("password")}
                       type={showPassword ? "text" : "password"}
                       placeholder="********"
