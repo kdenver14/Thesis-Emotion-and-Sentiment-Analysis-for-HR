@@ -13,7 +13,8 @@ out/
 __pycache__/
 *.pyc
 *.pyo
-venv
+# venv* also covers iCloud copies such as "venv 2"
+venv*
 .venv/
 
 # Environment variables
@@ -39,3 +40,22 @@ CLAUDE.md
 
 # Local inference job queue (downloaded videos)
 ai-video-sentiment-model/deployment/jobs/
+
+# ---- Private: keep out of the public repo ----
+# Database copies: user emails and password hashes
+**/prisma/db.sqlite*
+*.bak
+# Alpha/beta forms and results: testers' and respondents' names
+tests/
+alpha-test-results.docx
+beta-test-results.docx
+# Thesis working files (every top-level PDF and Word file)
+/*.pdf
+/*.docx
+# These show the live server address
+RUNNING.md
+user-manual.docx
+# Launch-video renders and stray files
+brag-output/
+Screenshot *.png
+.impeccable/
