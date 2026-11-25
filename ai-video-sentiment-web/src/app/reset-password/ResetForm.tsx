@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { resetPasswordWithToken } from "~/actions/auth";
+import { PASSWORD_MAX } from "~/schemas/auth";
 
 const inputClass =
   "mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm placeholder-gray-400 shadow-sm focus:border-gray-500 focus:outline-none";
@@ -62,6 +63,7 @@ export function ResetForm({ token }: { token: string }) {
           New password
         </label>
         <input
+          maxLength={PASSWORD_MAX}
           type="password"
           required
           value={password}
@@ -75,6 +77,7 @@ export function ResetForm({ token }: { token: string }) {
           Confirm new password
         </label>
         <input
+          maxLength={PASSWORD_MAX}
           type="password"
           required
           value={confirm}

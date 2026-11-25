@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { resendVerification } from "~/actions/auth";
+import { EMAIL_MAX } from "~/lib/inputLimits";
 
 const inputClass =
   "mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm placeholder-gray-400 shadow-sm focus:border-gray-500 focus:outline-none";
@@ -47,6 +48,7 @@ export function ResendForm({ defaultEmail }: { defaultEmail: string }) {
           Email address
         </label>
         <input
+          maxLength={EMAIL_MAX}
           type="email"
           required
           value={email}

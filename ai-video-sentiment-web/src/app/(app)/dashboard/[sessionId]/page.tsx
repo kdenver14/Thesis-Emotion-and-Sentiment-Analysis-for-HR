@@ -15,6 +15,7 @@ import { auth } from "~/server/auth";
 import { getEmployees } from "~/actions/employees";
 import { AssignEmployee } from "~/components/client/AssignEmployee";
 import { InlineTitle } from "~/components/client/InlineTitle";
+import { SESSION_TITLE_MAX } from "~/schemas/session";
 import { SessionSummary } from "~/components/client/SessionSummary";
 import { Fact } from "~/components/Fact";
 import { PromoteCandidateButton } from "~/components/client/PromoteCandidateButton";
@@ -160,6 +161,7 @@ export default async function SessionDetailPage({ params }: PageProps) {
               <InlineTitle
                 initialValue={session.title}
                 save={renameSession.bind(null, session.id)}
+                maxLength={SESSION_TITLE_MAX}
                 className="text-xl font-semibold text-gray-900"
               />
             ) : (

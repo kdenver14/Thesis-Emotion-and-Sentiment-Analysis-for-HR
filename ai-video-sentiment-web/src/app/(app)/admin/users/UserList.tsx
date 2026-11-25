@@ -19,6 +19,7 @@ import { archiveUser, restoreUser, updateUserName } from "~/actions/users";
 import type { UserRow } from "~/actions/users";
 import { ROLE_LABELS } from "~/types/roles";
 import { useConfirm } from "~/components/client/ConfirmDialog";
+import { FULL_NAME_MAX, SEARCH_MAX } from "~/lib/inputLimits";
 
 // Archived accounts of every role share one section, below the others.
 const ARCHIVED_GROUP = "ARCHIVED";
@@ -323,6 +324,7 @@ function UserRowItem({
         {editing ? (
           <span className="flex items-center gap-1">
             <input
+              maxLength={FULL_NAME_MAX}
               autoFocus
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
@@ -453,6 +455,7 @@ export function UserList({
         <div className="relative min-w-0 flex-1">
           <FiSearch className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-400" />
           <input
+            maxLength={SEARCH_MAX}
             type="search"
             placeholder="Search name or email"
             aria-label="Search users"

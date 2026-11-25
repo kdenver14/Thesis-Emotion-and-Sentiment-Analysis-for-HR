@@ -9,9 +9,10 @@ interface InlineTitleProps {
   save: (value: string) => Promise<unknown>;
   className?: string;
   as?: "h1" | "h2" | "span";
+  maxLength?: number;
 }
 
-export function InlineTitle({ initialValue, save, className, as: Tag = "h1" }: InlineTitleProps) {
+export function InlineTitle({ initialValue, save, className, as: Tag = "h1", maxLength }: InlineTitleProps) {
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState(initialValue);
   const [error, setError] = useState<string | null>(null);
@@ -51,6 +52,7 @@ export function InlineTitle({ initialValue, save, className, as: Tag = "h1" }: I
         <input
           ref={inputRef}
           value={value}
+          maxLength={maxLength}
           onChange={(e) => setValue(e.target.value)}
           onBlur={commit}
           onKeyDown={(e) => {

@@ -9,6 +9,7 @@ import { EMOTION_HEX } from "~/lib/sentiment";
 import { renameSessionSpeaker } from "~/actions/sessions";
 import { containsTerm } from "~/lib/textSearch";
 import { EmotionTimeline } from "./EmotionTimeline";
+import { FULL_NAME_MAX, SEARCH_MAX } from "~/lib/inputLimits";
 
 const ALL_SPEAKERS = "__all__";
 
@@ -73,6 +74,7 @@ function EditableSpeakerName({
     return (
       <div className="flex items-center gap-1">
         <input
+          maxLength={FULL_NAME_MAX}
           ref={inputRef}
           value={value}
           onChange={(e) => setValue(e.target.value)}
@@ -228,6 +230,7 @@ export function SpeakerTimeline({
             aria-hidden
           />
           <input
+            maxLength={SEARCH_MAX}
             ref={searchRef}
             type="search"
             value={query}

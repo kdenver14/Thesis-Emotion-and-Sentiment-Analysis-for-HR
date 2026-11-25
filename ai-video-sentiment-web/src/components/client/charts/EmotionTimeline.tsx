@@ -78,7 +78,7 @@ export function EmotionTimeline({
   // Tall enough to read a stretch of the conversation; long lines wrap, so it
   // never scrolls sideways.
   return (
-    <div className="flex max-h-[36rem] flex-col gap-0.5 overflow-y-auto overflow-x-hidden">
+    <div className="relative flex max-h-[36rem] flex-col gap-0.5 overflow-y-auto overflow-x-hidden">
       {/* Names the two badge columns ("neutral" can be either). Inside the
           scroll box, so a scrollbar never shifts it off the columns. */}
       <div

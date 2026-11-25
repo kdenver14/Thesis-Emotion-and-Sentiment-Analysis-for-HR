@@ -6,6 +6,7 @@ import {
   requestPasswordChangeCode,
   updateCurrentUserPassword,
 } from "~/actions/users";
+import { PASSWORD_MAX } from "~/schemas/auth";
 
 type Step = "form" | "code";
 
@@ -135,6 +136,7 @@ export function ChangePasswordModal() {
                     Current password
                   </label>
                   <input
+                    maxLength={PASSWORD_MAX}
                     type="password"
                     required
                     value={current}
@@ -146,6 +148,7 @@ export function ChangePasswordModal() {
                 <div className="flex flex-col gap-1">
                   <label className="text-xs text-gray-500">New password</label>
                   <input
+                    maxLength={PASSWORD_MAX}
                     type="password"
                     required
                     value={next}
@@ -159,6 +162,7 @@ export function ChangePasswordModal() {
                     Confirm new password
                   </label>
                   <input
+                    maxLength={PASSWORD_MAX}
                     type="password"
                     required
                     value={confirm}

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { PHONE_FORMAT_MESSAGE, STORED_PHONE_PATTERN } from "~/lib/phone";
 
 // UI never sends a status (defaults to "Active"). "Archived" replaces
 // deleting: the employee leaves the lists and pickers, their sessions stay
@@ -18,7 +19,11 @@ export const addEmployeeSchema = z.object({
     .or(z.literal(""))
     .transform((e) => (e === "" ? undefined : e)),
   department: z.string().trim().max(200).optional(),
-  phone: z.string().trim().max(50).optional(),
+  phone: z
+    .string()
+    .trim()
+    .regex(STORED_PHONE_PATTERN, PHONE_FORMAT_MESSAGE)
+    .optional(),
 });
 
 export type AddEmployeeSchema = z.infer<typeof addEmployeeSchema>;

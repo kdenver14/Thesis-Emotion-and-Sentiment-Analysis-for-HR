@@ -8,6 +8,7 @@ import {
   completeDemoEmail,
   isOffDemoPattern,
 } from "~/lib/demoEmail";
+import { EMAIL_MAX, FULL_NAME_MAX } from "~/lib/inputLimits";
 
 const inputClass =
   "w-full rounded-md border border-gray-200 px-3 py-1.5 text-sm focus:border-gray-400 focus:outline-none";
@@ -60,6 +61,7 @@ export function CreateUserForm({
         <div className="flex flex-col gap-1">
           <label className="text-xs text-gray-500">Name *</label>
           <input
+            maxLength={FULL_NAME_MAX}
             type="text"
             required
             placeholder="Full name"
@@ -71,6 +73,7 @@ export function CreateUserForm({
         <div className="flex flex-col gap-1">
           <label className="text-xs text-gray-500">Email *</label>
           <input
+            maxLength={EMAIL_MAX}
             type="email"
             required
             placeholder="blastasia.hr.app+name@gmail.com"
