@@ -1,0 +1,8 @@
+node_modules
+.next
+.next.nosync
+.env
+.env*.local
+prisma/db.sqlite
+prisma/db.sqlite-journal
+*.tsbuildinfo

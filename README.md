@@ -79,7 +79,7 @@ set -a; source .env; set +a
 ./venv/bin/python server.py        # listens on 127.0.0.1:8000
 ```
 
-The trained weights (`model_normalized/model.pth`, 572 MB) are not in the repo.
+The trained weights (`model_normalized/model.pth`, 572 MB) are not in the repo. Download them from the [latest release](../../releases/latest).
 
 **2. Web app** (from `ai-video-sentiment-web/`)
 
@@ -92,6 +92,15 @@ npm run dev                        # http://localhost:3000
 ```
 
 Set `MODAL_TRIGGER_URL=http://127.0.0.1:8000/trigger` so the app sends jobs to the local server. Use `npx next build --no-lint && npx next start` instead of `npm run dev` when other people will use it.
+
+**Or run the web app with Docker.** Each release publishes an image to GitHub Packages:
+
+```bash
+docker run -p 3000:3000 --env-file .env -e DATABASE_URL=file:/app/data/db.sqlite -v hr-data:/app/data ghcr.io/kdenver14/hr-sentiment-web:latest
+docker exec -it <container> npx tsx scripts/create-admin.ts you@example.com "Your Name" "a-strong-password" MANAGER
+```
+
+Docker reads `--env-file` values literally, so remove the quotes around them in `.env` first.
 
 ## Project layout
 
