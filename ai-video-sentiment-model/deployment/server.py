@@ -1,17 +1,16 @@
 """Local inference server (runs on the host Mac).
 
-- POST /trigger: same contract as the Modal `trigger` endpoint (bearer
-  token, {sessionId, videoUrl, ext, callbackUrl}), so the web app switches
-  between Modal and this server by changing MODAL_TRIGGER_URL only. Results
-  go back through the same HMAC-signed callback.
+- POST /trigger: bearer token, {sessionId, videoUrl, ext, callbackUrl}. The
+  web app calls it through MODAL_TRIGGER_URL (a historical name). Results go
+  back through an HMAC-signed callback.
 - POST /cancel: {sessionId}. Drops a queued job or kills a running one.
 - POST /infer: direct file upload, for curl testing.
 
 Each analysis runs in its own process (job_worker.py), so a cancel can stop
 it at once and memory is released after every video.
 
-Download, signing and callback mirror modal_app.py; keep the signature
-format in sync with src/app/api/inference-callback/route.ts.
+Keep the signature format in sync with
+src/app/api/inference-callback/route.ts.
 """
 
 import asyncio

@@ -154,7 +154,24 @@ def _assign_speaker(segment: dict, diarization) -> Optional[str]:
     return max(speaker_overlap, key=speaker_overlap.get) if speaker_overlap else None
 
 
-def _load_diarization_pipeline():
+ALLOWED_DEVICES = ("cpu", "mps", "cuda")
+
+
+def _pick_device() -> torch.device:
+    """INFERENCE_DEVICE=mps runs the emotion model and speaker detection on
+    the Mac GPU. Unset keeps the validated default: CUDA if present, else CPU.
+    Enable mps only after a parity run (parity/compare_runs.py) on your videos."""
+    requested = os.environ.get("INFERENCE_DEVICE", "").strip().lower()
+    if not requested:
+        return torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    if requested not in ALLOWED_DEVICES:
+        raise ValueError(f"INFERENCE_DEVICE must be one of {', '.join(ALLOWED_DEVICES)}, not {requested!r}")
+    if requested == "mps" and not torch.backends.mps.is_available():
+        raise ValueError("INFERENCE_DEVICE=mps, but this machine has no usable Mac GPU")
+    return torch.device(requested)
+
+
+def _load_diarization_pipeline(device: torch.device):
     hf_token = os.environ.get("HF_TOKEN")
     if not hf_token:
         print("HF_TOKEN not set — speaker diarization disabled")
@@ -165,6 +182,9 @@ def _load_diarization_pipeline():
             "pyannote/speaker-diarization-3.1",
             use_auth_token=hf_token,
         )
+        if device.type == "mps":
+            # 8x faster with identical speaker turns on the parity test video.
+            pipeline.to(device)
         return pipeline
     except Exception as e:
         print(f"Speaker diarization unavailable: {e}")
@@ -172,7 +192,7 @@ def _load_diarization_pipeline():
 
 
 def load_model(model_dir: str) -> dict:
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = _pick_device()
     model = MultimodalSentimentModel().to(device)
 
     model_path = os.path.join(model_dir, 'model.pth')
@@ -190,13 +210,35 @@ def load_model(model_dir: str) -> dict:
     return {
         'model': model,
         'tokenizer': AutoTokenizer.from_pretrained('bert-base-uncased'),
+        # Whisper stays on the CPU on a Mac: the lines it finds are the
+        # utterances, so moving it would change every downstream input.
         'transcriber': whisper.load_model(
             "base",
-            device="cpu" if device.type == "cpu" else device,
+            device=device if device.type == "cuda" else "cpu",
         ),
-        'diarization': _load_diarization_pipeline(),
+        'diarization': _load_diarization_pipeline(device),
         'device': device
     }
+
+
+def _diarize(diarization_pipeline, video_path):
+    """Speaker turns for the whole video, run once over the full audio.
+    Returns (diarization or None, path of the temporary wav)."""
+    diarization_audio_path = video_path.rsplit('.', 1)[0] + '_diarize.wav'
+    try:
+        subprocess.run([
+            'ffmpeg', '-y', '-i', video_path,
+            '-vn', '-acodec', 'pcm_s16le', '-ar', '16000', '-ac', '1',
+            diarization_audio_path
+        ], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        diarization = diarization_pipeline(diarization_audio_path, min_speakers=2, max_speakers=8)
+        if diarization is not None:
+            detected = set(speaker for _, _, speaker in diarization.itertracks(yield_label=True))
+            print(f"[diarization] detected {len(detected)} speakers: {detected}")
+        return diarization, diarization_audio_path
+    except Exception as e:
+        print(f"Diarization failed, continuing without speaker labels: {e}")
+        return None, diarization_audio_path
 
 
 def predict_fn(input_data, model_dict):
@@ -205,28 +247,27 @@ def predict_fn(input_data, model_dict):
     device = model_dict['device']
     video_path = input_data['video_path']
 
-    result = model_dict['transcriber'].transcribe(
-        video_path, word_timestamps=True)
-
+    # Speaker detection does not need the transcript, so it runs in a thread
+    # while Whisper transcribes (with INFERENCE_DEVICE=mps they even use
+    # different hardware). Each produces exactly what it did when run in turn.
     diarization_pipeline = model_dict.get('diarization')
-    diarization = None
     diarization_audio_path = None
-    if diarization_pipeline is not None:
-        try:
-            diarization_audio_path = video_path.rsplit('.', 1)[0] + '_diarize.wav'
-            subprocess.run([
-                'ffmpeg', '-y', '-i', video_path,
-                '-vn', '-acodec', 'pcm_s16le', '-ar', '16000', '-ac', '1',
-                diarization_audio_path
-            ], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            diarization = diarization_pipeline(diarization_audio_path, min_speakers=2, max_speakers=8)
-            if diarization is not None:
-                detected = set(speaker for _, _, speaker in diarization.itertracks(yield_label=True))
-                print(f"[diarization] detected {len(detected)} speakers: {detected}")
-        except Exception as e:
-            print(f"Diarization failed, continuing without speaker labels: {e}")
-            diarization = None
+    try:
+        with ThreadPoolExecutor(max_workers=1) as speaker_pool:
+            speakers = (speaker_pool.submit(_diarize, diarization_pipeline, video_path)
+                        if diarization_pipeline is not None else None)
+            try:
+                result = model_dict['transcriber'].transcribe(
+                    video_path, word_timestamps=True)
+            finally:
+                diarization, diarization_audio_path = speakers.result() if speakers else (None, None)
+        return _predict_lines(result, diarization, video_path, model, tokenizer, device)
+    finally:
+        if diarization_audio_path and os.path.exists(diarization_audio_path):
+            os.remove(diarization_audio_path)
 
+
+def _predict_lines(result, diarization, video_path, model, tokenizer, device):
     utterance_processor = VideoUtteranceProcessor()
     predictions = []
 
@@ -267,6 +308,9 @@ def predict_fn(input_data, model_dict):
         except Exception as e:
             return {"segment": segment, "error": f"prep: {e}", "segment_path": segment_path}
 
+    # All lines are prepared before the model starts. Overlapping the two was
+    # measured slower (2026-11-26): the prep threads starve the main thread
+    # that feeds the GPU.
     with ThreadPoolExecutor(max_workers=4) as pool:
         prepped = list(pool.map(_prep_segment, result["segments"]))
 
@@ -280,7 +324,12 @@ def predict_fn(input_data, model_dict):
 
             # Move to device
             text_inputs = {k: v.to(device) for k, v in item["text_inputs"].items()}
-            video_frames = item["video_frames"].unsqueeze(0).to(device)
+            video_frames = item["video_frames"].unsqueeze(0)
+            if device.type == "mps":
+                # The permuted frame layout crashes Metal's batch norm; a plain
+                # copy holds the same values. The CPU path stays as validated.
+                video_frames = video_frames.contiguous()
+            video_frames = video_frames.to(device)
             audio_features = item["audio_features"].unsqueeze(0).to(device)
 
             # Get predictions
@@ -313,9 +362,6 @@ def predict_fn(input_data, model_dict):
         finally:
             if segment_path and os.path.exists(segment_path):
                 os.remove(segment_path)
-
-    if diarization_audio_path and os.path.exists(diarization_audio_path):
-        os.remove(diarization_audio_path)
 
     return {"utterances": predictions}
 

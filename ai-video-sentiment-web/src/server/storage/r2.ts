@@ -13,10 +13,8 @@ import { env } from "~/env";
 // no other layer talks to the storage SDK directly.
 
 const PUT_URL_TTL = 600; // 10 min: client upload window
-// 1 h = the LIVE Modal timeout (3600s). Do not raise it on its own: a longer
-// link lets a timed-out job's retry re-run, time out again and never call
-// back, so the session hangs in PROCESSING instead of showing FAILED. Raise
-// to 25200 (7 h) only when the 3 h timeout in modal_app.py is deployed.
+// 1 h is plenty: the inference server starts the download as soon as a job
+// arrives, even while another video is being analysed.
 const GET_URL_TTL = 3600;
 
 // Optional env (main must boot without R2 configured). Fail loudly only when

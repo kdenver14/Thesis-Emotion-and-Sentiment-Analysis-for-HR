@@ -1,0 +1,3 @@
+# iCloud skips *.nosync, so the large build folder never syncs.
+[build]
+target-dir = "target.nosync"

@@ -15,7 +15,7 @@ export const runtime = "nodejs"; // HMAC (node:crypto), not edge
 
 const SIG_HEADER = "x-inference-signature"; // "sha256=<hex>"
 
-// Verify the EXACT bytes Modal POSTed before any JSON parse. req.json() first
+// Verify the EXACT bytes the inference server POSTed before any JSON parse. req.json() first
 // would discard the raw body and any whitespace/key-order drift would break
 // verification.
 function verify(

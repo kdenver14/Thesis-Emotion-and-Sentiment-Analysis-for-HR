@@ -1,0 +1,16 @@
+[package]
+name = "inference-server"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+axum = { version = "0.8.9", features = ["multipart"] }
+hex = "0.4.3"
+hmac = "0.13.0"
+libc = "0.2.191"
+reqwest = "0.13.5"
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = { version = "1.0.154", features = ["preserve_order", "float_roundtrip"] }
+sha2 = "0.11.2"
+tokio = { version = "1.54.1", features = ["rt-multi-thread", "macros", "process", "signal", "fs", "io-util", "time", "sync", "net"] }
+uuid = { version = "1.29.3", features = ["v4"] }

@@ -183,7 +183,8 @@ export async function createUpload(
 
 // Called after the client confirms the R2 PUT finished. Verifies the object
 // really landed (presigned PUT cannot bound size; the client is untrusted),
-// flips UPLOADING -> PROCESSING, then asks Modal to start. Idempotent.
+// flips UPLOADING -> PROCESSING, then asks the inference server to start.
+// Idempotent.
 export async function triggerInference(
   sessionId: string,
 ): Promise<{ ok: true } | { error: string }> {
@@ -249,9 +250,8 @@ export async function reportUploadFailed(sessionId: string): Promise<void> {
   await failUploadingSession(sessionId, guard.user.id, UPLOAD_FAILED_MESSAGE);
 }
 
-// Best-effort: ask the analysis server to drop or stop the job. The local
-// server exposes /cancel next to /trigger. Modal has no such route, so there
-// the job runs to the end and its callback 404s because the session is gone.
+// Best-effort: ask the analysis server to drop or stop the job. The server
+// exposes /cancel next to /trigger.
 async function requestInferenceCancel(sessionId: string): Promise<void> {
   if (!env.MODAL_TRIGGER_URL) return;
   try {

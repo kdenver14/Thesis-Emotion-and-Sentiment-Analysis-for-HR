@@ -16,7 +16,8 @@ export const env = createEnv({
       .enum(["development", "test", "production"])
       .default("development"),
     LOCAL_INFERENCE_URL: z.string().url().default("http://localhost:8000"),
-    // Modal/R2 inference path. All optional so the app still boots without
+    // R2 + inference server (MODAL_* names are historical: they point at the
+    // local deployment/server.py). All optional so the app still boots without
     // them (the upload flow surfaces a clear error if exercised unconfigured).
     R2_ACCOUNT_ID: z.string().optional(),
     R2_ACCESS_KEY_ID: z.string().optional(),

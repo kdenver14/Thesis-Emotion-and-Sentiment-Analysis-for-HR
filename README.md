@@ -98,7 +98,7 @@ Set `MODAL_TRIGGER_URL=http://127.0.0.1:8000/trigger` so the app sends jobs to t
 ```
 ai-video-sentiment-model/
   training/      training scripts and the MELD dataset loader
-  deployment/    inference.py, models.py, server.py (local), modal_app.py (cloud backup)
+  deployment/    inference.py, models.py, server.py (inference server), job_worker.py
 ai-video-sentiment-web/
   src/app/       pages and API routes
   src/actions/   server actions (auth checks, validation)
