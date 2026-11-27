@@ -17,7 +17,7 @@ The model reads the face, the voice and the words together, not just the transcr
 
 ---
 
-This is our BS Computer Science thesis project, made by Kurt Denver Chavez, Aleck Christian Duran, Ed Martin Hibaler and Arcejay Enano. HR teams sit through a lot of recorded interviews, onboarding talks, trainings, performance reviews and meetings, and most of the reviewing is still done by watching the video and taking notes. We wanted a tool that does the first pass: who said what, how it was said, and where the tense moments are.
+This is our BS Computer Science thesis project, made by Me, Aleck Christian Duran, Ed Martin Hibaler and Arcejay Enano. HR teams sit through a lot of recorded interviews, onboarding talks, trainings, performance reviews and meetings, and most of the reviewing is still done by watching the video and taking notes. We wanted a tool that does the first pass: who said what, how it was said, and where the tense moments are.
 
 ## What it does
 
