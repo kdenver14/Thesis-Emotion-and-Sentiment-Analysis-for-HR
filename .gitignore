@@ -40,6 +40,10 @@ CLAUDE.md
 
 # Local inference job queue (downloaded videos)
 ai-video-sentiment-model/deployment/jobs/
+# Parity recordings: transcripts and features of your test videos
+ai-video-sentiment-model/parity/runs/
+# Personal run commands
+/commands.txt
 
 # ---- Private: keep out of the public repo ----
 # Database copies: user emails and password hashes
