@@ -1,0 +1,1359 @@
+{
+ "tool": "python",
+ "created": "2026-11-26T22:30:04",
+ "video": "/Users/denver/Desktop/thesis/ai-video-sentiment-model/parity/runs/testvideo/meeting.mp4",
+ "video_sha256": "25511d953f55600a1e1077e8d5aa07cbaa400d7fe34142222aece95524049593",
+ "seed": 0,
+ "versions": {
+  "python": "3.12.3",
+  "platform": "macOS-26.6.2-arm64-arm-64bit",
+  "torch": "2.5.1",
+  "opencv": "4.10.0",
+  "numpy": "1.26.4",
+  "transformers": "4.47.1",
+  "whisper": "20240930",
+  "ffmpeg": "ffmpeg version 8.0 Copyright (c) 2000-2025 the FFmpeg developers",
+  "pyannote.audio": "3.1.1"
+ },
+ "timings_s": {
+  "ffmpeg_cut": 12.981,
+  "frames": 2.355,
+  "mel": 3.674,
+  "model": 72.899,
+  "pyannote": 82.494,
+  "tokenize": 0.017,
+  "whisper": 7.226,
+  "load_models": 4.334,
+  "total_analysis": 160.582
+ },
+ "segments": [
+  {
+   "i": 0,
+   "start": 0.0,
+   "end": 3.34,
+   "text": " Good morning everyone, thanks for joining the monthly review."
+  },
+  {
+   "i": 1,
+   "start": 3.88,
+   "end": 8.3,
+   "text": " Thanks, I have to say I am really frustrated with the overtime this month."
+  },
+  {
+   "i": 2,
+   "start": 8.92,
+   "end": 12.0,
+   "text": " I understand, let's go through the numbers first."
+  },
+  {
+   "i": 3,
+   "start": 13.04,
+   "end": 15.94,
+   "text": " Sales went up by 12%, which is great news."
+  },
+  {
+   "i": 4,
+   "start": 16.58,
+   "end": 19.78,
+   "text": " That is good, but my team is exhausted and nobody noticed."
+  },
+  {
+   "i": 5,
+   "start": 20.54,
+   "end": 23.32,
+   "text": " I'm sorry to hear that, what happened exactly?"
+  },
+  {
+   "i": 6,
+   "start": 23.96,
+   "end": 26.66,
+   "text": " We stayed until 10 every night for two weeks."
+  },
+  {
+   "i": 7,
+   "start": 27.38,
+   "end": 29.78,
+   "text": " Wow, I had no idea it was that bad."
+  },
+  {
+   "i": 8,
+   "start": 30.04,
+   "end": 33.02,
+   "text": " We need to fix the schedule before the next release."
+  },
+  {
+   "i": 9,
+   "start": 33.72,
+   "end": 36.02,
+   "text": " Honestly, I am worried people will quit."
+  },
+  {
+   "i": 10,
+   "start": 36.78,
+   "end": 39.12,
+   "text": " Then let's hire two more people next quarter."
+  },
+  {
+   "i": 11,
+   "start": 39.78,
+   "end": 42.7,
+   "text": " I love that idea, I will talk to finance today."
+  },
+  {
+   "i": 12,
+   "start": 43.52,
+   "end": 45.46,
+   "text": " Thank you, that really helps."
+  },
+  {
+   "i": 13,
+   "start": 46.26,
+   "end": 48.86,
+   "text": " Next item, the office move is delayed again."
+  },
+  {
+   "i": 14,
+   "start": 49.44,
+   "end": 52.16,
+   "text": " Seriously, that is the third delay this year."
+  },
+  {
+   "i": 15,
+   "start": 52.76,
+   "end": 54.74,
+   "text": " The new building still has no internet."
+  },
+  {
+   "i": 16,
+   "start": 55.46,
+   "end": 58.24,
+   "text": " It's disgusting that the landlord keeps lying to us."
+  },
+  {
+   "i": 17,
+   "start": 58.78,
+   "end": 61.24,
+   "text": " Let's stay calm and send a formal complaint."
+  },
+  {
+   "i": 18,
+   "start": 61.84,
+   "end": 64.5,
+   "text": " Fine, I will draft it this afternoon."
+  },
+  {
+   "i": 19,
+   "start": 65.2,
+   "end": 67.36,
+   "text": " Last thing, we won the client award."
+  },
+  {
+   "i": 20,
+   "start": 68.0,
+   "end": 70.88,
+   "text": " That is amazing, congratulations to everyone."
+  },
+  {
+   "i": 21,
+   "start": 71.56,
+   "end": 74.34,
+   "text": " I didn't expect that at all, what a surprise."
+  },
+  {
+   "i": 22,
+   "start": 75.24,
+   "end": 78.52,
+   "text": " Okay, that's all for today, see you next month."
+  },
+  {
+   "i": 23,
+   "start": 79.16,
+   "end": 81.3,
+   "text": " Thanks everyone, have a good week."
+  }
+ ],
+ "turns": [
+  [
+   0.008488964346349746,
+   3.3870967741935485,
+   "SPEAKER_00"
+  ],
+  [
+   3.9643463497453313,
+   8.446519524617997,
+   "SPEAKER_01"
+  ],
+  [
+   9.091680814940577,
+   12.419354838709678,
+   "SPEAKER_00"
+  ],
+  [
+   12.826825127334466,
+   16.120543293718164,
+   "SPEAKER_00"
+  ],
+  [
+   16.663837011884553,
+   20.093378607809846,
+   "SPEAKER_01"
+  ],
+  [
+   20.67062818336163,
+   23.539898132427844,
+   "SPEAKER_00"
+  ],
+  [
+   24.13412563667233,
+   26.816638370118845,
+   "SPEAKER_01"
+  ],
+  [
+   27.359932088285234,
+   29.889643463497457,
+   "SPEAKER_00"
+  ],
+  [
+   30.38200339558574,
+   33.25127334465195,
+   "SPEAKER_00"
+  ],
+  [
+   33.76061120543294,
+   36.29032258064516,
+   "SPEAKER_01"
+  ],
+  [
+   36.816638370118845,
+   39.38030560271647,
+   "SPEAKER_00"
+  ],
+  [
+   39.855687606112056,
+   42.92869269949066,
+   "SPEAKER_00"
+  ],
+  [
+   43.573853989813244,
+   45.74702886247878,
+   "SPEAKER_01"
+  ],
+  [
+   46.29032258064516,
+   49.02376910016978,
+   "SPEAKER_00"
+  ],
+  [
+   49.56706281833616,
+   52.30050933786078,
+   "SPEAKER_00"
+  ],
+  [
+   52.89473684210527,
+   54.932088285229206,
+   "SPEAKER_01"
+  ],
+  [
+   55.458404074702884,
+   58.3446519524618,
+   "SPEAKER_00"
+  ],
+  [
+   58.853989813242784,
+   61.468590831918505,
+   "SPEAKER_00"
+  ],
+  [
+   62.09677419354839,
+   64.76230899830222,
+   "SPEAKER_01"
+  ],
+  [
+   65.2716468590832,
+   67.56366723259762,
+   "SPEAKER_00"
+  ],
+  [
+   68.0899830220713,
+   71.21392190152801,
+   "SPEAKER_00"
+  ],
+  [
+   71.74023769100171,
+   74.7792869269949,
+   "SPEAKER_01"
+  ],
+  [
+   75.32258064516128,
+   78.6332767402377,
+   "SPEAKER_00"
+  ],
+  [
+   79.26146010186758,
+   81.45161290322582,
+   "SPEAKER_00"
+  ]
+ ],
+ "lines": [
+  {
+   "i": 0,
+   "start": 0.0,
+   "end": 3.34,
+   "text": " Good morning everyone, thanks for joining the monthly review.",
+   "speaker": "SPEAKER_00",
+   "status": "ok",
+   "error": null,
+   "frames_sha256": "44588da80851768b77a9eeeefcf57223ba160c9b2d5a9bb2bb8c2a8adce1ea82"
+  },
+  {
+   "i": 1,
+   "start": 3.88,
+   "end": 8.3,
+   "text": " Thanks, I have to say I am really frustrated with the overtime this month.",
+   "speaker": "SPEAKER_01",
+   "status": "ok",
+   "error": null,
+   "frames_sha256": "1892c22eb98e612ef774a46c625e66e71982475c4bbd6af24fa36de45393b4b4"
+  },
+  {
+   "i": 2,
+   "start": 8.92,
+   "end": 12.0,
+   "text": " I understand, let's go through the numbers first.",
+   "speaker": "SPEAKER_00",
+   "status": "ok",
+   "error": null,
+   "frames_sha256": "02a61711915b3e1c4876afb90abe32395fb4e5a46f2fcbad6d719c9950a872a8"
+  },
+  {
+   "i": 3,
+   "start": 13.04,
+   "end": 15.94,
+   "text": " Sales went up by 12%, which is great news.",
+   "speaker": "SPEAKER_00",
+   "status": "ok",
+   "error": null,
+   "frames_sha256": "4741624b5bc75b548649e830bf16587c3113bfa41cb09ff6c3e80eecb207e1a7"
+  },
+  {
+   "i": 4,
+   "start": 16.58,
+   "end": 19.78,
+   "text": " That is good, but my team is exhausted and nobody noticed.",
+   "speaker": "SPEAKER_01",
+   "status": "ok",
+   "error": null,
+   "frames_sha256": "8e2186291c8be0e397a17b08b14327cb5b7090b90a56e423fff5ea4c0807c1fc"
+  },
+  {
+   "i": 5,
+   "start": 20.54,
+   "end": 23.32,
+   "text": " I'm sorry to hear that, what happened exactly?",
+   "speaker": "SPEAKER_00",
+   "status": "ok",
+   "error": null,
+   "frames_sha256": "537880923516615934df4e5f3dd45bffb13b2f823d141fb0126c9975f37158d6"
+  },
+  {
+   "i": 6,
+   "start": 23.96,
+   "end": 26.66,
+   "text": " We stayed until 10 every night for two weeks.",
+   "speaker": "SPEAKER_01",
+   "status": "ok",
+   "error": null,
+   "frames_sha256": "d9c339bc5bc7dbade354109fe85a75ea819957cdd12ff17686a3d9807f832a58"
+  },
+  {
+   "i": 7,
+   "start": 27.38,
+   "end": 29.78,
+   "text": " Wow, I had no idea it was that bad.",
+   "speaker": "SPEAKER_00",
+   "status": "ok",
+   "error": null,
+   "frames_sha256": "76d1e62dc3dab03ead77165823661341ef5fa0182718793cfe9fb0ffc140903d"
+  },
+  {
+   "i": 8,
+   "start": 30.04,
+   "end": 33.02,
+   "text": " We need to fix the schedule before the next release.",
+   "speaker": "SPEAKER_00",
+   "status": "ok",
+   "error": null,
+   "frames_sha256": "8a624be7da9706172db9adebeaaf0e374ea12862f2216b8e0c2895303be90529"
+  },
+  {
+   "i": 9,
+   "start": 33.72,
+   "end": 36.02,
+   "text": " Honestly, I am worried people will quit.",
+   "speaker": "SPEAKER_01",
+   "status": "ok",
+   "error": null,
+   "frames_sha256": "339fc95c2f74625af9b9b5866c6a1f1829b2271fa2384e8a57a844963de776e5"
+  },
+  {
+   "i": 10,
+   "start": 36.78,
+   "end": 39.12,
+   "text": " Then let's hire two more people next quarter.",
+   "speaker": "SPEAKER_00",
+   "status": "ok",
+   "error": null,
+   "frames_sha256": "ef39645a5e36c9588524cf829753c95040e79c3d005677af5d51609a31caed10"
+  },
+  {
+   "i": 11,
+   "start": 39.78,
+   "end": 42.7,
+   "text": " I love that idea, I will talk to finance today.",
+   "speaker": "SPEAKER_00",
+   "status": "ok",
+   "error": null,
+   "frames_sha256": "50ed0bca5d96962325c70e9be097689ad79c3cc0a7c5eae8cda592bdf990433c"
+  },
+  {
+   "i": 12,
+   "start": 43.52,
+   "end": 45.46,
+   "text": " Thank you, that really helps.",
+   "speaker": "SPEAKER_01",
+   "status": "ok",
+   "error": null,
+   "frames_sha256": "290ee1d6de51d3a3058a850124b643050a69525f1835177909a1fa454902c329"
+  },
+  {
+   "i": 13,
+   "start": 46.26,
+   "end": 48.86,
+   "text": " Next item, the office move is delayed again.",
+   "speaker": "SPEAKER_00",
+   "status": "ok",
+   "error": null,
+   "frames_sha256": "ceec6eea29eee707c7dc1924206b8389bc2f6a2613521c6bfad70db13974d29c"
+  },
+  {
+   "i": 14,
+   "start": 49.44,
+   "end": 52.16,
+   "text": " Seriously, that is the third delay this year.",
+   "speaker": "SPEAKER_00",
+   "status": "ok",
+   "error": null,
+   "frames_sha256": "66d14c3d39205e41adaf43aabb1606b3b6b0a1c7b84f1362641d49ddba541f0d"
+  },
+  {
+   "i": 15,
+   "start": 52.76,
+   "end": 54.74,
+   "text": " The new building still has no internet.",
+   "speaker": "SPEAKER_01",
+   "status": "ok",
+   "error": null,
+   "frames_sha256": "b701e8cc8f2fb611c87ecae69ee050c4fd2489f8431ebb5bddf9715def569c5e"
+  },
+  {
+   "i": 16,
+   "start": 55.46,
+   "end": 58.24,
+   "text": " It's disgusting that the landlord keeps lying to us.",
+   "speaker": "SPEAKER_00",
+   "status": "ok",
+   "error": null,
+   "frames_sha256": "a0830aab9e3c57ea543a8af147f94e9a8aacd661a7a0a2d4bbb88ebfe1e0ef93"
+  },
+  {
+   "i": 17,
+   "start": 58.78,
+   "end": 61.24,
+   "text": " Let's stay calm and send a formal complaint.",
+   "speaker": "SPEAKER_00",
+   "status": "ok",
+   "error": null,
+   "frames_sha256": "bd1dbb46c7f9bad3352b593b85ddac3eb7623cc4b898e1abcc0e5a83b82f26c3"
+  },
+  {
+   "i": 18,
+   "start": 61.84,
+   "end": 64.5,
+   "text": " Fine, I will draft it this afternoon.",
+   "speaker": "SPEAKER_01",
+   "status": "ok",
+   "error": null,
+   "frames_sha256": "b02577ac2eaa9aeb3c2f8c06b1c4994b0b099a566e5f0faf7df1cbe0161e771a"
+  },
+  {
+   "i": 19,
+   "start": 65.2,
+   "end": 67.36,
+   "text": " Last thing, we won the client award.",
+   "speaker": "SPEAKER_00",
+   "status": "ok",
+   "error": null,
+   "frames_sha256": "ec6c1bafe4d19eaddb4522cc1449fe09d0c3cf78a16318303e177bf43a8243f3"
+  },
+  {
+   "i": 20,
+   "start": 68.0,
+   "end": 70.88,
+   "text": " That is amazing, congratulations to everyone.",
+   "speaker": "SPEAKER_00",
+   "status": "ok",
+   "error": null,
+   "frames_sha256": "ee9d38e128c2e6f2c1e9c92baaf32ba376bd6283cbe0425df059008a213a0653"
+  },
+  {
+   "i": 21,
+   "start": 71.56,
+   "end": 74.34,
+   "text": " I didn't expect that at all, what a surprise.",
+   "speaker": "SPEAKER_01",
+   "status": "ok",
+   "error": null,
+   "frames_sha256": "35eed0e29e40d4d50e19a6ce864c43db19096f88db66e5d20d7e4ee2cc034ffb"
+  },
+  {
+   "i": 22,
+   "start": 75.24,
+   "end": 78.52,
+   "text": " Okay, that's all for today, see you next month.",
+   "speaker": "SPEAKER_00",
+   "status": "ok",
+   "error": null,
+   "frames_sha256": "37566b9eef307015e3ed5e046ab108cf1298c119492374a792d1103aa483f7e9"
+  },
+  {
+   "i": 23,
+   "start": 79.16,
+   "end": 81.3,
+   "text": " Thanks everyone, have a good week.",
+   "speaker": "SPEAKER_00",
+   "status": "ok",
+   "error": null,
+   "frames_sha256": "2c79b11ccaf455a65bab7c0e1d81930a123c9a28f659ca6ea7af0aac04095154"
+  }
+ ],
+ "result": {
+  "utterances": [
+   {
+    "start_time": 0.0,
+    "end_time": 3.34,
+    "text": " Good morning everyone, thanks for joining the monthly review.",
+    "speaker": "SPEAKER_00",
+    "emotions": [
+     {
+      "label": "joy",
+      "confidence": 0.7317326664924622
+     },
+     {
+      "label": "neutral",
+      "confidence": 0.11740072816610336
+     },
+     {
+      "label": "sadness",
+      "confidence": 0.049224548041820526
+     }
+    ],
+    "sentiments": [
+     {
+      "label": "positive",
+      "confidence": 0.7502570152282715
+     },
+     {
+      "label": "neutral",
+      "confidence": 0.21548376977443695
+     },
+     {
+      "label": "negative",
+      "confidence": 0.03425921872258186
+     }
+    ]
+   },
+   {
+    "start_time": 3.88,
+    "end_time": 8.3,
+    "text": " Thanks, I have to say I am really frustrated with the overtime this month.",
+    "speaker": "SPEAKER_01",
+    "emotions": [
+     {
+      "label": "sadness",
+      "confidence": 0.5290231108665466
+     },
+     {
+      "label": "joy",
+      "confidence": 0.1566905975341797
+     },
+     {
+      "label": "fear",
+      "confidence": 0.10765305906534195
+     }
+    ],
+    "sentiments": [
+     {
+      "label": "positive",
+      "confidence": 0.3718430995941162
+     },
+     {
+      "label": "negative",
+      "confidence": 0.3369496464729309
+     },
+     {
+      "label": "neutral",
+      "confidence": 0.2912071943283081
+     }
+    ]
+   },
+   {
+    "start_time": 8.92,
+    "end_time": 12.0,
+    "text": " I understand, let's go through the numbers first.",
+    "speaker": "SPEAKER_00",
+    "emotions": [
+     {
+      "label": "neutral",
+      "confidence": 0.6819897294044495
+     },
+     {
+      "label": "fear",
+      "confidence": 0.10423494875431061
+     },
+     {
+      "label": "joy",
+      "confidence": 0.061164986342191696
+     }
+    ],
+    "sentiments": [
+     {
+      "label": "neutral",
+      "confidence": 0.8743623495101929
+     },
+     {
+      "label": "positive",
+      "confidence": 0.06565657258033752
+     },
+     {
+      "label": "negative",
+      "confidence": 0.05998110771179199
+     }
+    ]
+   },
+   {
+    "start_time": 13.04,
+    "end_time": 15.94,
+    "text": " Sales went up by 12%, which is great news.",
+    "speaker": "SPEAKER_00",
+    "emotions": [
+     {
+      "label": "joy",
+      "confidence": 0.6496555209159851
+     },
+     {
+      "label": "neutral",
+      "confidence": 0.0876963660120964
+     },
+     {
+      "label": "sadness",
+      "confidence": 0.06153794005513191
+     }
+    ],
+    "sentiments": [
+     {
+      "label": "positive",
+      "confidence": 0.7907774448394775
+     },
+     {
+      "label": "neutral",
+      "confidence": 0.14821623265743256
+     },
+     {
+      "label": "negative",
+      "confidence": 0.061006300151348114
+     }
+    ]
+   },
+   {
+    "start_time": 16.58,
+    "end_time": 19.78,
+    "text": " That is good, but my team is exhausted and nobody noticed.",
+    "speaker": "SPEAKER_01",
+    "emotions": [
+     {
+      "label": "sadness",
+      "confidence": 0.19842267036437988
+     },
+     {
+      "label": "neutral",
+      "confidence": 0.19434642791748047
+     },
+     {
+      "label": "joy",
+      "confidence": 0.16747920215129852
+     }
+    ],
+    "sentiments": [
+     {
+      "label": "neutral",
+      "confidence": 0.42435675859451294
+     },
+     {
+      "label": "negative",
+      "confidence": 0.3346325755119324
+     },
+     {
+      "label": "positive",
+      "confidence": 0.2410106360912323
+     }
+    ]
+   },
+   {
+    "start_time": 20.54,
+    "end_time": 23.32,
+    "text": " I'm sorry to hear that, what happened exactly?",
+    "speaker": "SPEAKER_00",
+    "emotions": [
+     {
+      "label": "fear",
+      "confidence": 0.2696172297000885
+     },
+     {
+      "label": "neutral",
+      "confidence": 0.20261041820049286
+     },
+     {
+      "label": "sadness",
+      "confidence": 0.16997355222702026
+     }
+    ],
+    "sentiments": [
+     {
+      "label": "neutral",
+      "confidence": 0.48285895586013794
+     },
+     {
+      "label": "negative",
+      "confidence": 0.3042895495891571
+     },
+     {
+      "label": "positive",
+      "confidence": 0.21285146474838257
+     }
+    ]
+   },
+   {
+    "start_time": 23.96,
+    "end_time": 26.66,
+    "text": " We stayed until 10 every night for two weeks.",
+    "speaker": "SPEAKER_01",
+    "emotions": [
+     {
+      "label": "joy",
+      "confidence": 0.3381960690021515
+     },
+     {
+      "label": "sadness",
+      "confidence": 0.208743616938591
+     },
+     {
+      "label": "neutral",
+      "confidence": 0.14633430540561676
+     }
+    ],
+    "sentiments": [
+     {
+      "label": "positive",
+      "confidence": 0.4800909459590912
+     },
+     {
+      "label": "neutral",
+      "confidence": 0.3140333890914917
+     },
+     {
+      "label": "negative",
+      "confidence": 0.20587573945522308
+     }
+    ]
+   },
+   {
+    "start_time": 27.38,
+    "end_time": 29.78,
+    "text": " Wow, I had no idea it was that bad.",
+    "speaker": "SPEAKER_00",
+    "emotions": [
+     {
+      "label": "surprise",
+      "confidence": 0.32617026567459106
+     },
+     {
+      "label": "sadness",
+      "confidence": 0.1871558129787445
+     },
+     {
+      "label": "disgust",
+      "confidence": 0.15372589230537415
+     }
+    ],
+    "sentiments": [
+     {
+      "label": "positive",
+      "confidence": 0.4743829071521759
+     },
+     {
+      "label": "negative",
+      "confidence": 0.41011086106300354
+     },
+     {
+      "label": "neutral",
+      "confidence": 0.11550622433423996
+     }
+    ]
+   },
+   {
+    "start_time": 30.04,
+    "end_time": 33.02,
+    "text": " We need to fix the schedule before the next release.",
+    "speaker": "SPEAKER_00",
+    "emotions": [
+     {
+      "label": "neutral",
+      "confidence": 0.30279234051704407
+     },
+     {
+      "label": "disgust",
+      "confidence": 0.15012000501155853
+     },
+     {
+      "label": "anger",
+      "confidence": 0.144023597240448
+     }
+    ],
+    "sentiments": [
+     {
+      "label": "neutral",
+      "confidence": 0.5508059859275818
+     },
+     {
+      "label": "negative",
+      "confidence": 0.263884961605072
+     },
+     {
+      "label": "positive",
+      "confidence": 0.1853090077638626
+     }
+    ]
+   },
+   {
+    "start_time": 33.72,
+    "end_time": 36.02,
+    "text": " Honestly, I am worried people will quit.",
+    "speaker": "SPEAKER_01",
+    "emotions": [
+     {
+      "label": "sadness",
+      "confidence": 0.4491117596626282
+     },
+     {
+      "label": "disgust",
+      "confidence": 0.21324902772903442
+     },
+     {
+      "label": "anger",
+      "confidence": 0.08670773357152939
+     }
+    ],
+    "sentiments": [
+     {
+      "label": "negative",
+      "confidence": 0.579272449016571
+     },
+     {
+      "label": "neutral",
+      "confidence": 0.23850025236606598
+     },
+     {
+      "label": "positive",
+      "confidence": 0.182227224111557
+     }
+    ]
+   },
+   {
+    "start_time": 36.78,
+    "end_time": 39.12,
+    "text": " Then let's hire two more people next quarter.",
+    "speaker": "SPEAKER_00",
+    "emotions": [
+     {
+      "label": "neutral",
+      "confidence": 0.6185829639434814
+     },
+     {
+      "label": "disgust",
+      "confidence": 0.1019008532166481
+     },
+     {
+      "label": "joy",
+      "confidence": 0.0962810292840004
+     }
+    ],
+    "sentiments": [
+     {
+      "label": "neutral",
+      "confidence": 0.8065439462661743
+     },
+     {
+      "label": "positive",
+      "confidence": 0.1178634837269783
+     },
+     {
+      "label": "negative",
+      "confidence": 0.0755925104022026
+     }
+    ]
+   },
+   {
+    "start_time": 39.78,
+    "end_time": 42.7,
+    "text": " I love that idea, I will talk to finance today.",
+    "speaker": "SPEAKER_00",
+    "emotions": [
+     {
+      "label": "joy",
+      "confidence": 0.3693133294582367
+     },
+     {
+      "label": "neutral",
+      "confidence": 0.3146478533744812
+     },
+     {
+      "label": "fear",
+      "confidence": 0.10924210399389267
+     }
+    ],
+    "sentiments": [
+     {
+      "label": "neutral",
+      "confidence": 0.48728328943252563
+     },
+     {
+      "label": "positive",
+      "confidence": 0.4257734417915344
+     },
+     {
+      "label": "negative",
+      "confidence": 0.08694328367710114
+     }
+    ]
+   },
+   {
+    "start_time": 43.52,
+    "end_time": 45.46,
+    "text": " Thank you, that really helps.",
+    "speaker": "SPEAKER_01",
+    "emotions": [
+     {
+      "label": "joy",
+      "confidence": 0.5579107999801636
+     },
+     {
+      "label": "sadness",
+      "confidence": 0.13576801121234894
+     },
+     {
+      "label": "neutral",
+      "confidence": 0.10205389559268951
+     }
+    ],
+    "sentiments": [
+     {
+      "label": "positive",
+      "confidence": 0.7327137589454651
+     },
+     {
+      "label": "neutral",
+      "confidence": 0.17489966750144958
+     },
+     {
+      "label": "negative",
+      "confidence": 0.09238655865192413
+     }
+    ]
+   },
+   {
+    "start_time": 46.26,
+    "end_time": 48.86,
+    "text": " Next item, the office move is delayed again.",
+    "speaker": "SPEAKER_00",
+    "emotions": [
+     {
+      "label": "neutral",
+      "confidence": 0.47879427671432495
+     },
+     {
+      "label": "joy",
+      "confidence": 0.17560122907161713
+     },
+     {
+      "label": "fear",
+      "confidence": 0.10706142336130142
+     }
+    ],
+    "sentiments": [
+     {
+      "label": "neutral",
+      "confidence": 0.673985481262207
+     },
+     {
+      "label": "positive",
+      "confidence": 0.20670410990715027
+     },
+     {
+      "label": "negative",
+      "confidence": 0.1193104088306427
+     }
+    ]
+   },
+   {
+    "start_time": 49.44,
+    "end_time": 52.16,
+    "text": " Seriously, that is the third delay this year.",
+    "speaker": "SPEAKER_00",
+    "emotions": [
+     {
+      "label": "joy",
+      "confidence": 0.19814035296440125
+     },
+     {
+      "label": "anger",
+      "confidence": 0.1738412231206894
+     },
+     {
+      "label": "disgust",
+      "confidence": 0.165692999958992
+     }
+    ],
+    "sentiments": [
+     {
+      "label": "positive",
+      "confidence": 0.3413669168949127
+     },
+     {
+      "label": "neutral",
+      "confidence": 0.34105026721954346
+     },
+     {
+      "label": "negative",
+      "confidence": 0.31758278608322144
+     }
+    ]
+   },
+   {
+    "start_time": 52.76,
+    "end_time": 54.74,
+    "text": " The new building still has no internet.",
+    "speaker": "SPEAKER_01",
+    "emotions": [
+     {
+      "label": "neutral",
+      "confidence": 0.2844460904598236
+     },
+     {
+      "label": "disgust",
+      "confidence": 0.2814234793186188
+     },
+     {
+      "label": "sadness",
+      "confidence": 0.2050689309835434
+     }
+    ],
+    "sentiments": [
+     {
+      "label": "neutral",
+      "confidence": 0.5666477680206299
+     },
+     {
+      "label": "negative",
+      "confidence": 0.27206242084503174
+     },
+     {
+      "label": "positive",
+      "confidence": 0.161289781332016
+     }
+    ]
+   },
+   {
+    "start_time": 55.46,
+    "end_time": 58.24,
+    "text": " It's disgusting that the landlord keeps lying to us.",
+    "speaker": "SPEAKER_00",
+    "emotions": [
+     {
+      "label": "sadness",
+      "confidence": 0.24887987971305847
+     },
+     {
+      "label": "joy",
+      "confidence": 0.18717743456363678
+     },
+     {
+      "label": "neutral",
+      "confidence": 0.15570659935474396
+     }
+    ],
+    "sentiments": [
+     {
+      "label": "neutral",
+      "confidence": 0.36525464057922363
+     },
+     {
+      "label": "negative",
+      "confidence": 0.33872219920158386
+     },
+     {
+      "label": "positive",
+      "confidence": 0.2960231900215149
+     }
+    ]
+   },
+   {
+    "start_time": 58.78,
+    "end_time": 61.24,
+    "text": " Let's stay calm and send a formal complaint.",
+    "speaker": "SPEAKER_00",
+    "emotions": [
+     {
+      "label": "neutral",
+      "confidence": 0.3667515814304352
+     },
+     {
+      "label": "fear",
+      "confidence": 0.1380390077829361
+     },
+     {
+      "label": "anger",
+      "confidence": 0.13524582982063293
+     }
+    ],
+    "sentiments": [
+     {
+      "label": "neutral",
+      "confidence": 0.6300439834594727
+     },
+     {
+      "label": "negative",
+      "confidence": 0.24318142235279083
+     },
+     {
+      "label": "positive",
+      "confidence": 0.12677456438541412
+     }
+    ]
+   },
+   {
+    "start_time": 61.84,
+    "end_time": 64.5,
+    "text": " Fine, I will draft it this afternoon.",
+    "speaker": "SPEAKER_01",
+    "emotions": [
+     {
+      "label": "neutral",
+      "confidence": 0.493979275226593
+     },
+     {
+      "label": "joy",
+      "confidence": 0.15808507800102234
+     },
+     {
+      "label": "fear",
+      "confidence": 0.10636372864246368
+     }
+    ],
+    "sentiments": [
+     {
+      "label": "neutral",
+      "confidence": 0.7170337438583374
+     },
+     {
+      "label": "positive",
+      "confidence": 0.16757303476333618
+     },
+     {
+      "label": "negative",
+      "confidence": 0.11539320647716522
+     }
+    ]
+   },
+   {
+    "start_time": 65.2,
+    "end_time": 67.36,
+    "text": " Last thing, we won the client award.",
+    "speaker": "SPEAKER_00",
+    "emotions": [
+     {
+      "label": "neutral",
+      "confidence": 0.5378562211990356
+     },
+     {
+      "label": "joy",
+      "confidence": 0.14656077325344086
+     },
+     {
+      "label": "disgust",
+      "confidence": 0.1090008094906807
+     }
+    ],
+    "sentiments": [
+     {
+      "label": "neutral",
+      "confidence": 0.7358720898628235
+     },
+     {
+      "label": "positive",
+      "confidence": 0.18929485976696014
+     },
+     {
+      "label": "negative",
+      "confidence": 0.07483305782079697
+     }
+    ]
+   },
+   {
+    "start_time": 68.0,
+    "end_time": 70.88,
+    "text": " That is amazing, congratulations to everyone.",
+    "speaker": "SPEAKER_00",
+    "emotions": [
+     {
+      "label": "joy",
+      "confidence": 0.8603917360305786
+     },
+     {
+      "label": "sadness",
+      "confidence": 0.03562908247113228
+     },
+     {
+      "label": "neutral",
+      "confidence": 0.024892620742321014
+     }
+    ],
+    "sentiments": [
+     {
+      "label": "positive",
+      "confidence": 0.9271103739738464
+     },
+     {
+      "label": "neutral",
+      "confidence": 0.04774655029177666
+     },
+     {
+      "label": "negative",
+      "confidence": 0.02514301799237728
+     }
+    ]
+   },
+   {
+    "start_time": 71.56,
+    "end_time": 74.34,
+    "text": " I didn't expect that at all, what a surprise.",
+    "speaker": "SPEAKER_01",
+    "emotions": [
+     {
+      "label": "joy",
+      "confidence": 0.32210755348205566
+     },
+     {
+      "label": "surprise",
+      "confidence": 0.24413460493087769
+     },
+     {
+      "label": "sadness",
+      "confidence": 0.12565524876117706
+     }
+    ],
+    "sentiments": [
+     {
+      "label": "positive",
+      "confidence": 0.7133035659790039
+     },
+     {
+      "label": "negative",
+      "confidence": 0.20930993556976318
+     },
+     {
+      "label": "neutral",
+      "confidence": 0.07738654315471649
+     }
+    ]
+   },
+   {
+    "start_time": 75.24,
+    "end_time": 78.52,
+    "text": " Okay, that's all for today, see you next month.",
+    "speaker": "SPEAKER_00",
+    "emotions": [
+     {
+      "label": "joy",
+      "confidence": 0.42410793900489807
+     },
+     {
+      "label": "neutral",
+      "confidence": 0.337338387966156
+     },
+     {
+      "label": "fear",
+      "confidence": 0.09670374542474747
+     }
+    ],
+    "sentiments": [
+     {
+      "label": "neutral",
+      "confidence": 0.5051947832107544
+     },
+     {
+      "label": "positive",
+      "confidence": 0.439468115568161
+     },
+     {
+      "label": "negative",
+      "confidence": 0.05533703789114952
+     }
+    ]
+   },
+   {
+    "start_time": 79.16,
+    "end_time": 81.3,
+    "text": " Thanks everyone, have a good week.",
+    "speaker": "SPEAKER_00",
+    "emotions": [
+     {
+      "label": "joy",
+      "confidence": 0.738974392414093
+     },
+     {
+      "label": "neutral",
+      "confidence": 0.06496307998895645
+     },
+     {
+      "label": "sadness",
+      "confidence": 0.06333187222480774
+     }
+    ],
+    "sentiments": [
+     {
+      "label": "positive",
+      "confidence": 0.8381409049034119
+     },
+     {
+      "label": "neutral",
+      "confidence": 0.1158236414194107
+     },
+     {
+      "label": "negative",
+      "confidence": 0.04603545367717743
+     }
+    ]
+   }
+  ]
+ }
+}
